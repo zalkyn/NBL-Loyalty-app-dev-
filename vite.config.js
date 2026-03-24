@@ -35,7 +35,7 @@ if (host === "localhost") {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ isSsrBuild }) => ({
   server: {
     allowedHosts: [host],
     cors: {
@@ -51,8 +51,13 @@ export default defineConfig({
   plugins: [reactRouter(), tsconfigPaths()],
   build: {
     assetsInlineLimit: 0,
+    rollupOptions: isSsrBuild
+      ? {
+          input: "./server/app.js",
+        }
+      : undefined,
   },
   optimizeDeps: {
     include: ["@shopify/app-bridge-react"],
   },
-});
+}));
