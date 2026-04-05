@@ -1,17 +1,12 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 
 model Session {
   id                  String    @id
@@ -31,4 +26,227 @@ model Session {
   emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+
+  customers    Customer[]
+  rules        PointsRule[]
+  rewards      Reward[]
+  integrations Integration[]
+  events       Event[]
+
+  @@index([shop])
+}
+
+
+model Customer {
+  id             Int       @id @default(autoincrement())
+  shopifyId      String    @unique
+  name           String?
+  email          String    @unique
+  points         Int       @default(0)
+  orders         Int       @default(0)
+  lifetimePoints Int       @default(0)
+  referralCode   String    @unique
+  birthday       DateTime?
+  isBlocked      Boolean   @default(false)
+  activeStatus   String    @default("ACTIVE")
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+  enrolledAt     DateTime  @default(now())
+
+  transactions  PointsTransaction[]
+  referralsSent Referral[]          @relation("Referrer")
+  referralsUsed Referral[]          @relation("Referred")
+  activities    ActivityLog[]
+  rewards       CustomerReward[]
+
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+
+  @@index([email])
+  @@index([sessionId])
+}
+
+
+model Event {
+  id          Int      @id @default(autoincrement())
+  shop        String
+  type        String // ORDER, REFERRAL, BIRTHDAY, REVIEW, SIGNUP, etc.
+  name        String? // "Birthday Bonus", "Referral Bonus", "Order Points", etc.
+  description String?  @db.Text
+  metadata    Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  session   Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String?
+
+  pointsRule         PointsRule?
+  pointsTransactions PointsTransaction[]
+
+  @@unique([sessionId, type])
+  @@unique([shop, type])
+  @@index([shop])
+  @@index([type])
+  @@index([isActive])
+}
+
+
+model PointsRule {
+  id Int @id @default(autoincrement())
+
+  name        String?
+  description String?   @db.Text
+  minAmount   Float?
+  points      Int?
+  multiplier  Float?
+  priority    Int       @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  conditions  Json?
+  isActive    Boolean   @default(true)
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId Int   @unique
+
+  @@index([sessionId])
+  @@index([isActive])
+  @@index([priority])
+}
+
+
+model PointsTransaction {
+  id           Int       @id @default(autoincrement())
+  customerId   Int
+  type         String // EARN, REDEEM, EXPIRE, ADJUST.
+  points       Int
+  balanceAfter Int
+  eventId      Int?
+  referenceId  String?
+  expiresAt    DateTime?
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  event    Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([customerId, createdAt])
+  @@index([referenceId])
+  @@index([expiresAt])
+}
+
+
+model Referral {
+  id          Int      @id @default(autoincrement())
+  referrerId  Int
+  referredId  Int
+  orderId     String?
+  status      String // PENDING, COMPLETED, CANCELLED
+  rewardGiven Boolean  @default(false)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  referrer Customer @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred Customer @relation("Referred", fields: [referredId], references: [id], onDelete: Cascade)
+
+  @@index([referrerId])
+  @@index([referredId])
+  @@index([status])
+}
+
+
+model Reward {
+  id           Int       @id @default(autoincrement())
+  title        String
+  description  String?
+  pointsCost   Int
+  rewardType   String // percentage_discount, fixed_amount_discount, free_shipping, product_discount, etc.
+  rewardValue  Float?
+  couponPrefix String?
+  usageLimit   Int?
+  usagePerUser Int?
+  isAutoApply  Boolean   @default(false)
+  startDate    DateTime?
+  endDate      DateTime?
+  priority     Int       @default(0)
+  conditions   Json?
+  isActive     Boolean   @default(true)
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  session         Session          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId       String
+  customerRewards CustomerReward[]
+}
+
+
+model CustomerReward {
+  id         Int       @id @default(autoincrement())
+  rewardId   Int
+  customerId Int
+  code       String    @unique
+  usedAt     DateTime?
+  expiresAt  DateTime?
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+
+  reward   Reward   @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([rewardId])
+  @@index([expiresAt])
+}
+
+
+model Integration {
+  id            Int      @id @default(autoincrement())
+  provider      String
+  type          String
+  apiKey        String?
+  webhookSecret String?
+  config        Json
+  isActive      Boolean  @default(true)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+
+  @@unique([sessionId, provider])
+}
+
+
+model ActivityLog {
+  id           Int      @id @default(autoincrement())
+  customerId   Int
+  activityType String
+  source       String
+  points       Int?
+  status       String
+  referenceId  String?
+  ip           String?
+  userAgent    String?
+  device       String?
+  metadata     Json?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  location     String?
+  channel      String?
+  campaignId   String?
+  connectorId  Int?
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([customerId, createdAt])
 }

@@ -1,4 +1,5 @@
 import { reactRouter } from "@react-router/dev/vite";
+import path from "path";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
@@ -53,11 +54,26 @@ export default defineConfig(({ isSsrBuild }) => ({
     assetsInlineLimit: 0,
     rollupOptions: isSsrBuild
       ? {
-          input: "./server/app.js",
-        }
+        input: "./server/app.js",
+      }
       : undefined,
   },
   optimizeDeps: {
     include: ["@shopify/app-bridge-react"],
   },
+  resolve: {
+    alias: {
+      'shopify-server': path.resolve(__dirname, './app/shopify.server.js'),
+      'db-server': path.resolve(__dirname, './app/db.server.js'),
+      '@app': path.resolve(__dirname, './app'),
+      'app': path.resolve(__dirname, './app'),
+      'db-server.js': path.resolve(__dirname, './app/db.server.js'),
+      '@components': path.resolve(__dirname, './app/components'),
+      '@atoms': path.resolve(__dirname, './app/atoms'),
+      '@controller': path.resolve(__dirname, './app/controller'),
+      '@graphql': path.resolve(__dirname, './app/graphql'),
+      '@routes': path.resolve(__dirname, './app/routes'),
+      '@utils': path.resolve(__dirname, './app/utils'),
+    }
+  }
 }));
