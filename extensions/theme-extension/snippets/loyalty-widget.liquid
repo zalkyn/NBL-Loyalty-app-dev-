@@ -1,0 +1,29 @@
+{% comment %} Loyalty Widget Snippet {% endcomment %}
+
+<div class="nbl-widget-container-v1">
+  <div class="nbl-widget-wrapper-v1">
+    <div class="nbl-widget-header-v1">
+      <h3 class="nbl-widget-title-v1">Introducing NB Loyalty Points</h3>
+    </div>
+    <div class="nbl-widget-body-v1">
+      <div class="nbl-widget-main-content-v1">
+        <p>
+          Earn points for every purchase and redeem them for exciting rewards! Join NB Loyalty today and start enjoying
+          exclusive benefits.
+        </p>
+        <ul>
+          <li>Earn 1 point for every $1 spent</li>
+          <li>Redeem points for discounts, free products, and more</li>
+          <li>Exclusive offers and early access to sales</li>
+        </ul>
+        <a class="nbl-widget-cta-v1" href="{{ routes.account_url }}">Join Now</a>
+        <div>
+          {{ shop.metafields.nbl_config_v1.app.value | json }}
+          <pre>{{ shop.metafields.nbl_config_v1.app.value | json }}</pre>
+          <hr>
+          {{ customer.metafields.app.nbl_customer_v1.value | json }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

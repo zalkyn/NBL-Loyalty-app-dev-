@@ -1,8 +1,50 @@
 import prisma from "db-server";
+import { logger } from "app/utils/logger";
 
-// ====================== SERVICE FUNCTION ======================
-export async function createPointsTransaction(input, session) {
-    console.log("Creating Points Transaction with input:", JSON.stringify(input, null, 2));
+
+
+/**
+ * Creates a points transaction for a customer and updates their balance.
+ *
+ * This function performs the following operations inside a database transaction:
+ * - Validates the customer and session ownership
+ * - Calculates new points balance and lifetime points
+ * - Creates a points transaction record
+ * - Updates the customer's points balance
+ * - Logs the activity
+ *
+ * @async
+ * @function createPointsTransaction
+ *
+ * @param {Object} input - Transaction input data
+ * @param {Int} input.customerId - Unique ID of the customer
+ * @param {"EARN"|"REDEEM"|"ADJUST"|"EXPIRE"} input.type - Type of transaction
+ * @param {number|string} input.points - Number of points to add or deduct
+ * @param {string} [input.reason] - Reason for the transaction (optional)
+ * @param {string} [input.eventId] - Related event ID (optional)
+ * @param {Date|string} [input.expiresAt] - Expiration date of points (optional)
+ * @param {Object} [input.metadata] - Additional metadata (optional)
+ *
+ * @param {Object} session - Current session object
+ * @param {string} session.id - Session ID used to validate shop ownership
+ *
+ * @returns {Promise<Object|undefined>} Returns the created points transaction object including:
+ * @returns {string} returns.id - Transaction ID
+ * @returns {string} returns.customerId - Customer ID
+ * @returns {"EARN"|"REDEEM"|"ADJUST"|"EXPIRE"} returns.type - Transaction type
+ * @returns {number} returns.points - Points added or deducted
+ * @returns {number} returns.balanceAfter - Customer balance after transaction
+ * @returns {string|null} returns.reason - Reason for transaction
+ * @returns {string|null} returns.eventId - Associated event ID
+ * @returns {Date|null} returns.expiresAt - Expiry date of points
+ * @returns {Object} returns.metadata - Additional metadata
+ * @returns {Object} returns.customer - Related customer object
+ * @returns {Object|null} returns.event - Related event object
+ *
+ * @throws {Error} Throws error if customer not found or unauthorized access
+ */
+
+export default async function createPointsTransaction(input, session,) {
     try {
         return await prisma.$transaction(async (tx) => {
             const customer = await tx.customer.findUnique({
@@ -19,8 +61,15 @@ export async function createPointsTransaction(input, session) {
                 throw new Error("Unauthorized: Customer does not belong to this shop");
             }
 
-            const currentBalance = customer.points;
-            const newBalance = Math.max(0, currentBalance + input.points);
+            let newBalance;
+            let lifeTimePoints = customer.lifetimePoints;
+
+            if (input.type === "REDEEM") {
+                newBalance = Math.max(0, customer.points - Number(input.points));
+            } else {
+                newBalance = customer.points + Number(input.points);
+                lifeTimePoints += Number(input.points);
+            }
 
             // Create Points Transaction
             const transaction = await tx.pointsTransaction.create({
@@ -29,8 +78,8 @@ export async function createPointsTransaction(input, session) {
                     type: input.type,
                     points: input.points,
                     balanceAfter: newBalance,
+                    reason: input.reason,
                     eventId: input.eventId || null,
-                    referenceId: input.referenceId || null,
                     expiresAt: input.expiresAt || null,
                     metadata: input.metadata || {},
                 },
@@ -45,9 +94,7 @@ export async function createPointsTransaction(input, session) {
                 where: { id: input.customerId },
                 data: {
                     points: newBalance,
-                    ...(input.type === "EARN" && {
-                        lifetimePoints: { increment: input.points }
-                    })
+                    lifetimePoints: lifeTimePoints,
                 }
             });
 
@@ -56,7 +103,7 @@ export async function createPointsTransaction(input, session) {
                 data: {
                     customerId: input.customerId,
                     activityType: `${input.type}_POINTS`,
-                    source: input.type === "ADJUST" ? "ADMIN" : "SYSTEM",
+                    source: input.type === "ADJUST" ? input.reason : "SYSTEM",
                     points: input.points,
                     status: "SUCCESS",
                     referenceId: input.referenceId,
@@ -67,6 +114,9 @@ export async function createPointsTransaction(input, session) {
             return transaction;
         });
     } catch (error) {
-        console.error("Create Points Transaction Error:", error);
+        logger.error("Create Points Transaction Error:", {
+            message: error?.message,
+            module: "controller/createPointTransaction.js"
+        });
     }
 }

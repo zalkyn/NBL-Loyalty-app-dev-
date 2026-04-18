@@ -7,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model Session {
   id                  String    @id
   shop                String    @unique
@@ -36,7 +35,6 @@ model Session {
   @@index([shop])
 }
 
-
 model Customer {
   id             Int       @id @default(autoincrement())
   shopifyId      String    @unique
@@ -55,7 +53,7 @@ model Customer {
 
   transactions  PointsTransaction[]
   referralsSent Referral[]          @relation("Referrer")
-  referralsUsed Referral[]          @relation("Referred")
+  referralsUsed Referral?           @relation("Referred")
   activities    ActivityLog[]
   rewards       CustomerReward[]
 
@@ -65,7 +63,6 @@ model Customer {
   @@index([email])
   @@index([sessionId])
 }
-
 
 model Event {
   id          Int      @id @default(autoincrement())
@@ -91,15 +88,11 @@ model Event {
   @@index([isActive])
 }
 
-
 model PointsRule {
   id Int @id @default(autoincrement())
 
   name        String?
   description String?   @db.Text
-  minAmount   Float?
-  points      Int?
-  multiplier  Float?
   priority    Int       @default(0)
   startDate   DateTime?
   endDate     DateTime?
@@ -115,11 +108,12 @@ model PointsRule {
   event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   eventId Int   @unique
 
+  transactions PointsTransaction[]
+
   @@index([sessionId])
   @@index([isActive])
   @@index([priority])
 }
-
 
 model PointsTransaction {
   id           Int       @id @default(autoincrement())
@@ -128,39 +122,42 @@ model PointsTransaction {
   points       Int
   balanceAfter Int
   eventId      Int?
-  referenceId  String?
   expiresAt    DateTime?
+  reason       String?   @db.Text
   metadata     Json?
   createdAt    DateTime  @default(now())
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  event    Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  customer     Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  event        Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  pointsRule   PointsRule? @relation(fields: [pointsRuleId], references: [id])
+  pointsRuleId Int?
 
   @@index([customerId])
   @@index([customerId, createdAt])
-  @@index([referenceId])
   @@index([expiresAt])
 }
 
-
 model Referral {
-  id          Int      @id @default(autoincrement())
-  referrerId  Int
-  referredId  Int
-  orderId     String?
-  status      String // PENDING, COMPLETED, CANCELLED
-  rewardGiven Boolean  @default(false)
-  metadata    Json?
-  createdAt   DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  referrerId   Int //  The customer who refers others (earns rewards/points)
+  referredId   Int //  The customer who is referred (can receive referral discount only once)
+  orderId      String?
+  status       String // PENDING, COMPLETED, CANCELLED
+  discountCode String?
+  discountInfo String?  @db.Text
+  discountUsed Boolean  @default(false)
+  rewardGiven  Boolean  @default(false)
+  metadata     Json?
+  createdAt    DateTime @default(now())
 
   referrer Customer @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
   referred Customer @relation("Referred", fields: [referredId], references: [id], onDelete: Cascade)
 
+  @@unique([referredId]) // Ensures a customer can only be referred once (one-time discount eligibility)
   @@index([referrerId])
   @@index([referredId])
   @@index([status])
 }
-
 
 model Reward {
   id           Int       @id @default(autoincrement())
@@ -187,7 +184,6 @@ model Reward {
   customerRewards CustomerReward[]
 }
 
-
 model CustomerReward {
   id         Int       @id @default(autoincrement())
   rewardId   Int
@@ -206,7 +202,6 @@ model CustomerReward {
   @@index([expiresAt])
 }
 
-
 model Integration {
   id            Int      @id @default(autoincrement())
   provider      String
@@ -223,7 +218,6 @@ model Integration {
 
   @@unique([sessionId, provider])
 }
-
 
 model ActivityLog {
   id           Int      @id @default(autoincrement())

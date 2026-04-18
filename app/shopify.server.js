@@ -6,6 +6,7 @@ import {
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server.js";
+import afterAuthSetup from "./controller/afterAuthSetup.js";
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -16,6 +17,15 @@ const shopify = shopifyApp({
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
+  hooks: {
+    afterAuth: async ({ session, admin }) => {
+      try {
+        afterAuthSetup({ session, admin });
+      } catch (error) {
+        console.error("## Error in afterAuth hook:", error);
+      }
+    }
+  },
   future: {
     expiringOfflineAccessTokens: true,
   },

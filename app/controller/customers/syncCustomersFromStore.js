@@ -1,7 +1,8 @@
 
-import prisma from "../../db.server";
-import generateReferralCode from "../../utils/generateReferralCode";
+// import prisma from "../../db.server";
+// import generateReferralCode from "../../utils/generateReferralCode";
 import customers from "../../graphql/query/customers";
+import { storeCustomer } from "./store";
 
 export default async function syncAllCustomerFromStore(admin, session) {
     try {
@@ -14,25 +15,7 @@ export default async function syncAllCustomerFromStore(admin, session) {
         const allCustomers = response?.customers?.nodes || [];
 
         for (const customer of allCustomers) {
-            await prisma.customer.upsert({
-                where: {
-                    shopifyId: String(customer.id),
-                },
-                update: {
-                    name: `${customer.firstName || ""} ${customer.lastName || ""}`.trim(),
-                    email: customer?.defaultEmailAddress?.emailAddress || "N/A",
-                    shopifyId: String(customer.id),
-                    metadata: customer,
-                },
-                create: {
-                    shopifyId: String(customer.id),
-                    name: `${customer.firstName || ""} ${customer.lastName || ""}`.trim(),
-                    email: customer?.defaultEmailAddress?.emailAddress || "N/A",
-                    referralCode: generateReferralCode(),
-                    sessionId: session.id,
-                    metadata: customer,
-                },
-            });
+            await storeCustomer(session, customer)
         }
 
         return { message: "Customers synced successfully", customers: customers };

@@ -5,13 +5,22 @@ import { authenticate } from "shopify-server"
 import prisma from "db-server"
 
 import { useAtom } from "jotai";
-import { loaderDataAtom, actionDataAtom, toggleAtom } from "@atoms/pointsRule";
+import {
+    loaderDataAtom,
+    actionDataAtom,
+    toggleAtom,
+    actionTypeAtom,
+    conditionsAtom,
+    newRuleAtom,
+    emptyNewRule,
+    emptyConditions,
+    loadingButtonAtom
+} from "@atoms/pointsRule";
 
 
-import CreatePointsRule from "@components/pointsRule/create";
+import RulesForm from "@components/pointsRule/rulesForm";
 import ShowPointsRule from "@components/pointsRule/show";
-import DeletePointsRule from "@components/pointsRule/delete";
-import EditPointsRule from "@components/pointsRule/edit";
+import DeletePointsRule from "@components/pointsRule/deleteModal";
 
 // ====================== LOADER ======================
 export const loader = async ({ request }) => {
@@ -46,6 +55,7 @@ export const action = async ({ request }) => {
     // ---------- CREATE ----------
     if (submitType === "addRule") {
         const newRule = JSON.parse(formData.get("rule")) || {};
+        const conditions = JSON.parse(formData.get("conditions") || {});
 
         if (!newRule.eventId) return { message: "Please select a Points event.", status: "error", submitType };
 
@@ -59,17 +69,14 @@ export const action = async ({ request }) => {
                 data: {
                     name: newRule.name || null,
                     description: newRule.description || null,
-                    points: newRule.points ? parseInt(newRule.points) : null,
-                    multiplier: newRule.multiplier ? parseFloat(newRule.multiplier) : null,
-                    minAmount: newRule.minAmount ? parseFloat(newRule.minAmount) : null,
                     priority: newRule.priority ? parseInt(newRule.priority) : 0,
                     startDate: newRule.startDate ? new Date(newRule.startDate) : null,
                     endDate: newRule.endDate ? new Date(newRule.endDate) : null,
-                    conditions: newRule.conditions ? JSON.parse(newRule.conditions) : null,
                     metadata: newRule.metadata ? JSON.parse(newRule.metadata) : null,
                     isActive: newRule.isActive ?? true,
                     session: { connect: { id: session.id } },
                     event: { connect: { id: parseInt(newRule.eventId) } },
+                    conditions: conditions
                 },
             });
 
@@ -83,6 +90,7 @@ export const action = async ({ request }) => {
     // ---------- UPDATE ----------
     else if (submitType === "updateRule") {
         const updatedRule = JSON.parse(formData.get("rule")) || {};
+        const conditions = JSON.parse(formData.get("conditions") || {});
         if (!updatedRule.id || !updatedRule.eventId) return { message: "Rule ID and Points event are required.", status: "error", submitType };
 
         try {
@@ -99,13 +107,10 @@ export const action = async ({ request }) => {
                 data: {
                     name: updatedRule.name || null,
                     description: updatedRule.description || null,
-                    points: updatedRule.points ? parseInt(updatedRule.points) : null,
-                    multiplier: updatedRule.multiplier ? parseFloat(updatedRule.multiplier) : null,
-                    minAmount: updatedRule.minAmount ? parseFloat(updatedRule.minAmount) : null,
                     priority: updatedRule.priority ? parseInt(updatedRule.priority) : 0,
                     startDate: updatedRule.startDate ? new Date(updatedRule.startDate) : null,
                     endDate: updatedRule.endDate ? new Date(updatedRule.endDate) : null,
-                    conditions: updatedRule.conditions ? JSON.parse(updatedRule.conditions) : null,
+                    conditions: conditions || null,
                     metadata: updatedRule.metadata ? JSON.parse(updatedRule.metadata) : null,
                     isActive: updatedRule.isActive ?? true,
                     event: { connect: { id: parseInt(updatedRule.eventId) } },
@@ -149,8 +154,12 @@ export default function PointsRule() {
     const __loaderData = useLoaderData();
 
     const [loaderData, setLoaderData] = useAtom(loaderDataAtom);
-    const [actionData, setActionData] = useAtom(actionDataAtom);
+    const [, setActionData] = useAtom(actionDataAtom);
     const [toggle, setToggle] = useAtom(toggleAtom);
+    const [actionType, setActionType] = useAtom(actionTypeAtom);
+    const [conditions, setConditions] = useAtom(conditionsAtom);
+    const [newRule, setNewRule] = useAtom(newRuleAtom);
+    const [loadingButton, setLoadingButton] = useAtom(loadingButtonAtom);
 
     useEffect(() => {
         setLoaderData(__loaderData)
@@ -160,7 +169,14 @@ export default function PointsRule() {
         setActionData(__actionData);
     }, [__actionData]);
 
+    useEffect(() => {
+        console.log("conditions=====", conditions)
+    }, [conditions])
+
     const handleToggleAddRule = () => {
+        setActionType('create')
+        setNewRule(emptyNewRule)
+        setConditions(emptyConditions)
         setToggle(prev => {
             return {
                 ...prev, addRule: !prev.addRule
@@ -168,36 +184,102 @@ export default function PointsRule() {
         })
     };
 
+    const getEvent = (eventId) => {
+        const event = loaderData?.events?.find(s => s.id === parseInt(eventId));
+        return event
+    };
+
+
+    const pageHeading = () => {
+        if (actionType === 'create') {
+            return 'Create New Rule'
+        } else if (actionType === 'edit') {
+            return 'Rules > ' + getEvent(newRule?.eventId)?.type
+        } else {
+            return 'Manage event rules'
+        }
+    }
+
+    const handleValidation = (rule) => {
+        if (!rule?.eventId) { shopify.toast.show("Please select a Points event."); return false; }
+        if (rule.points && parseInt(rule.points) < 0) { shopify.toast.show("Points cannot be negative."); return false; }
+        if (rule.multiplier && parseFloat(rule.multiplier) <= 0) { shopify.toast.show("Multiplier must be > 0."); return false; }
+        return true;
+    };
+
+    const handleSaveRule = () => {
+        if (!handleValidation(newRule)) return;
+        setLoadingButton(prev => ({ ...prev, addRule: true }));
+        const _conditions = conditions || null;
+
+        submit({
+            submitType: "addRule",
+            rule: JSON.stringify(newRule),
+            conditions: JSON.stringify(_conditions)
+        }, { method: "post" });
+    };
+
+    const handleUpdateRule = () => {
+        if (!handleValidation(newRule)) return;
+        setLoadingButton(prev => ({ ...prev, updateRule: true }));
+        const _conditions = conditions || null;
+        submit({
+            submitType: "updateRule",
+            rule: JSON.stringify(newRule),
+            conditions: JSON.stringify(_conditions)
+        }, { method: "post" });
+    };
+
+
 
     return (
         <s-page inlineSize="base">
             {/* HEADER */}
             <s-section>
+                {/* <pre>{JSON.stringify(conditions, null, 2)}</pre> */}
                 <s-grid gridTemplateColumns="1fr auto" gap="large" alignItems="center">
-                    <h2 style={{ marginBlock: "0" }}>Points Rules Management</h2>
-                    <s-button
-                        onClick={handleToggleAddRule}
-                        icon={toggle.addRule ? "minus" : "plus"}
-                        variant={toggle.addRule ? "auto" : "primary"}
-                    >
-                        {toggle.addRule ? "Cancel" : "Add New Rule"}
-                    </s-button>
+                    <h2 style={{ marginBlock: "0" }}>
+                        {pageHeading()}
+                    </h2>
+                    <s-stack direction="inline" gap="base" alignItems="center">
+                        <s-button
+                            onClick={handleToggleAddRule}
+                        >
+                            {toggle.addRule ? "Cancel" : "Add New Rule"}
+                        </s-button>
+                        {toggle?.addRule && <s-box>
+                            {actionType === 'create' ?
+                                <s-button
+                                    variant="primary"
+                                    onClick={() => handleSaveRule()}
+                                    disabled={loadingButton.addRule || !newRule.eventId}
+                                    loading={loadingButton.addRule}
+                                >
+                                    Save Rule
+                                </s-button> :
+                                <s-button
+                                    variant="primary"
+                                    onClick={() => handleUpdateRule()}
+                                    disabled={!newRule.eventId}
+                                    loading={loadingButton.addRule || loadingButton?.editRule}
+                                >
+                                    Update Rule
+                                </s-button>
+                            }
+                        </s-box>}
+                    </s-stack>
                 </s-grid>
             </s-section>
 
-            {/* ADD FORM */}
-            <CreatePointsRule />
+            {/* Rule Form */}
+            <RulesForm />
 
 
-            {/* TABLE */}
+            {/* View TABLE */}
             <ShowPointsRule />
 
             {/* DELETE MODAL */}
             <DeletePointsRule />
-
-
-            {/* EDIT MODAL */}
-            <EditPointsRule />
         </s-page>
     );
 }

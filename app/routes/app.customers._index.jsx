@@ -4,6 +4,8 @@ import prisma from "../db.server";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import syncAllCustomerFromStore from "../controller/customers/syncCustomersFromStore";
 import { useEffect, useState } from "react";
+import AddPointsModal from "app/components/customers/addPointsModal";
+import { syncCustomersConfig } from "@controller/metafieldsSync/syncCustomerConfig"
 
 export const loader = async ({ request }) => {
     const { admin, session } = await authenticate.admin(request);
@@ -24,6 +26,7 @@ export const action = async ({ request }) => {
 
     if (submitType === "sync-customers") {
         const response = await syncAllCustomerFromStore(admin, session);
+        await syncCustomersConfig(admin)
         return Response.json({ message: response?.message || "Sync completed" });
     }
 }
@@ -105,7 +108,7 @@ export default function Customers() {
                                 <s-text>{customer.email || "N/A"}</s-text>
                             </s-table-cell>
                             <s-table-cell>{customer.activities || 0}</s-table-cell>
-                            <s-table-cell>{customer.points}</s-table-cell>
+                            <s-table-cell>{customer?.points}</s-table-cell>
                             <s-table-cell>{customer.rewards || 0}</s-table-cell>
                             <s-table-cell>{customer.enrolledAt?.toDateString()}</s-table-cell>
                             <s-table-cell>

@@ -1,0 +1,93 @@
+{% comment %} Loyalty CSS {% endcomment %}
+
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  .nbl-wo-wrapper-v1 {
+    position: fixed;
+    right: 15px;
+    bottom: 35px;
+    display: block;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .nbl-widget-open-btn-v1 {
+    font-size: 15px;
+    background: green;
+    border: none;
+    padding: 15px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: white;
+  }
+
+  .nbl-widget-container-v1 {
+    position: fixed;
+    bottom: 100px;
+    right: 15px;
+    background: white;
+    height: 500px;
+    width: 400px;
+    border-radius: 8px;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    z-index: 1000000002;
+    box-shadow: rgb(153, 153, 153) 2px 2px 15px;
+    overflow: hidden;
+    scale: 0;
+    transform-origin: bottom right;
+  }
+  .nbl-widget-container-v1.open {
+    scale: 1;
+    transition: 0.3s;
+  }
+
+  .nbl-widget-wrapper-v1 {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    height: 100%;
+  }
+
+  .nbl-widget-header-v1 {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 65px;
+    background: cyan;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding: 10px 15px;
+
+    position: sticky;
+    top: 0;
+  }
+  .nbl-widget-title-v1 {
+    margin: 0;
+    font-size: 17px;
+    color: darkgreen;
+  }
+
+  .nbl-widget-body-v1 {
+    box-sizing: border-box;
+    padding: 10px 15px;
+  }
+
+  .nbl-widget-cta-v1 {
+    display: block;
+    text-decoration: none;
+    padding: 5px 20px;
+    margin: 0;
+    background: green;
+    color: white;
+    width: max-content;
+    font-size: 15px;
+    cursor: pointer;
+    border-radius: 5px;
+    margin-top: 45px;
+  }
+</style>

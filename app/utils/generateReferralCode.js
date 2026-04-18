@@ -1,3 +1,4 @@
 export default function generateReferralCode() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
+    const code = Math.random().toString(36).substring(2, 9).toUpperCase();
+    return "NBL_" + code;
 }

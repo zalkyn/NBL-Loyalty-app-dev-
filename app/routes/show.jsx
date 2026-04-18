@@ -72,6 +72,9 @@ export default function ShowPointsRule() {
                                         size="small"
                                         icon="edit"
                                         onClick={() => handleToggleAddRule(rule)}
+                                    // onClick={() => setSelectedRule({ ...rule })}
+                                    // commandFor="edit-modal"
+                                    // command="--show"
                                     />
                                     <s-button
                                         variant="text"

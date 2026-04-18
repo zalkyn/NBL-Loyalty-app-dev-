@@ -1,0 +1,43 @@
+<script defer>
+  window.NBL_v1 = window.NBL_v1 || {};
+  NBL_v1.appConfig = {{ shop.metafields.app.nbl_config_v1.value | json }};
+  window.NBL_v1.customer = {
+    id: {{ customer.id | json }},
+    email: {{ customer.email | json }},
+    first_name: {{ customer.first_name | json }},
+    last_name: {{ customer.last_name | json }},
+    config: {{ customer.metafields.app.nbl_customer_config_v1.value | json }}
+  };
+  NBL_v1.routes = {
+    account_url: "{{ routes.account_url }}",
+    login_url: "{{ routes.login_url }}",
+    logout_url: "{{ routes.logout_url }}",
+    register_url: "{{ routes.register_url }}"
+  };
+</script>
+
+{{ 'loyalty-global.css' | asset_url | stylesheet_tag }}
+
+<script src="{{ 'loyalty-event-bus.js' | asset_url }}" defer></script>
+<script src="{{ 'loyalty-ui-events.js' | asset_url }}" defer></script>
+<script src="{{ 'loyalty-global.js' | asset_url }}" defer></script>
+<script src="{{ 'loyalty-referral-modal.js' | asset_url }}" defer></script>
+<script src="{{ 'loyalty-widgets.js' | asset_url }}" defer></script>
+
+{% liquid
+  # style render
+  render 'loyalty-css'
+  render 'loyalty-referral-modal-css'
+  # ui render
+  render 'loyalty-refer-modal'
+  render 'loyalty-button'
+  render 'loyalty-widget'
+%}
+
+{% schema %}
+{
+  "name": "NB Loyalty",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}
