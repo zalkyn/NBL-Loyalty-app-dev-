@@ -1,4 +1,3 @@
-import { useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect } from "react";
 import { useActionData, useLoaderData, useSubmit } from "react-router";
 import { authenticate } from "shopify-server"
@@ -21,6 +20,8 @@ import {
 import RulesForm from "@components/pointsRule/rulesForm";
 import ShowPointsRule from "@components/pointsRule/show";
 import DeletePointsRule from "@components/pointsRule/deleteModal";
+
+import syncAppConfig from "@controller/metafieldsSync/syncAppConfig"
 
 // ====================== LOADER ======================
 export const loader = async ({ request }) => {
@@ -48,7 +49,7 @@ export const loader = async ({ request }) => {
 
 // ====================== ACTION ======================
 export const action = async ({ request }) => {
-    const { session } = await authenticate.admin(request);
+    const { session, admin } = await authenticate.admin(request);
     const formData = await request.formData();
     const submitType = formData.get("submitType");
 
@@ -79,6 +80,8 @@ export const action = async ({ request }) => {
                     conditions: conditions
                 },
             });
+
+            await syncAppConfig(admin);
 
             return { message: "Points rule created successfully.", rule: createdRule, status: "success", submitType };
         } catch (error) {
@@ -118,6 +121,8 @@ export const action = async ({ request }) => {
                 },
             });
 
+            await syncAppConfig(admin);
+
             return { message: "Points rule updated successfully.", rule, status: "success", submitType };
         } catch (error) {
             console.error("Update Rule Error:", error);
@@ -135,6 +140,9 @@ export const action = async ({ request }) => {
             if (!rule || rule.sessionId !== session.id) throw new Error("Rule not found");
 
             await prisma.pointsRule.delete({ where: { id: ruleId } });
+
+            await syncAppConfig(admin);
+
             return { message: "Points rule deleted successfully.", status: "success", submitType };
         } catch (error) {
             console.error("Delete Rule Error:", error);
@@ -147,8 +155,6 @@ export const action = async ({ request }) => {
 
 export default function PointsRule() {
     const submit = useSubmit();
-    const shopify = useAppBridge();
-
 
     const __actionData = useActionData();
     const __loaderData = useLoaderData();
@@ -168,10 +174,6 @@ export default function PointsRule() {
     useEffect(() => {
         setActionData(__actionData);
     }, [__actionData]);
-
-    useEffect(() => {
-        console.log("conditions=====", conditions)
-    }, [conditions])
 
     const handleToggleAddRule = () => {
         setActionType('create')

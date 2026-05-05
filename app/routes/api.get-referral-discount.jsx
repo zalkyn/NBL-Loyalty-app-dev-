@@ -70,9 +70,6 @@ export async function action({ request }) {
             getReferred(customerId)
         ]);
 
-        logger.info("referrer", referrer)
-        logger.info("referred", referred)
-
         validateCustomers(referrer, referred);
 
         // ---------- Prevent Self Referral ----------

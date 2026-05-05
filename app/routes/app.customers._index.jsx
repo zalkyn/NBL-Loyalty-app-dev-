@@ -13,6 +13,10 @@ export const loader = async ({ request }) => {
         where: {
             sessionId: session.id,
         },
+        include: {
+            rewards: true,
+            activities: true
+        }
     });
 
     return { customers, session };
@@ -107,9 +111,9 @@ export default function Customers() {
                                 <s-box />
                                 <s-text>{customer.email || "N/A"}</s-text>
                             </s-table-cell>
-                            <s-table-cell>{customer.activities || 0}</s-table-cell>
+                            <s-table-cell>{customer.activities?.length || 0}</s-table-cell>
                             <s-table-cell>{customer?.points}</s-table-cell>
-                            <s-table-cell>{customer.rewards || 0}</s-table-cell>
+                            <s-table-cell>{customer.rewards?.length || 0}</s-table-cell>
                             <s-table-cell>{customer.enrolledAt?.toDateString()}</s-table-cell>
                             <s-table-cell>
                                 <s-button variant="text" href={`/app/customers/${customer.id}`}>Details</s-button>

@@ -1,24 +1,124 @@
-<script defer>
-  window.NBL_v1 = window.NBL_v1 || {};
-  NBL_v1.appConfig = {{ shop.metafields.app.nbl_config_v1.value | json }};
-  window.NBL_v1.customer = {
-    id: {{ customer.id | json }},
-    email: {{ customer.email | json }},
-    first_name: {{ customer.first_name | json }},
-    last_name: {{ customer.last_name | json }},
-    config: {{ customer.metafields.app.nbl_customer_config_v1.value | json }}
-  };
-  NBL_v1.routes = {
-    account_url: "{{ routes.account_url }}",
-    login_url: "{{ routes.login_url }}",
-    logout_url: "{{ routes.logout_url }}",
-    register_url: "{{ routes.register_url }}"
-  };
+<script defer="defer">
+    // Loyalty global object
+    window.NBL_v1 = window.NBL_v1 || {};
+    NBL_v1.appConfig = {{ shop.metafields.app.nbl_config_v1.value | json }};
+
+    // Loyalty Customer config
+    window.NBL_v1.customer = {
+      id: {{ customer.id | json }},
+      email: {{ customer.email | json }},
+      first_name: {{ customer.first_name | json }},
+      last_name: {{ customer.last_name | json }},
+      config: {{ customer.metafields.app.nbl_customer_v1.value | json }}
+    };
+
+    if(NBL_v1.customer?.config?.points) {
+        NBL_v1.points = NBL_v1.customer.config.points || 0;
+    }
+
+    // Loyalty routes
+    NBL_v1.routes = {
+      account_url: "{{ routes.account_url }}",
+      login_url: "{{ routes.login_url }}",
+      logout_url: "{{ routes.logout_url }}",
+      register_url: "{{ routes.register_url }}"
+    };
+
+    NBL_v1.tab = NBL_v1.tab || {};
+    NBL_v1.uiRender = NBL_v1.uiRender || {};
+
+    // Loyalty Event Bus
+    class NBLEventBus {
+      constructor() {
+          this.listeners = {};
+      }
+
+      // ON (sync or async + priority)
+      on(event, handler, options = {}) {
+          const type = options.type || "sync";
+          const priority = options.priority || 0;
+
+          if (!this.listeners[event]) {
+              this.listeners[event] = [];
+          }
+
+          this.listeners[event].push({ handler, type, priority });
+
+          this.listeners[event].sort((a, b) => b.priority - a.priority);
+
+          return this;
+      }
+
+      // OFF
+      off(event, handler) {
+          if (!this.listeners[event]) return this;
+
+          this.listeners[event] = this.listeners[event]
+              .filter(h => h.handler !== handler);
+
+          return this;
+      }
+
+      // ONCE
+      once(event, handler, options = {}) {
+          const type = options.type || "sync";
+
+          const wrapper = (data) => {
+              handler(data);
+              this.off(event, wrapper);
+          };
+
+          return this.on(event, wrapper, { type });
+      }
+
+      // EMIT (sync + async + wildcard)
+      async emit(event, data, options = {}) {
+          const mode = options.mode || "sync";
+
+          const run = async (list) => {
+              for (const item of list) {
+                  try {
+                      if (item.type === "async") {
+                          await item.handler(data);
+                      } else {
+                          item.handler(data);
+                      }
+                  } catch (e) {
+                      console.log("❌ Error: " + e.message);
+                  }
+              }
+          };
+
+          const handlers = this.listeners[event] || [];
+          const wildcards = this.listeners["*"] || [];
+
+          if (mode === "async") {
+              await run(handlers);
+              await run(wildcards);
+          } else {
+              run(handlers);
+              run(wildcards);
+          }
+
+          return this;
+      }
+
+      clear(event) {
+          if (event) delete this.listeners[event];
+          else this.listeners = {};
+      }
+
+      getListeners() {
+          return this.listeners;
+      }
+  }
+
+  // Loyalty: event bus initializing
+  window.NBL_v1.bus = window.NBL_v1.bus || new NBLEventBus();
 </script>
 
 {{ 'loyalty-global.css' | asset_url | stylesheet_tag }}
 
-<script src="{{ 'loyalty-event-bus.js' | asset_url }}" defer></script>
 <script src="{{ 'loyalty-ui-events.js' | asset_url }}" defer></script>
 <script src="{{ 'loyalty-global.js' | asset_url }}" defer></script>
 <script src="{{ 'loyalty-referral-modal.js' | asset_url }}" defer></script>

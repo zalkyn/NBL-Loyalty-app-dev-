@@ -1,26 +1,49 @@
 import prisma from "../../db.server.js";
+import shopId from "../../graphql/query/shop/shopId.js"
+import configMetafieldSyncMutation from "../../graphql/mutation/metafieldsSync/config.js";
 
-export default async function syncAppConfig({ session }) {
+
+export default async function syncAppConfig(admin, session) {
     try {
-        const customer = await prisma.customer.findFirst({
-            where: {
-                sessionId: session.id,
-            },
-        });
+        const shop_id = await shopId(admin);
+        const appUrl = process.env.SHOPIFY_APP_URL || "http://localhost:3000";
+        const shop = await prisma.session.findFirst({
+            where: { id: session?.id },
+            select: {
+                shop: true,
+                email: true,
+                customers: true,
+                rules: {
+                    include: {
+                        event: {
+                            select: {
+                                name: true,
+                                id: true,
+                                type: true
+                            }
+                        }
+                    }
+                },
+                rewards: true,
+                integrations: true,
+                events: true
+            }
+        })
 
-        if (!customer) {
-            console.warn("No customer found for session:", session.id);
-            return;
-        }
 
-        let config = {};
-        config.appUrl = process.env.SHOPIFY_APP_URL;
+        const metafield = {
+            namespace: "app",
+            key: "nbl_config_v1",
+            value: JSON.stringify({
+                appUrl,
+                ...shop
+            }),
+            type: "json",
+            ownerId: shop_id,
+        };
 
+        await configMetafieldSyncMutation(admin, metafield);
 
-        
-
-        console.log("## Running syncAppConfig");
-        // Add any necessary logic to sync app configuration here
     } catch (error) {
         console.error("## Error in syncAppConfig:", error);
     }

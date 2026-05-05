@@ -3,27 +3,85 @@
 <div class="nbl-widget-container-v1">
   <div class="nbl-widget-wrapper-v1">
     <div class="nbl-widget-header-v1">
-      <h3 class="nbl-widget-title-v1">Introducing NB Loyalty Points</h3>
+      <button class="nbl-widget-close-button-v1">
+        <svg viewBox="0 0 24 24">
+          <polygon points="11.5 10.124 17.624 4 19 5.376 12.876 11.5 19 17.624 17.624 19 11.5 12.876 5.376 19 4 17.624 10.124 11.5 4 5.376 5.376 4"></polygon>
+        </svg>
+      </button>
+      <div class="nbl-widget-header-wrapper-v1">
+        <div class="nbl-widget-header-top-v1">
+          {% if customer %}
+            <h3 class="nbl-wh-title-v1">Welcome, {{ customer.name }}</h3>
+            <h4 class="nbl-wh-points-v1">
+              <span class="nbl-customer-points-v1">1,000 points</span>
+              <span> points</span>
+            </h4>
+          {% else %}
+            <h3 class="nbl-widget-title-v1">NBL Loyalty Program</h3>
+          {% endif %}
+        </div>
+        <div class="nbl-wh-nav-wrapper-v1 nav-3-grid">
+          <button class="nbl-nav-item-v1 active" data-nav="home" role="tab">Home</button>
+          <button class="nbl-nav-item-v1" data-nav="points" role="tab">Earn Points</button>
+          <button class="nbl-nav-item-v1" data-nav="rewards" role="tab">Rewards</button>
+          {% comment %} <button class="nbl-nav-item-v1" data-nav="referral" role="tab">Referral</button> {% endcomment %}
+          {% comment %} <button class="nbl-nav-item-v1" data-nav="referral" role="faq">FAQ</button> {% endcomment %}
+        </div>
+      </div>
     </div>
     <div class="nbl-widget-body-v1">
       <div class="nbl-widget-main-content-v1">
-        <p>
-          Earn points for every purchase and redeem them for exciting rewards! Join NB Loyalty today and start enjoying
-          exclusive benefits.
-        </p>
-        <ul>
-          <li>Earn 1 point for every $1 spent</li>
-          <li>Redeem points for discounts, free products, and more</li>
-          <li>Exclusive offers and early access to sales</li>
-        </ul>
-        <a class="nbl-widget-cta-v1" href="{{ routes.account_url }}">Join Now</a>
-        <div>
-          {{ shop.metafields.nbl_config_v1.app.value | json }}
-          <pre>{{ shop.metafields.nbl_config_v1.app.value | json }}</pre>
-          <hr>
-          {{ customer.metafields.app.nbl_customer_v1.value | json }}
-        </div>
+        {% if customer %}
+          <div class="nbl-wc-tab-wrapper-v1">
+            {% comment %} // home tab {% endcomment %}
+            <div class="nbl-tab-item-v1 active" data-tab="home">
+              {% render 'tab-home' %}
+            </div>
+
+            {% comment %} // Points tab {% endcomment %}
+            <div class="nbl-tab-item-v1" data-tab="points">
+              {% render 'tab-points' %}
+            </div>
+
+            {% comment %} // Rewards tab {% endcomment %}
+            <div class="nbl-tab-item-v1" data-tab="rewards">
+              {% render 'tab-rewards' %}
+            </div>
+
+            {% comment %} // Referral tab {% endcomment %}
+            <div class="nbl-tab-item-v1" data-tab="referral">
+              {% render 'tab-referral' %}
+            </div>
+
+            {% comment %} // FAQ tab {% endcomment %}
+            <div class="nbl-tab-item-v1" data-tab="faq">
+              {% render 'tab-faq' %}
+            </div>
+          </div>
+        {% else %}
+          <div>
+            <p>
+              Earn points for every purchase and redeem them for exciting rewards! Join NB Loyalty today and start
+              enjoying exclusive benefits.
+            </p>
+            <ul>
+              <li>Earn 1 point for every $1 spent</li>
+              <li>Redeem points for discounts, free products, and more</li>
+              <li>Exclusive offers and early access to sales</li>
+            </ul>
+            <a class="nbl-widget-cta-v1" href="{{ routes.account_url }}">Join Now</a>
+            <div>
+              {{ shop.metafields.nbl_config_v1.app.value | json }}
+              <pre>{{ shop.metafields.nbl_config_v1.app.value | json }}</pre>
+              <hr>
+              {{ customer.metafields.app.nbl_customer_v1.value | json }}
+            </div>
+          </div>
+        {% endif %}
       </div>
+    </div>
+    <div class="nbl-notification-wrapper-v1">
+      {% render 'loyalty-notification' %}
     </div>
   </div>
 </div>

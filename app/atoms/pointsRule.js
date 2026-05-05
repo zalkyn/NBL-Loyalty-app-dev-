@@ -1,4 +1,3 @@
-import FixedPoints from "app/components/pointsRule/fixedPoints";
 import { atom } from "jotai";
 
 export const actionTypeAtom = atom(""); // e.g, edit | create
@@ -46,12 +45,28 @@ export const emptyConditions = {
         collections: [],
         excludedProducts: []
     },
-    referredEarning: {
-        info: "Referred customer get discount coupon/code",
-        type: "fixed", // "fixed" | "percentage"
-        amount: 10
+
+    referral: {
+        trigger: "subscription", // oneTime | subscription
+
+        referrer: {
+            firstOrderPoints: 100,
+            allowRenewalReward: true,
+            renewalPoints: 80
+        },
+
+        referred: {
+            discountType: "fixed",
+            discountValue: 10,
+            allowRenewalReward: false,
+            renewalPoints: 50
+        }
     },
-    referrerPoints: 100
+    review: {
+        text: 10,
+        image: 20,
+        video: 30
+    }
 };
 
 export const toggleAtom = atom({

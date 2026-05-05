@@ -45,7 +45,13 @@ export const generateReferralDiscountCode = async (admin, customerId, referralCo
         // 🔹 Get referral rule
         // ==============================
         const referralRule = await getPointRuleByEvent("Referral");
-        const referredEarningRule = referralRule?.conditions?.referredEarning ?? null;
+
+        if (!referralRule?.isActive) {
+            throw new Error("Referral not available right now");
+        }
+
+        const referralTrigger = referralRule?.conditions?.referral?.trigger ?? 'oneTime';
+        const referredEarningRule = referralRule?.conditions?.referral?.referred ?? null;
 
         if (!referredEarningRule) {
             throw new Error("Referral reward is not available right now.");
@@ -54,11 +60,11 @@ export const generateReferralDiscountCode = async (admin, customerId, referralCo
         // ==============================
         // 🔹 Generate discount code
         // ==============================
-        const randomCode = generateDiscountCode();
+        const randomCode = generateDiscountCode() + "_REFERRAL";
 
-        const discountCodeInput = `${randomCode}_${referredEarningRule.type === "fixed"
-            ? `$${referredEarningRule.amount}`
-            : `${referredEarningRule.amount}%`
+        const discountCodeInput = `${randomCode}_${referredEarningRule.discountType === "fixed"
+            ? `$${referredEarningRule.discountValue}`
+            : `${referredEarningRule.discountValue}%`
             }`;
 
         // ==============================
@@ -66,15 +72,15 @@ export const generateReferralDiscountCode = async (admin, customerId, referralCo
         // ==============================
         let discountInput = null;
 
-        if (referredEarningRule.type === "fixed") {
+        if (referredEarningRule.discountType === "fixed") {
             discountInput = {
                 discountAmount: {
-                    amount: String(referredEarningRule.amount || 0),
+                    amount: String(referredEarningRule.discountValue || 0),
                     appliesOnEachItem: false
                 }
             };
-        } else if (referredEarningRule.type === "percentage") {
-            const percentValue = Number(referredEarningRule.amount || 0);
+        } else if (referredEarningRule.discountType === "percentage") {
+            const percentValue = Number(referredEarningRule.discountValue || 0);
 
             discountInput = {
                 percentage: Math.min(
@@ -125,6 +131,8 @@ export const generateReferralDiscountCode = async (admin, customerId, referralCo
                             }
                         },
                         customerGets: {
+                            appliesOnOneTimePurchase: referralTrigger === 'ontTime' ? true : false,
+                            appliesOnSubscription: referralTrigger === 'subscription' ? true : false,
                             value: discountInput,
                             items: { all: true }
                         },

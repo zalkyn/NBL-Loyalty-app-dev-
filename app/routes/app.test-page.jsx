@@ -4,6 +4,7 @@ import afterAuthSetup from "app/controller/afterAuthSetup";
 import { customerOrderCount } from "app/graphql/query/customers";
 import { getPointRuleByEvent } from "../controller/pointsRule/getPointRuleByEvent"
 import prisma from "db-server";
+import { getAppstleMetafield } from "@graphql/mutation/order/getAppstleMetafield"
 
 export const loader = async ({ request }) => {
     const { admin, session } = await authenticate.admin(request);
@@ -19,7 +20,18 @@ export const loader = async ({ request }) => {
         }
     });
 
+
+    const appstle = await getAppstleMetafield(admin, "gid://shopify/Order/6894469611770");
+
+    const existReferral = await prisma.referral.findFirst({
+        where: {
+            subscriptionContractId: "42706731258"
+        }
+    });
+
     return {
+        existReferral,
+        appstle,
         rule, customer, customer2, session, customers
     }
 }

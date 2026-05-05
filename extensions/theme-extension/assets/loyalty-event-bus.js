@@ -1,87 +1,87 @@
 // =========================
 // EVENT BUS
 // =========================
-class NBLEventBus {
-    constructor() {
-        this.listeners = {};
-    }
+// class NBLEventBus {
+//     constructor() {
+//         this.listeners = {};
+//     }
 
-    // ON (sync or async + priority)
-    on(event, handler, options = {}) {
-        const type = options.type || "sync";
-        const priority = options.priority || 0;
+//     // ON (sync or async + priority)
+//     on(event, handler, options = {}) {
+//         const type = options.type || "sync";
+//         const priority = options.priority || 0;
 
-        if (!this.listeners[event]) {
-            this.listeners[event] = [];
-        }
+//         if (!this.listeners[event]) {
+//             this.listeners[event] = [];
+//         }
 
-        this.listeners[event].push({ handler, type, priority });
+//         this.listeners[event].push({ handler, type, priority });
 
-        this.listeners[event].sort((a, b) => b.priority - a.priority);
+//         this.listeners[event].sort((a, b) => b.priority - a.priority);
 
-        return this;
-    }
+//         return this;
+//     }
 
-    // OFF
-    off(event, handler) {
-        if (!this.listeners[event]) return this;
+//     // OFF
+//     off(event, handler) {
+//         if (!this.listeners[event]) return this;
 
-        this.listeners[event] = this.listeners[event]
-            .filter(h => h.handler !== handler);
+//         this.listeners[event] = this.listeners[event]
+//             .filter(h => h.handler !== handler);
 
-        return this;
-    }
+//         return this;
+//     }
 
-    // ONCE
-    once(event, handler, options = {}) {
-        const type = options.type || "sync";
+//     // ONCE
+//     once(event, handler, options = {}) {
+//         const type = options.type || "sync";
 
-        const wrapper = (data) => {
-            handler(data);
-            this.off(event, wrapper);
-        };
+//         const wrapper = (data) => {
+//             handler(data);
+//             this.off(event, wrapper);
+//         };
 
-        return this.on(event, wrapper, { type });
-    }
+//         return this.on(event, wrapper, { type });
+//     }
 
-    // EMIT (sync + async + wildcard)
-    async emit(event, data, options = {}) {
-        const mode = options.mode || "sync";
+//     // EMIT (sync + async + wildcard)
+//     async emit(event, data, options = {}) {
+//         const mode = options.mode || "sync";
 
-        const run = async (list) => {
-            for (const item of list) {
-                try {
-                    if (item.type === "async") {
-                        await item.handler(data);
-                    } else {
-                        item.handler(data);
-                    }
-                } catch (e) {
-                    log("❌ Error: " + e.message);
-                }
-            }
-        };
+//         const run = async (list) => {
+//             for (const item of list) {
+//                 try {
+//                     if (item.type === "async") {
+//                         await item.handler(data);
+//                     } else {
+//                         item.handler(data);
+//                     }
+//                 } catch (e) {
+//                     console.log("❌ Error: " + e.message);
+//                 }
+//             }
+//         };
 
-        const handlers = this.listeners[event] || [];
-        const wildcards = this.listeners["*"] || [];
+//         const handlers = this.listeners[event] || [];
+//         const wildcards = this.listeners["*"] || [];
 
-        if (mode === "async") {
-            await run(handlers);
-            await run(wildcards);
-        } else {
-            run(handlers);
-            run(wildcards);
-        }
+//         if (mode === "async") {
+//             await run(handlers);
+//             await run(wildcards);
+//         } else {
+//             run(handlers);
+//             run(wildcards);
+//         }
 
-        return this;
-    }
+//         return this;
+//     }
 
-    clear(event) {
-        if (event) delete this.listeners[event];
-        else this.listeners = {};
-    }
+//     clear(event) {
+//         if (event) delete this.listeners[event];
+//         else this.listeners = {};
+//     }
 
-    getListeners() {
-        return this.listeners;
-    }
-}
+//     getListeners() {
+//         return this.listeners;
+//     }
+// }

@@ -1,0 +1,108 @@
+<div class="nbl-home-tab-v1 active" data-tab="active-reward">
+  <div class="nbl-home-tab-header-v1">
+    <div class="nbl-hth-heading-v1">Your active rewards</div>
+    <button class="nbl-hth-toggle-btn-v1">Hide</button>
+  </div>
+  <div class="nbl-home-tab-body-v1">
+    <div class="nbl-hta-reward-list-v1">
+      <div class="nbl-hta-rewards-empty-v1">No active rewards are available</div>
+      <!-- Reward Item -->
+      {% comment %}
+         <div class="nbl-hta-reward-item-v1" data-reward-id="230710">
+          <!-- Icon -->
+          <div class="nbl-hta-reward-icon-v1">
+            {% render 'icon-reward-discount' %}
+          </div>
+
+          <!-- Content -->
+          <div class="nbl-hta-reward-content-v1">
+            <div class="nbl-hta-reward-title-v1">Voucher $5</div>
+          </div>
+
+          <!-- Action -->
+          <div class="nbl-hta-reward-action-v1">
+            <button class="nbl-hta-reward-btn-v1">
+              <div class="nbl-hta-reward-chevron-icon">
+                {% render 'icon-chevron-right', stroke: 'rgb(66, 212, 178)' %}
+              </div>
+            </button>
+          </div>
+        </div>
+      {% endcomment %}
+    </div>
+  </div>
+</div>
+
+<script>
+  NBL_v1.tab.renderHomeActiveRewardList = (latestVoucher) => {
+    let listWrapperEl = document.querySelector('.nbl-hta-reward-list-v1');
+    let listEls = '';
+
+    if (!listWrapperEl) return;
+
+    NBL_v1.customer.config.rewards
+      ?.filter((r) => r.event === 'REDEEM' && r.status === 'PENDING')
+      .map((reward) => {
+        listEls += `<div class="nbl-hta-reward-item-v1" data-voucher="${reward?.code}">
+          <!-- Icon -->
+          <div class="nbl-hta-reward-icon-v1">
+            {% render 'icon-reward-discount' %}
+          </div>
+
+          <!-- Content -->
+          <div class="nbl-hta-reward-content-v1">
+            <div class="nbl-hta-reward-title-v1">${reward?.title || 'Voucher'}</div>
+          </div>
+
+          <!-- Action -->
+          <div class="nbl-hta-reward-action-v1">
+            <button class="nbl-hta-reward-btn-v1">
+              <div class="nbl-hta-reward-chevron-icon">
+                {% render 'icon-chevron-right', stroke: 'rgb(66, 212, 178)' %}
+              </div>
+            </button>
+          </div>
+        </div>`;
+      });
+
+    if (latestVoucher && latestVoucher?.code) {
+      listEls += `<div class="nbl-hta-reward-item-v1" data-voucher="${latestVoucher?.code}">
+          <!-- Icon -->
+          <div class="nbl-hta-reward-icon-v1">
+            {% render 'icon-reward-discount' %}
+          </div>
+
+          <!-- Content -->
+          <div class="nbl-hta-reward-content-v1">
+            <div class="nbl-hta-reward-title-v1">${latestVoucher?.title}</div>
+          </div>
+
+          <!-- Action -->
+          <div class="nbl-hta-reward-action-v1">
+            <button class="nbl-hta-reward-btn-v1">
+              <div class="nbl-hta-reward-chevron-icon">
+                {% render 'icon-chevron-right', stroke: 'rgb(66, 212, 178)' %}
+              </div>
+            </button>
+          </div>
+        </div>`;
+    }
+
+    if (listEls && listEls?.length < 10) return;
+
+    listWrapperEl.innerHTML = listEls;
+  };
+
+  // render reward list after dom loaded
+  NBL_v1.bus.on('dom:loaded', () => {
+    NBL_v1.tab.renderHomeActiveRewardList();
+  });
+
+  NBL_v1.bus.on('notify:info:claim:success', ({ response, voucher }) => {
+    if (voucher && voucher?.length > 5)
+      NBL_v1.tab.renderHomeActiveRewardList({
+        code: voucher,
+        title: response?.title || 'Voucher $n',
+      });
+  });
+</script>

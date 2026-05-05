@@ -18,11 +18,11 @@ export default function App() {
       <s-app-nav>
         <s-link href="/app">Dashboard</s-link>
         <s-link href="/app/customers">Customers</s-link>
-        <s-link href="/app/events">Points Events</s-link>
-        <s-link href="/app/points-rule">Points Rules</s-link>
-        <s-link href="/app/redeem-rule">Redeem Rules</s-link>
-        <s-link href="/app/customize">Customize</s-link>
-        <s-link href="/app/emails">Emails</s-link>
+        {/* <s-link href="/app/events">Point Events</s-link> */}
+        <s-link href="/app/points-rule">Point Rules</s-link>
+        <s-link href="/app/redeem-rule">Reward Rules</s-link>
+        {/* <s-link href="/app/customize">Customize</s-link> */}
+        {/* <s-link href="/app/emails">Emails</s-link> */}
       </s-app-nav>
       <Outlet />
     </AppProvider>

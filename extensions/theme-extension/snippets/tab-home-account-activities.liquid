@@ -1,0 +1,60 @@
+<div class="nbl-home-tab-v1" data-tab="account-activities">
+  <div class="nbl-home-tab-header-v1">
+    <div class="nbl-hth-heading-v1">Your account activities</div>
+    <button class="nbl-hth-toggle-btn-v1">Show</button>
+  </div>
+  <div class="nbl-home-tab-body-v1">
+    <div class="nbl-haTa-wrapper-v1">
+      <div class="nbl-haTa-head-v1">
+        <div class="nbl-haTa-head-item-v1">Date</div>
+        <div class="nbl-haTa-head-item-v1">Activity</div>
+        <div class="nbl-haTa-head-item-v1">Points</div>
+        <div class="nbl-haTa-head-item-v1">Status</div>
+      </div>
+      <div class="nbl-haTa-list-wrapper-v1">
+        <div class="nbl-haTa-list-v1">
+          <div class="nbl-haTa-list-item-v1">1/1/2024</div>
+          <div class="nbl-haTa-list-item-v1">$5 voucher</div>
+          <div class="nbl-haTa-list-item-v1">1000</div>
+          <div class="nbl-haTa-list-item-v1">Approved</div>
+        </div>
+        <div class="nbl-haTa-list-v1">
+          <div class="nbl-haTa-list-item-v1">1/1/2024</div>
+          <div class="nbl-haTa-list-item-v1">$5 voucher</div>
+          <div class="nbl-haTa-list-item-v1">1000</div>
+          <div class="nbl-haTa-list-item-v1">Approved</div>
+        </div>
+        <div class="nbl-haTa-list-v1">
+          <div class="nbl-haTa-list-item-v1">1/1/2024</div>
+          <div class="nbl-haTa-list-item-v1">$5 voucher</div>
+          <div class="nbl-haTa-list-item-v1">1000</div>
+          <div class="nbl-haTa-list-item-v1">Approved</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  NBL_v1.tab.renderHomeAccountTransactionActivities = () => {
+    const transactions = NBL_v1.customer.config.transactions || [];
+    const listWrapper = document.querySelector('.nbl-haTa-list-wrapper-v1');
+    let listItemEls = '';
+
+    transactions?.map((t) => {
+      listItemEls += `<div class="nbl-haTa-list-v1">
+          <div class="nbl-haTa-list-item-v1">${new Date(t.createdAt)?.toLocaleDateString()}</div>
+          <div class="nbl-haTa-list-item-v1">${t?.reason}</div>
+          <div class="nbl-haTa-list-item-v1">${t.points}</div>
+          <div class="nbl-haTa-list-item-v1">${t?.reward?.status?.toLowerCase() || 'Approved'}</div>
+        </div>`;
+    });
+
+    if (listWrapper) listWrapper.innerHTML = listItemEls;
+  };
+
+  // render reward list after dom loaded
+  NBL_v1.bus.on('dom:loaded', () => {
+    NBL_v1.tab.renderHomeAccountTransactionActivities();
+  });
+</script>

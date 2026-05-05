@@ -3,6 +3,24 @@ import {
     conditionsAtom,
 } from "@atoms/pointsRule";
 
+
+//  referral: {
+//         trigger: "oneTime", // oneTime | subscription
+
+//         referrer: {
+//             firstOrderPoints: 100,
+//             allowRenewalReward: true,
+//             renewalPoints: 80
+//         },
+
+//         referred: {
+//             discountType: "fixed",
+//             discountValue: 10,
+//             allowRenewalReward: false,
+//             renewalPoints: 50
+//         }
+//     },
+
 export default function ReferralConditionsForm() {
     const [conditions, setConditions] = useAtom(conditionsAtom);
 

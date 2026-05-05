@@ -12,6 +12,8 @@ import {
 import { useEffect, useMemo } from "react";
 import OrderConditionsForm from "./order/conditionsForm";
 import ReferralConditionsForm from "./referral/conditionsForm"
+import ReferralConditionsFormNew from "./referral/conditionsFormNew"
+import ReviewConditionsForm from "./review/conditionsForm"
 import FixedPoints from "@components/pointsRule/fixedPoints"
 import EventType from "./eventType"
 import ActiveStatus from "./activeStatus"
@@ -52,7 +54,13 @@ export default function RulesForm() {
             case "CREATE ORDER":
                 return <OrderConditionsForm />;
             case "REFERRAL":
-                return <ReferralConditionsForm />;
+                return <s-box>
+                    <ReferralConditionsFormNew />
+                    <s-divider />
+                    {/* <ReferralConditionsForm /> */}
+                </s-box>
+            case "REVIEW":
+                return <ReviewConditionsForm />;
 
             default:
                 return <FixedPoints />;

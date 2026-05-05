@@ -1,16 +1,31 @@
 import configMetafieldSyncMutation from "app/graphql/mutation/metafieldsSync/config.js";
 import prisma from "../../db.server.js"
 import { normalizeCustomerGid } from "../customers/normalizeCustomerGid.js"
+import { logger } from "app/utils/logger.js";
+
 
 export const syncCustomersConfig = async (admin) => {
     try {
         const customers = await prisma.customer.findMany({
             include: {
-                transactions: true,
+                transactions: {
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        reward: {
+                            select: {
+                                id: true,
+                                status: true,
+                                usedAt: true,
+                                createdAt: true
+                            }
+                        }
+                    }
+                },
+                rewards: {
+                    orderBy: { createdAt: 'desc' }
+                },
                 referralsSent: true,
-                referralsUsed: true,
-                activities: true,
-                rewards: true
+                referralsUsed: true
             }
         });
 
@@ -29,7 +44,7 @@ export const syncCustomersConfig = async (admin) => {
             await configMetafieldSyncMutation(admin, metafield);
         }
     } catch (error) {
-        console.error("## Error in syncCustomerMetafieldConfig:", error);
+        logger.error("## Error in syncCustomerMetafieldConfig:", error);
     }
 }
 
@@ -44,11 +59,24 @@ export const syncCustomerConfig = async (admin, customerId) => {
         const customer = await prisma.customer.findFirst({
             where: { shopifyId: normalizedId },
             include: {
-                transactions: true,
+                transactions: {
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        reward: {
+                            select: {
+                                id: true,
+                                status: true,
+                                usedAt: true,
+                                createdAt: true
+                            }
+                        }
+                    }
+                },
+                rewards: {
+                    orderBy: { createdAt: 'desc' }
+                },
                 referralsSent: true,
-                referralsUsed: true,
-                activities: true,
-                rewards: true
+                referralsUsed: true
             }
         });
 
@@ -69,7 +97,10 @@ export const syncCustomerConfig = async (admin, customerId) => {
 
         await configMetafieldSyncMutation(admin, metafield);
 
+        return customer;
+
     } catch (error) {
-        console.error("## Error in syncCustomerMetafieldConfig:", error);
+        logger.error("## Error in syncCustomerMetafieldConfig:", error);
+        return null;
     }
 }

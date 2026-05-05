@@ -127,11 +127,14 @@ model PointsTransaction {
   metadata     Json?
   createdAt    DateTime  @default(now())
 
-  customer     Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  event        Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
-  pointsRule   PointsRule? @relation(fields: [pointsRuleId], references: [id])
+  customer     Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  event        Event?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  pointsRule   PointsRule?     @relation(fields: [pointsRuleId], references: [id])
   pointsRuleId Int?
+  reward       CustomerReward? @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  rewardId     Int?
 
+  @@unique([rewardId])
   @@index([customerId])
   @@index([customerId, createdAt])
   @@index([expiresAt])
@@ -150,6 +153,8 @@ model Referral {
   metadata     Json?
   createdAt    DateTime @default(now())
 
+  subscriptionContractId String?
+
   referrer Customer @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
   referred Customer @relation("Referred", fields: [referredId], references: [id], onDelete: Cascade)
 
@@ -157,6 +162,8 @@ model Referral {
   @@index([referrerId])
   @@index([referredId])
   @@index([status])
+  @@index([discountCode])
+  @@index([subscriptionContractId])
 }
 
 model Reward {
@@ -164,7 +171,8 @@ model Reward {
   title        String
   description  String?
   pointsCost   Int
-  rewardType   String // percentage_discount, fixed_amount_discount, free_shipping, product_discount, etc.
+  discountType String // fixed | percentage
+  rewardType   String // orderDiscount | productDiscount | freeProduct | freeShipping
   rewardValue  Float?
   couponPrefix String?
   usageLimit   Int?
@@ -185,17 +193,30 @@ model Reward {
 }
 
 model CustomerReward {
-  id         Int       @id @default(autoincrement())
-  rewardId   Int
-  customerId Int
-  code       String    @unique
-  usedAt     DateTime?
-  expiresAt  DateTime?
-  metadata   Json?
-  createdAt  DateTime  @default(now())
+  id Int @id @default(autoincrement())
 
-  reward   Reward   @relation(fields: [rewardId], references: [id], onDelete: Cascade)
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  title        String?
+  event        String? // REFERRAL | ORDER | REVIEW | CAMPAIGN | MANUAL | SUBSCRIPTION
+  type         String? // FIRST | RECURRING | VERIFIED | BONUS | DEFAULT
+  code         String?
+  rewardKey    String?   @unique
+  orderId      String?
+  pointsCost   Int?
+  status       String?   @default("PENDING") // PENDING, COMPLETED, CANCELLED
+  discountUsed Boolean   @default(false)
+  usedAt       DateTime?
+  expiresAt    DateTime?
+  metadata     Json?
+  description  String?   @db.Text
+  createdAt    DateTime  @default(now())
+
+  reward   Reward? @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  rewardId Int?
+
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId Int
+
+  transaction PointsTransaction?
 
   @@index([customerId])
   @@index([rewardId])
@@ -243,4 +264,11 @@ model ActivityLog {
 
   @@index([customerId])
   @@index([customerId, createdAt])
+}
+
+model WebhookEvent {
+  id        String   @id @default(cuid())
+  shop      String
+  eventKey  String   @unique
+  createdAt DateTime @default(now())
 }

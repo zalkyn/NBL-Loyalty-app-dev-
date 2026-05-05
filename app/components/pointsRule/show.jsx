@@ -46,8 +46,8 @@ export default function ShowPointsRule() {
 
             <s-table>
                 <s-table-header-row>
-                    <s-table-header>Points event</s-table-header>
-                    <s-table-header>Rule Name</s-table-header>
+                    <s-table-header>Rule</s-table-header>
+                    <s-table-header>Event</s-table-header>
                     <s-table-header>Points</s-table-header>
                     <s-table-header>Active</s-table-header>
                     <s-table-header>Actions</s-table-header>
@@ -62,7 +62,7 @@ export default function ShowPointsRule() {
                     ) : loaderData?.rules?.map(rule => (
                         <s-table-row key={rule.id}>
                             <s-table-cell>{getEventName(rule.eventId)}</s-table-cell>
-                            <s-table-cell>{rule.name || "—"}</s-table-cell>
+                            <s-table-cell>{rule.event?.type || "—"}</s-table-cell>
                             <s-table-cell>{rule.points || "—"}</s-table-cell>
                             <s-table-cell>{rule.isActive ? "✅ Yes" : "❌ No"}</s-table-cell>
                             <s-table-cell>

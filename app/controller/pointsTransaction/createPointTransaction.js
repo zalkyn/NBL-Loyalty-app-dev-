@@ -22,6 +22,7 @@ import { logger } from "app/utils/logger";
  * @param {number|string} input.points - Number of points to add or deduct
  * @param {string} [input.reason] - Reason for the transaction (optional)
  * @param {string} [input.eventId] - Related event ID (optional)
+ * @param {string} [input.rewardId] - Related Customer Reward ID (optional)
  * @param {Date|string} [input.expiresAt] - Expiration date of points (optional)
  * @param {Object} [input.metadata] - Additional metadata (optional)
  *
@@ -63,9 +64,11 @@ export default async function createPointsTransaction(input, session,) {
 
             let newBalance;
             let lifeTimePoints = customer.lifetimePoints;
+            let points = input.points;
 
             if (input.type === "REDEEM") {
                 newBalance = Math.max(0, customer.points - Number(input.points));
+                points = -points;
             } else {
                 newBalance = customer.points + Number(input.points);
                 lifeTimePoints += Number(input.points);
@@ -76,10 +79,11 @@ export default async function createPointsTransaction(input, session,) {
                 data: {
                     customerId: input.customerId,
                     type: input.type,
-                    points: input.points,
+                    points: points,
                     balanceAfter: newBalance,
                     reason: input.reason,
                     eventId: input.eventId || null,
+                    rewardId: input.rewardId || null,
                     expiresAt: input.expiresAt || null,
                     metadata: input.metadata || {},
                 },
@@ -95,19 +99,6 @@ export default async function createPointsTransaction(input, session,) {
                 data: {
                     points: newBalance,
                     lifetimePoints: lifeTimePoints,
-                }
-            });
-
-            // Create Activity Log
-            await tx.activityLog.create({
-                data: {
-                    customerId: input.customerId,
-                    activityType: `${input.type}_POINTS`,
-                    source: input.type === "ADJUST" ? input.reason : "SYSTEM",
-                    points: input.points,
-                    status: "SUCCESS",
-                    referenceId: input.referenceId,
-                    metadata: input.metadata,
                 }
             });
 

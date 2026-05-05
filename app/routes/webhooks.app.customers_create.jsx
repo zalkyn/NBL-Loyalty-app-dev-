@@ -1,9 +1,10 @@
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import generateReferralCode from "../utils/generateReferralCode";
+import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig";
 
 export const action = async ({ request }) => {
-    const { shop, session, topic, payload } = await authenticate.webhook(request);
+    const { admin, shop, session, topic, payload } = await authenticate.webhook(request);
 
     console.log(`Received ${topic} webhook for ${shop}`);
 
@@ -30,6 +31,8 @@ export const action = async ({ request }) => {
                 metadata: customer,
             },
         });
+
+        await syncCustomerConfig(admin, shopifyId);
 
         console.log("## Customer saved successfully ✅", customer.email);
     } catch (error) {

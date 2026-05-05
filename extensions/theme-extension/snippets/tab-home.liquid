@@ -1,0 +1,120 @@
+<div class="nbl-home-nav-wrapper-v1">
+  <div data-nav="rewards" class="nbl-home-nav-itm-v1">
+    {% render 'icon-rewards', class: 'nbl-wchb-reward-v1' %}
+    <span class="nbl-wct-hb-text-v1">Browse our rewards</span>
+    {% render 'icon-chevron-right', class: 'nbl-wchb-cai-v1', stroke: 'white' %}
+  </div>
+
+  <div data-nav="points" class="nbl-home-nav-itm-v1">
+    {% render 'icon-lightning', class: 'nbl-wchb-lightning-v1' %}
+    <span class="nbl-wct-hb-text-v1">Browse ways to earn points</span>
+    {% render 'icon-chevron-right', class: 'nbl-wchb-cai-v1', stroke: 'white' %}
+  </div>
+
+  {% comment %}
+    <div data-nav="faq" class="nbl-home-nav-itm-v1">
+      {% render 'faq-icon', class: 'nbl-wchb-lightning-v1' %}
+      <span class="nbl-wct-hb-text-v1">Browse FAQ's</span>
+      {% render 'icon-chevron-right', class: 'nbl-wchb-cai-v1', stroke: 'white' %}
+    </div>
+  {% endcomment %}
+
+  <div data-nav="referral" class="nbl-home-nav-itm-v1">
+    {% render 'icon-referral', class: 'nbl-wchb-lightning-v1' %}
+    <span class="nbl-wct-hb-text-v1">Browse Referral</span>
+    {% render 'icon-chevron-right', class: 'nbl-wchb-cai-v1', stroke: 'white' %}
+  </div>
+</div>
+
+{% render 'tab-home-active-rewards' %}
+
+{% render 'tab-home-account-activities' %}
+
+<script>
+  // home tabs handling ==================
+
+  NBL_v1.homeTabs = (function () {
+    let tabs = [];
+
+    function init() {
+      tabs = Array.from(document.querySelectorAll('.nbl-home-tab-v1'));
+    }
+
+    function open(tabName) {
+      const tab = getTab(tabName);
+      if (!tab) return;
+
+      tab.classList.add('active');
+      updateButton(tab, 'Hide');
+
+      NBL_v1.bus.emit('tab:opened', { tab: tabName });
+    }
+
+    function close(tabName) {
+      const tab = getTab(tabName);
+      if (!tab) return;
+
+      tab.classList.remove('active');
+      updateButton(tab, 'Show');
+
+      NBL_v1.bus.emit('tab:closed', { tab: tabName });
+    }
+
+    function toggle(tabName) {
+      const tab = getTab(tabName);
+      if (!tab) return;
+
+      if (tab.classList.contains('active')) {
+        close(tabName);
+      } else {
+        open(tabName);
+      }
+    }
+
+    function handleClick(target) {
+      const btn = target.closest('.nbl-home-tab-header-v1 button');
+      if (!btn) return;
+
+      const tab = btn.closest('.nbl-home-tab-v1');
+      if (!tab) return;
+
+      const tabName = tab.dataset.tab;
+      toggle(tabName);
+    }
+
+    function getTab(tabName) {
+      return tabs.find((t) => t.dataset.tab === tabName);
+    }
+
+    function updateButton(tab, text) {
+      const btn = tab.querySelector('button');
+      if (btn) btn.innerText = text;
+    }
+
+    function bindBus() {
+      // DOM ready
+      NBL_v1.bus.on('dom:loaded', () => {
+        init();
+      });
+
+      // from global click delegation
+      NBL_v1.bus.on('event:click', ({ target }) => {
+        handleClick(target);
+      });
+
+      // external control
+      NBL_v1.bus.on('tab:open', ({ tab }) => open(tab));
+      NBL_v1.bus.on('tab:close', ({ tab }) => close(tab));
+      NBL_v1.bus.on('tab:toggle', ({ tab }) => toggle(tab));
+    }
+
+    // init bindings immediately
+    bindBus();
+
+    return {
+      open,
+      close,
+      toggle,
+    };
+  })();
+</script>

@@ -1,0 +1,80 @@
+<div class="nbl-reward-list-v1">
+  <!-- Reward Item -->
+  <div class="nbl-reward-item-v1 inactive" data-reward-id="230710">
+    <!-- Icon -->
+    <div class="nbl-reward-icon-v1">
+      {% render 'icon-reward-discount' %}
+    </div>
+
+    <!-- Content -->
+    <div class="nbl-reward-content-v1">
+      <div class="nbl-reward-title-v1">Voucher $5</div>
+
+      <div class="nbl-reward-points-v1">50 points</div>
+    </div>
+
+    <!-- Action -->
+    <div class="nbl-reward-action-v1">
+      <button class="nbl-reward-btn-v1" disabled>
+        <span class="nbl-reward-status-text">Insufficient points</span>
+        <div class="nbl-reward-chevron-icon">{% render 'icon-chevron-right', stroke: 'rgb(66, 212, 178)' %}</div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Render reward list elements
+
+  NBL_v1.tab.renderRewardList = () => {
+    const rewardWrapper = document.querySelector('.nbl-reward-list-v1');
+    if (rewardWrapper) {
+      const customerPoints = NBL_v1.points;
+
+      let listEls = '';
+      NBL_v1.appConfig.rewards?.map((reward, index) => {
+        const title = `Voucher ${reward?.discountType === 'fixed' ? '$' : ''}${reward?.rewardValue}${
+          reward?.discountType === 'percentage' ? '%' : ''
+        }`?.trim();
+
+        listEls += `<!-- Reward Item -->
+          <div class="nbl-reward-item-v1 
+          ${Number(reward?.pointsCost) <= Number(customerPoints) ? 'active' : 'inactive'}" 
+            data-reward-id="${reward.id}" data-title="${title}">
+            <!-- Icon -->
+            <div class="nbl-reward-icon-v1">
+              {% render 'icon-reward-discount' %}
+            </div>
+
+            <!-- Content -->
+            <div class="nbl-reward-content-v1">
+              <div class="nbl-reward-title-v1">${title}</div>
+
+              <div class="nbl-reward-points-v1">${Intl.NumberFormat().format(reward?.pointsCost)} points</div>
+            </div>
+
+            <!-- Action -->
+            <div class="nbl-reward-action-v1">
+              <button class="nbl-reward-btn-v1" 
+              ${Number(reward?.pointsCost) <= Number(customerPoints) ? '' : 'disabled'}"
+                >
+                <span class="nbl-reward-status-text">Insufficient points</span>
+                <div class="nbl-reward-chevron-icon">{% render 'icon-chevron-right', stroke: 'rgb(66, 212, 178)' %}</div>
+              </button>
+            </div>
+          </div>`;
+      });
+
+      rewardWrapper.innerHTML = listEls;
+    }
+  };
+
+  // render reward list after dom loaded
+  NBL_v1.bus.on('dom:loaded', () => {
+    NBL_v1.tab.renderRewardList();
+  });
+
+  NBL_v1.bus.on('points:update', (points) => {
+    NBL_v1.tab.renderRewardList();
+  });
+</script>

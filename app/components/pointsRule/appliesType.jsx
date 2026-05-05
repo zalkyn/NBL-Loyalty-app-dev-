@@ -1,20 +1,26 @@
-import {
-    conditionsAtom
-} from "@atoms/pointsRule"
-import { useAtom } from "jotai"
+import { useAtom } from "jotai";
+import { conditionsAtom } from "@atoms/pointsRule";
+
+const appliesToOptions = [
+    { value: "allProducts", label: "All Products" },
+    { value: "specificProducts", label: "Specific Products" },
+    // { value: "specificCollections", label: "Specific Collections" },
+];
 
 export default function AppliesType() {
     const [conditions, setConditions] = useAtom(conditionsAtom);
 
+    const currentType = conditions?.appliesTo?.type ?? "";
+
     const handleChange = (value) => {
-        setConditions(prev => ({
+        setConditions((prev) => ({
             ...prev,
             appliesTo: {
                 ...prev.appliesTo,
                 type: value,
                 products: [],
-                collections: []
-            }
+                collections: [],
+            },
         }));
     };
 
@@ -26,23 +32,18 @@ export default function AppliesType() {
 
                 <s-choice-list
                     name="appliesToType"
-                    value={[conditions.appliesTo.type]}
-                    onInput={(e) => {
-                        const value = e.currentTarget.values[0];
-                        handleChange(value);
-                    }}
+                    value={[currentType]}
+                    onInput={(e) => handleChange(e.currentTarget.values[0])}
                 >
-                    <s-choice selected={conditions?.appliesTo?.type === 'allProducts' ? true : false} value="allProducts">
-                        All Products
-                    </s-choice>
-
-                    <s-choice selected={conditions?.appliesTo?.type === 'specificProducts' ? true : false} value="specificProducts">
-                        Specific Products
-                    </s-choice>
-
-                    {/* <s-choice selected={conditions?.appliesTo?.type === 'specificCollections' ? true : false} value="specificCollections">
-                        Specific Collections
-                    </s-choice> */}
+                    {appliesToOptions.map(({ value, label }) => (
+                        <s-choice
+                            key={value}
+                            value={value}
+                            selected={currentType === value}
+                        >
+                            {label}
+                        </s-choice>
+                    ))}
                 </s-choice-list>
             </s-section>
         </s-box>

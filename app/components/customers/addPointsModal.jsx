@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSubmit } from "react-router";
 
 export default function AddPointsModal({ customer }) {
@@ -16,6 +16,16 @@ export default function AddPointsModal({ customer }) {
 
     const [input, setInput] = useState(emptyInput);
 
+    useEffect(() => {
+        setInput(prev => {
+            return {
+                ...prev,
+                customerId: customer.id,
+                shopifyId: customer.shopifyId
+            }
+        })
+    }, [customer?.id, customer?.shopifyId])
+
     const handleInputChange = (event) => {
         const { name, value } = event.target;
         setInput((prev) => ({ ...prev, [name]: value }));
@@ -31,14 +41,23 @@ export default function AddPointsModal({ customer }) {
             return;
         }
 
+        console.log("input", input)
+
         const _input = {
             ...input,
+            customerId: customer?.id,
+            shopifyId: customer.shopifyId,
             points: parseInt(input.points),
             reason: input.reason || "Admin adjustment",
         }
 
         console.log("input", _input)
         // return;
+
+        if (!_input?.customerId) {
+            shopify.toast.show("Customer id not found!");
+            return;
+        }
 
         submit({
             input: JSON.stringify(_input),
@@ -77,5 +96,6 @@ export default function AddPointsModal({ customer }) {
                 Adjust Points
             </s-button>
         </s-stack>
+        {/* <pre>{JSON.stringify(input, null, 2)}</pre> */}
     </s-modal>)
 }

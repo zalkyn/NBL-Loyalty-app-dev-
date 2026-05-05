@@ -24,6 +24,9 @@ export const loader = async ({ request, params }) => {
                 include: {
                     event: true
                 }
+            },
+            rewards: {
+                orderBy: { createdAt: "desc" }
             }
         }
     })
@@ -41,6 +44,9 @@ export const action = async ({ request, params }) => {
     const formData = await request.formData();
     const submitType = formData.get("submitType");
     const input = JSON.parse(formData.get("input") || "{}");
+
+    console.log("customer adjust inputs")
+    console.log(JSON.stringify(input, null, 2))
 
 
     if (submitType === "addPoints") {
@@ -71,6 +77,10 @@ export default function CustomerDetails() {
 
     useEffect(() => {
         setActionData(__actionData);
+
+        if (__actionData?.submitType === 'addPoints') {
+            shopify.toast.show("Points successfully adjusted")
+        }
     }, [__actionData, setActionData]);
 
     const customer = loaderData?.customer || {};
@@ -95,7 +105,7 @@ export default function CustomerDetails() {
                 <p><strong>Email:</strong> {customer?.email}</p>
                 <p><strong>Phone:</strong> {customer?.phone || "N/A"}</p>
                 <p><strong>Total Points:</strong> {customer?.points}</p>
-                <p><strong>Rewards Earned:</strong> {customer?.rewards || 0}</p>
+                <p><strong>Rewards Earned:</strong> {customer?.rewards?.length || 0}</p>
             </s-box>
             <s-box>
                 <s-grid gridTemplateColumns="1fr 1fr" gap="base">
@@ -113,7 +123,7 @@ export default function CustomerDetails() {
                     </s-box>
                     <s-box padding="base" border="base" borderRadius="base" background="base">
                         <s-heading>Rewards claimed</s-heading>
-                        <h3 style={{ marginBlock: '0 0' }}>0</h3>
+                        <h3 style={{ marginBlock: '0 0' }}>{customer?.rewards?.length || 0}</h3>
                     </s-box>
                     <s-box padding="base" border="base" borderRadius="base" background="base">
                         <s-heading>Total revenue</s-heading>
@@ -138,7 +148,6 @@ export default function CustomerDetails() {
                     <s-table-header>Points</s-table-header>
                     <s-table-header>Balance after</s-table-header>
                     <s-table-header>Note</s-table-header>
-                    <s-table-header>Orders</s-table-header>
                 </s-table-header-row>
                 <s-table-body>
                     {customer?.transactions?.map(transaction => (
@@ -148,14 +157,45 @@ export default function CustomerDetails() {
                             <s-table-cell>{transaction.points}</s-table-cell>
                             <s-table-cell>{transaction.balanceAfter}</s-table-cell>
                             <s-table-cell>{transaction.reason}</s-table-cell>
-                            <s-table-cell>{transaction.orders || "N/A"}</s-table-cell>
                         </s-table-row>
                     ))}
                 </s-table-body>
             </s-table>
         </s-section>
+        <s-box paddingBlockEnd="base" />
         <s-section>
-            <pre>{JSON.stringify(loaderData?.customer, null, 2)}</pre>
+            {/* Reward History represents with table  */}
+            <h3 style={{ marginTop: '0' }}>Rewards History</h3>
+            <s-table>
+                <s-table-header-row>
+                    <s-table-header>Date</s-table-header>
+                    <s-table-header>Event</s-table-header>
+                    <s-table-header>Type</s-table-header>
+                    <s-table-header>Points Cost</s-table-header>
+                    <s-table-header>Balance after</s-table-header>
+                    <s-table-header>Status</s-table-header>
+                </s-table-header-row>
+                <s-table-body>
+                    {customer?.rewards?.map(transaction => (
+                        <s-table-row key={transaction.id}>
+                            <s-table-cell>{transaction.createdAt.toDateString()}</s-table-cell>
+                            <s-table-cell>{transaction.event}</s-table-cell>
+                            <s-table-cell>{transaction.type}</s-table-cell>
+                            <s-table-cell>{transaction.pointsCost || 0}</s-table-cell>
+                            <s-table-cell>{customer?.points || 0}</s-table-cell>
+                            <s-table-cell>
+                                {transaction?.status === "COMPLETED" ? <s-badge tone="success">{transaction?.status}</s-badge> : ""}
+                                {transaction?.status === "PENDING" ? <s-badge tone="warning">{transaction?.status}</s-badge> : ""}
+                                {transaction?.status === "CANCELLED" ? <s-badge tone="danger">{transaction?.status}</s-badge> : ""}
+
+                            </s-table-cell>
+                        </s-table-row>
+                    ))}
+                </s-table-body>
+            </s-table>
         </s-section>
+        {/* <s-section>
+            <pre>{JSON.stringify(customer, null, 2)}</pre>
+        </s-section> */}
     </s-page>)
 }
