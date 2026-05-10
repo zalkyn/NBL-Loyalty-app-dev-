@@ -1,6 +1,6 @@
-import { logger } from "app/utils/logger";
+import { logger } from "app/utils/logger.js";
 import { normalizeCustomerGid } from "../../../controller/customers/normalizeCustomerGid";
-import { generateDiscountCode } from "../../../utils/generateDiscountCode";
+import { generateDiscountCode } from "../../../utils/generateDiscountCode.js";
 import { getPointRuleByEvent } from "../../../controller/pointsRule/getPointRuleByEvent";
 
 /**
@@ -60,7 +60,7 @@ export const generateReferralDiscountCode = async (admin, customerId, referralCo
         // ==============================
         // 🔹 Generate discount code
         // ==============================
-        const randomCode = generateDiscountCode() + "_REFERRAL";
+        const randomCode = await generateDiscountCode() + "_REFERRAL";
 
         const discountCodeInput = `${randomCode}_${referredEarningRule.discountType === "fixed"
             ? `$${referredEarningRule.discountValue}`

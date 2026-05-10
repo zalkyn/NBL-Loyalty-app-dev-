@@ -1,27 +1,33 @@
 
-// import prisma from "../../db.server";
-// import generateReferralCode from "../../utils/generateReferralCode";
+
 import customers from "../../graphql/query/customers";
 import { storeCustomer } from "./store";
 
-export default async function syncAllCustomerFromStore(admin, session) {
-    try {
-        const response = await customers(admin);
+const BATCH_SIZE = 10;
 
-        if (!response || !response.customers || !response.customers.nodes) {
-            throw new Error("Invalid response from Shopify API");
-        }
+export default async function oldCustomerStoreFromShop(admin, session) {
+    const response = await customers(admin);
 
-        const allCustomers = response?.customers?.nodes || [];
-
-        for (const customer of allCustomers) {
-            await storeCustomer(session, customer)
-        }
-
-        return { message: "Customers synced successfully", customers: customers };
-
-    } catch (error) {
-        console.log("Error syncing customers from store:", error);
-        return { message: "Error syncing customers from store", customers: [] };
+    if (!response?.customers?.nodes) {
+        throw new Error("Invalid response from Shopify API");
     }
+
+    const allCustomers = response.customers.nodes;
+    const results = { total: allCustomers.length, success: 0, failed: 0, errors: [] };
+
+    for (let i = 0; i < allCustomers.length; i += BATCH_SIZE) {
+        const batch = allCustomers.slice(i, i + BATCH_SIZE);
+        const settled = await Promise.allSettled(batch.map((c) => storeCustomer(session, c)));
+
+        settled.forEach((result, idx) => {
+            if (result.status === "fulfilled") {
+                results.success++;
+            } else {
+                results.failed++;
+                results.errors.push({ customerId: batch[idx]?.id, reason: result.reason?.message });
+            }
+        });
+    }
+
+    return results;
 }

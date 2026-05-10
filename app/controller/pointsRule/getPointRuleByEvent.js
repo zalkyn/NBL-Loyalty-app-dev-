@@ -1,16 +1,37 @@
 import { logger } from "../../utils/logger";
 import prisma from "../../db.server";
 
+/**
+ * Fetches the active PointsRule for a given event type.
+ * Queries directly by event type — no JS-side filtering.
+ *
+ * @param {string} event - Event type e.g. "ORDER" | "REFERRAL" | "REVIEW"
+ * @returns {Promise<Object|null>} PointsRule with event, or null if not found / inactive
+ */
 export const getPointRuleByEvent = async (event = null) => {
-    try {
-        const rules = await prisma.pointsRule.findMany({ include: { event: true } });
-        const rule = rules?.find(r => r.event.type?.toLowerCase() === event?.toLowerCase())
-        return rule ?? null;
+    if (!event) {
+        logger.warn("getPointRuleByEvent called without event type");
+        return null;
+    }
 
+    try {
+        const rule = await prisma.pointsRule.findFirst({
+            where: {
+                isActive: true,
+                event: {
+                    type: { equals: event, mode: "insensitive" },
+                    isActive: true,
+                },
+            },
+            include: { event: true },
+        });
+
+        return rule ?? null;
     } catch (error) {
-        logger.error("Get referral point rule error", {
-            message: error?.message
+        logger.error("getPointRuleByEvent error", {
+            event,
+            message: error?.message,
         });
         return null;
     }
-}
+};

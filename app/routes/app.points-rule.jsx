@@ -13,15 +13,16 @@ import {
     newRuleAtom,
     emptyNewRule,
     emptyConditions,
-    loadingButtonAtom
+    loadingButtonAtom,
+    savedRuleAtom,
+    savedConditionsAtom,
 } from "@atoms/pointsRule";
-
 
 import RulesForm from "@components/pointsRule/rulesForm";
 import ShowPointsRule from "@components/pointsRule/show";
 import DeletePointsRule from "@components/pointsRule/deleteModal";
-
 import syncAppConfig from "@controller/metafieldsSync/syncAppConfig"
+
 
 // ====================== LOADER ======================
 export const loader = async ({ request }) => {
@@ -46,6 +47,7 @@ export const loader = async ({ request }) => {
 
     return { rules, events, existingRuleEventIds };
 };
+
 
 // ====================== ACTION ======================
 export const action = async ({ request }) => {
@@ -82,7 +84,6 @@ export const action = async ({ request }) => {
             });
 
             await syncAppConfig(admin);
-
             return { message: "Points rule created successfully.", rule: createdRule, status: "success", submitType };
         } catch (error) {
             console.error("Create PointsRule Error:", error);
@@ -122,7 +123,6 @@ export const action = async ({ request }) => {
             });
 
             await syncAppConfig(admin);
-
             return { message: "Points rule updated successfully.", rule, status: "success", submitType };
         } catch (error) {
             console.error("Update Rule Error:", error);
@@ -140,9 +140,7 @@ export const action = async ({ request }) => {
             if (!rule || rule.sessionId !== session.id) throw new Error("Rule not found");
 
             await prisma.pointsRule.delete({ where: { id: ruleId } });
-
             await syncAppConfig(admin);
-
             return { message: "Points rule deleted successfully.", status: "success", submitType };
         } catch (error) {
             console.error("Delete Rule Error:", error);
@@ -153,6 +151,8 @@ export const action = async ({ request }) => {
     return { message: "Invalid action.", status: "error", submitType };
 };
 
+
+// ====================== PAGE ======================
 export default function PointsRule() {
     const submit = useSubmit();
 
@@ -167,40 +167,68 @@ export default function PointsRule() {
     const [newRule, setNewRule] = useAtom(newRuleAtom);
     const [loadingButton, setLoadingButton] = useAtom(loadingButtonAtom);
 
+    // Snapshot atoms — set by ShowPointsRule when edit opens.
+    // hasChanges compares current form values against these.
+    const [savedRule] = useAtom(savedRuleAtom);
+    const [savedConditions] = useAtom(savedConditionsAtom);
+
+    // True when current values differ from snapshot — edit mode only.
+    const hasChanges =
+        actionType === 'edit' &&
+        (
+            JSON.stringify(newRule) !== JSON.stringify(savedRule) ||
+            JSON.stringify(conditions) !== JSON.stringify(savedConditions)
+        );
+
     useEffect(() => {
-        setLoaderData(__loaderData)
+        setLoaderData(__loaderData);
     }, [__loaderData]);
 
     useEffect(() => {
         setActionData(__actionData);
+        if (!__actionData) return;
+
+        // Reset loading state after any action response.
+        setLoadingButton({ addRule: false, updateRule: false, editRule: false });
+
+        if (__actionData.status === "success") {
+            shopify.toast.show(__actionData.message);
+        } else if (__actionData.status === "error") {
+            shopify.toast.show(__actionData.message, { isError: true });
+        }
     }, [__actionData]);
 
     const handleToggleAddRule = () => {
-        setActionType('create')
-        setNewRule(emptyNewRule)
-        setConditions(emptyConditions)
-        setToggle(prev => {
-            return {
-                ...prev, addRule: !prev.addRule
-            }
-        })
+        setActionType('create');
+        setNewRule(emptyNewRule);
+        setConditions(emptyConditions);
+        setToggle(prev => ({ ...prev, addRule: !prev.addRule }));
     };
 
     const getEvent = (eventId) => {
-        const event = loaderData?.events?.find(s => s.id === parseInt(eventId));
-        return event
+        return loaderData?.events?.find(e => e.id === parseInt(eventId));
     };
 
-
     const pageHeading = () => {
-        if (actionType === 'create') {
-            return 'Create New Rule'
-        } else if (actionType === 'edit') {
-            return 'Rules > ' + getEvent(newRule?.eventId)?.type
-        } else {
-            return 'Manage event rules'
+        if (actionType === 'create') return 'Create New Rule';
+        if (actionType === 'edit') {
+            const eventType = getEvent(newRule?.eventId)?.type;
+            return (
+                <s-stack direction="inline" gap="small" alignItems="center">
+                    <s-button
+                        variant="plain"
+                        onClick={handleToggleAddRule}
+                        style={{ padding: 0, minHeight: "unset" }}
+                    >
+                        Rules
+                    </s-button>
+                    <s-text tone="subdued">›</s-text>
+                    <s-text>{eventType ?? "Edit Rule"}</s-text>
+                </s-stack>
+            );
         }
-    }
+        return 'Manage event rules';
+    };
 
     const handleValidation = (rule) => {
         if (!rule?.eventId) { shopify.toast.show("Please select a Points event."); return false; }
@@ -212,63 +240,61 @@ export default function PointsRule() {
     const handleSaveRule = () => {
         if (!handleValidation(newRule)) return;
         setLoadingButton(prev => ({ ...prev, addRule: true }));
-        const _conditions = conditions || null;
-
         submit({
             submitType: "addRule",
             rule: JSON.stringify(newRule),
-            conditions: JSON.stringify(_conditions)
+            conditions: JSON.stringify(conditions || null)
         }, { method: "post" });
     };
 
     const handleUpdateRule = () => {
         if (!handleValidation(newRule)) return;
         setLoadingButton(prev => ({ ...prev, updateRule: true }));
-        const _conditions = conditions || null;
         submit({
             submitType: "updateRule",
             rule: JSON.stringify(newRule),
-            conditions: JSON.stringify(_conditions)
+            conditions: JSON.stringify(conditions || null)
         }, { method: "post" });
     };
 
-
+    const isCreate = actionType === 'create';
 
     return (
         <s-page inlineSize="base">
+
             {/* HEADER */}
             <s-section>
-                {/* <pre>{JSON.stringify(conditions, null, 2)}</pre> */}
                 <s-grid gridTemplateColumns="1fr auto" gap="large" alignItems="center">
                     <h2 style={{ marginBlock: "0" }}>
                         {pageHeading()}
                     </h2>
+
                     <s-stack direction="inline" gap="base" alignItems="center">
-                        <s-button
-                            onClick={handleToggleAddRule}
-                        >
+                        <s-button onClick={handleToggleAddRule}>
                             {toggle.addRule ? "Cancel" : "Add New Rule"}
                         </s-button>
-                        {toggle?.addRule && <s-box>
-                            {actionType === 'create' ?
+
+                        {toggle?.addRule && (
+                            isCreate ? (
                                 <s-button
                                     variant="primary"
-                                    onClick={() => handleSaveRule()}
+                                    onClick={handleSaveRule}
                                     disabled={loadingButton.addRule || !newRule.eventId}
                                     loading={loadingButton.addRule}
                                 >
                                     Save Rule
-                                </s-button> :
+                                </s-button>
+                            ) : (
                                 <s-button
                                     variant="primary"
-                                    onClick={() => handleUpdateRule()}
-                                    disabled={!newRule.eventId}
-                                    loading={loadingButton.addRule || loadingButton?.editRule}
+                                    onClick={handleUpdateRule}
+                                    disabled={!newRule.eventId || !hasChanges || loadingButton.updateRule || loadingButton.editRule}
+                                    loading={loadingButton.updateRule || loadingButton.editRule}
                                 >
                                     Update Rule
                                 </s-button>
-                            }
-                        </s-box>}
+                            )
+                        )}
                     </s-stack>
                 </s-grid>
             </s-section>
@@ -276,12 +302,12 @@ export default function PointsRule() {
             {/* Rule Form */}
             <RulesForm />
 
-
             {/* View TABLE */}
             <ShowPointsRule />
 
             {/* DELETE MODAL */}
             <DeletePointsRule />
+
         </s-page>
     );
 }

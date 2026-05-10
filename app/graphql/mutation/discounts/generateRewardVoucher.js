@@ -3,164 +3,141 @@ import { normalizeCustomerGid } from "../../../controller/customers/normalizeCus
 import { generateDiscountCode } from "../../../utils/generateDiscountCode";
 
 /**
- * Generates a reward voucher/discount code for a specific customer using Shopify GraphQL API.
+ * Generates a reward voucher/discount code for a customer via Shopify GraphQL.
  *
  * @param {Object} admin - Shopify Admin GraphQL client
- * @param {Function} admin.graphql - GraphQL executor
- * @param {string|number} customerId - Shopify customer ID
- * @param {json} reward - Reward data (for validation and config)
+ * @param {string|number} customerId - Shopify customer ID (GID or numeric)
+ * @param {Object} rewardRule - Reward rule config
+ * @param {number} rewardRule.id - Reward rule ID
+ * @param {"fixed"|"percentage"} rewardRule.discountType - Discount type
+ * @param {number} rewardRule.rewardValue - Discount amount or percentage
  *
- * @returns {Promise<string>} Discount code
+ * @returns {Promise<string>} Generated discount code
  *
  * @throws {Error} Customer-friendly error message
  */
-export const generateRewardVoucher = async (admin, customerId, reward) => {
-    try {
-        // ==============================
-        // 🔴 INPUT VALIDATION
-        // ==============================
-        if (!admin || typeof admin.graphql !== "function") {
-            throw new Error("Something went wrong. Please try again later.");
-        }
+export const generateRewardVoucher = async (admin, customerId, rewardRule) => {
+    // ── Validate inputs ───────────────────────────────────────────────────────
+    if (!admin?.graphql) throw new Error("Something went wrong. Please try again later.");
+    if (!customerId) throw new Error("Customer not found. Please login again.");
+    if (!rewardRule?.id) throw new Error("Reward is not available right now.");
+    if (!["fixed", "percentage"].includes(rewardRule.discountType)) throw new Error("Invalid reward configuration.");
 
-        if (!customerId) {
-            throw new Error("Customer not found. Please login again.");
-        }
+    const customerGid = normalizeCustomerGid(customerId);
+    if (!customerGid) throw new Error("Invalid customer. Please try again.");
 
-        if (!reward && !reward?.id) {
-            throw new Error("Reward is not available right now.");
-        }
+    const ctx = { customerId, rewardRuleId: rewardRule.id };
 
-        // ==============================
-        // 🔹 Normalize customer GID
-        // ==============================
-        const customerGid = normalizeCustomerGid(customerId);
+    // ── Generate code ─────────────────────────────────────────────────────────
+    const code = await generateDiscountCode().catch((err) => {
+        logger.error("Failed to generate discount code", err, ctx);
+        throw new Error("Something went wrong. Please try again later.");
+    });
 
-        if (!customerGid) {
-            throw new Error("Invalid customer. Please try again.");
-        }
+    // ── Build discount value ──────────────────────────────────────────────────
+    const discountValue = buildDiscountValue(rewardRule);
 
-        // ==============================
-        // 🔹 Generate discount code
-        // ==============================
-        const discountCodeInput = generateDiscountCode();
+    // ── Shopify mutation ──────────────────────────────────────────────────────
+    const json = await runDiscountMutation(admin, { code, customerGid, discountValue }).catch((err) => {
+        logger.error("Shopify GraphQL request failed", err, ctx);
+        throw new Error("Something went wrong. Please try again later.");
+    });
 
+    // ── Handle errors & extract code ──────────────────────────────────────────
+    const userErrors = json?.data?.discountCodeBasicCreate?.userErrors;
+    if (userErrors?.length) {
+        logger.error("Shopify userErrors", { userErrors, ...ctx });
+        throw new Error("Failed to create voucher. Please try again.");
+    }
 
-        // ==============================
-        // 🔹 Build discount value
-        // ==============================
-        let discountInput = null;
+    const discountCode =
+        json?.data?.discountCodeBasicCreate?.codeDiscountNode?.codeDiscount?.codes?.nodes?.[0]?.code;
 
-        if (reward.discountType === "fixed") {
-            discountInput = {
-                discountAmount: {
-                    amount: String(reward.rewardValue || 0),
-                    appliesOnEachItem: false
-                }
-            };
-        } else if (reward.discountType === "percentage") {
-            const percentValue = Number(reward.rewardValue || 0);
+    if (!discountCode) {
+        logger.error("Discount code missing in response", { json, ...ctx });
+        throw new Error("Something went wrong while generating your reward. Please try again.");
+    }
 
-            discountInput = {
-                percentage: Math.min(1, percentValue > 1 ? percentValue / 100 : percentValue)
-            };
-        } else {
-            throw new Error("Invalid reward configuration.");
-        }
+    logger.success("Reward voucher created", { discountCode, ...ctx });
 
-        // ==============================
-        // 🔹 Shopify GraphQL Call
-        // ==============================
-        const response = await admin.graphql(
-            `#graphql
-            mutation CreateDiscountCode($basicCodeDiscount: DiscountCodeBasicInput!) {
-                discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
-                    codeDiscountNode {
-                        id
-                        codeDiscount {
-                            ... on DiscountCodeBasic {
-                                title
-                                codes(first: 1) {
-                                    nodes {
-                                        code
-                                    }
-                                }
+    return discountCode;
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Builds the Shopify discount value object based on reward rule config.
+ *
+ * @param {Object} rewardRule
+ * @param {"fixed"|"percentage"} rewardRule.discountType
+ * @param {number} rewardRule.rewardValue
+ *
+ * @returns {Object} Shopify-compatible discount value input
+ */
+function buildDiscountValue({ discountType, rewardValue }) {
+    if (discountType === "fixed") {
+        return {
+            discountAmount: {
+                amount: String(rewardValue ?? 0),
+                appliesOnEachItem: false,
+            },
+        };
+    }
+
+    const raw = Number(rewardValue ?? 0);
+    return { percentage: Math.min(1, raw > 1 ? raw / 100 : raw) };
+}
+
+/**
+ * Executes the Shopify discountCodeBasicCreate GraphQL mutation.
+ *
+ * @param {Object} admin - Shopify Admin GraphQL client
+ * @param {Object} params
+ * @param {string} params.code - Generated discount code string
+ * @param {string} params.customerGid - Shopify customer GID
+ * @param {Object} params.discountValue - Shopify-compatible discount value input
+ *
+ * @returns {Promise<Object>} Raw Shopify GraphQL JSON response
+ */
+async function runDiscountMutation(admin, { code, customerGid, discountValue }) {
+    const response = await admin.graphql(
+        `#graphql
+        mutation CreateDiscountCode($basicCodeDiscount: DiscountCodeBasicInput!) {
+            discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+                codeDiscountNode {
+                    id
+                    codeDiscount {
+                        ... on DiscountCodeBasic {
+                            title
+                            codes(first: 1) {
+                                nodes { code }
                             }
                         }
                     }
-                    userErrors {
-                        field
-                        message
-                    }
                 }
-            }`,
-            {
-                variables: {
-                    basicCodeDiscount: {
-                        title: discountCodeInput,
-                        code: discountCodeInput,
-                        startsAt: new Date().toISOString(),
-                        endsAt: null,
-                        customerSelection: {
-                            customers: {
-                                add: [customerGid]
-                            }
-                        },
-                        customerGets: {
-                            appliesOnOneTimePurchase: true,
-                            appliesOnSubscription: true,
-                            value: discountInput,
-                            items: { all: true }
-                        },
-                        usageLimit: 1,
-                        appliesOncePerCustomer: true
-                    }
-                }
+                userErrors { field message }
             }
-        );
-
-        const json = await response.json();
-
-        // ==============================
-        // 🔴 Shopify Errors
-        // ==============================
-        const errors = json?.data?.discountCodeBasicCreate?.userErrors;
-
-        if (errors?.length) {
-            logger.error("Shopify Discount Error", { errors });
-
-            // Show only safe message to user
-            throw new Error("Failed to create voucher/discount. Please try again.");
+        }`,
+        {
+            variables: {
+                basicCodeDiscount: {
+                    title: code,
+                    code,
+                    startsAt: new Date().toISOString(),
+                    endsAt: null,
+                    customerSelection: { customers: { add: [customerGid] } },
+                    customerGets: {
+                        appliesOnOneTimePurchase: true,
+                        appliesOnSubscription: true,
+                        value: discountValue,
+                        items: { all: true },
+                    },
+                    usageLimit: 1,
+                    appliesOncePerCustomer: true,
+                },
+            },
         }
+    );
 
-        // ==============================
-        // 🔹 Extract code
-        // ==============================
-        const discountCode =
-            json?.data?.discountCodeBasicCreate?.codeDiscountNode?.codeDiscount?.codes?.nodes?.[0]?.code;
-
-        if (!discountCode) {
-            logger.error("Discount code missing in response", { json });
-            throw new Error("Something went wrong while generating your reward voucher.");
-        }
-
-        logger.success("Reward Voucher/Discount code created", {
-            customerId,
-            rewardId: reward?.id,
-            discountCode
-        });
-
-        return discountCode;
-
-    } catch (error) {
-        // 🔴 Internal log (full details)
-        logger.error("Generate reward/discount code failed", {
-            message: error.message,
-            stack: error.stack,
-            module: "graphql/mutation/discount/generateRewardVoucher.js"
-        });
-
-        // 🔴 Throw clean message (frontend-safe)
-        throw new Error(error.message || "Something went wrong. Please try again.");
-    }
-};
+    return response.json();
+}

@@ -4,6 +4,9 @@ const JOB_NAME = "EXAMPLE_JOB";
 let isRunning = false;
 
 export default function exampleJob() {
+
+  return;
+
   cron.schedule(
     "* * * * * *", // every second adjust the schedule as needed
     async () => {

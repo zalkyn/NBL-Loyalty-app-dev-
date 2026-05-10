@@ -32,7 +32,7 @@
       const customerPoints = NBL_v1.points;
 
       let listEls = '';
-      NBL_v1.appConfig.rewards?.map((reward, index) => {
+      NBL_v1.appConfig.rewardRules?.map((reward, index) => {
         const title = `Voucher ${reward?.discountType === 'fixed' ? '$' : ''}${reward?.rewardValue}${
           reward?.discountType === 'percentage' ? '%' : ''
         }`?.trim();
@@ -40,7 +40,7 @@
         listEls += `<!-- Reward Item -->
           <div class="nbl-reward-item-v1 
           ${Number(reward?.pointsCost) <= Number(customerPoints) ? 'active' : 'inactive'}" 
-            data-reward-id="${reward.id}" data-title="${title}">
+            data-reward-rule-id="${reward.id}" data-title="${title}">
             <!-- Icon -->
             <div class="nbl-reward-icon-v1">
               {% render 'icon-reward-discount' %}
