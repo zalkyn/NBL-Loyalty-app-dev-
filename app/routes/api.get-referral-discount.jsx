@@ -108,11 +108,19 @@ export async function action({ request }) {
         }
 
         // ── 3. Eligibility: referred customer must have 0 prior orders ────────
+        // ── 3. Eligibility: referred customer must have 0 prior orders ────────
         const referredOrderCount = await customerOrderCount(admin, customerId);
+
+        logger.info("#####Checking referral eligibility", {
+            shop,
+            customerId,
+            referralCode,
+            referredOrderCount,
+        });
 
         if (referredOrderCount > 0) {
             throw createError(
-                "You are not eligible for a referral reward because you have already placed an order.",
+                "You are not eligible for the referral reward because you have already placed an order.",
                 ERROR_CODES.INELIGIBLE_CUSTOMER_ORDERS
             );
         }
