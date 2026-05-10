@@ -474,7 +474,7 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
  * @param {string} params.shop     - Shop domain
  */
 const handleNormalOrder = async ({ admin, order, customer, session, shop }) => {
-    const rule = await getPointRuleByEvent("CREATE ORDER");
+    const rule = await getPointRuleByEvent("ORDER");
     if (!rule?.isActive) {
         logger.warn(shop, "CREATE ORDER rule inactive, skipping");
         return;
