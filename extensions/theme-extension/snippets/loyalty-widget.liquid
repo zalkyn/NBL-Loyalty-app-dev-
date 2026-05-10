@@ -20,13 +20,15 @@
             <h3 class="nbl-widget-title-v1">NBL Loyalty Program</h3>
           {% endif %}
         </div>
-        <div class="nbl-wh-nav-wrapper-v1 nav-3-grid">
-          <button class="nbl-nav-item-v1 active" data-nav="home" role="tab">Home</button>
-          <button class="nbl-nav-item-v1" data-nav="points" role="tab">Earn Points</button>
-          <button class="nbl-nav-item-v1" data-nav="rewards" role="tab">Rewards</button>
-          {% comment %} <button class="nbl-nav-item-v1" data-nav="referral" role="tab">Referral</button> {% endcomment %}
-          {% comment %} <button class="nbl-nav-item-v1" data-nav="referral" role="faq">FAQ</button> {% endcomment %}
-        </div>
+        {% if customer %}
+          <div class="nbl-wh-nav-wrapper-v1 nav-3-grid">
+            <button class="nbl-nav-item-v1 active" data-nav="home" role="tab">Home</button>
+            <button class="nbl-nav-item-v1" data-nav="points" role="tab">Earn Points</button>
+            <button class="nbl-nav-item-v1" data-nav="rewards" role="tab">Rewards</button>
+            {% comment %} <button class="nbl-nav-item-v1" data-nav="referral" role="tab">Referral</button> {% endcomment %}
+            {% comment %} <button class="nbl-nav-item-v1" data-nav="referral" role="faq">FAQ</button> {% endcomment %}
+          </div>
+        {% endif %}
       </div>
     </div>
     <div class="nbl-widget-body-v1">
@@ -70,12 +72,6 @@
               <li>Exclusive offers and early access to sales</li>
             </ul>
             <a class="nbl-widget-cta-v1" href="{{ routes.account_url }}">Join Now</a>
-            <div>
-              {{ shop.metafields.nbl_config_v1.app.value | json }}
-              <pre>{{ shop.metafields.nbl_config_v1.app.value | json }}</pre>
-              <hr>
-              {{ customer.metafields.app.nbl_customer_v1.value | json }}
-            </div>
           </div>
         {% endif %}
       </div>

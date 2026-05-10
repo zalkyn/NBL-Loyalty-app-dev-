@@ -41,7 +41,7 @@ export const loadingButtonAtom = atom({
 });
 
 
-
+export const savedRuleAtom = atom(emptyNewRule);
 
 export const newRuleAtom = atom(emptyNewRule);
 export const conditionsAtom = atom(emptyConditions);

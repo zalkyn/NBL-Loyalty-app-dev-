@@ -51,7 +51,7 @@ export default function RulesForm() {
 
     const renderEventConditionForm = () => {
         switch (event) {
-            case "CREATE ORDER":
+            case "ORDER":
                 return <OrderConditionsForm />;
             case "REFERRAL":
                 return <s-box>
