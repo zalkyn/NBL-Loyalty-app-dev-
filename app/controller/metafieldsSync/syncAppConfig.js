@@ -12,8 +12,7 @@ export default async function syncAppConfig(admin, session) {
             select: {
                 shop: true,
                 email: true,
-                customers: true,
-                rules: {
+                pointRules: {
                     include: {
                         event: {
                             select: {
@@ -24,9 +23,7 @@ export default async function syncAppConfig(admin, session) {
                         }
                     }
                 },
-                rewards: true,
-                integrations: true,
-                events: true
+                rewardRules: true,
             }
         })
 

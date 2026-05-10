@@ -96,6 +96,7 @@
     box-sizing: border-box;
     padding: 21px 10px 7px 10px;
     grid-gap: 10px;
+    border-bottom: .5px solid #52d8b840;
   }
   .nav-4-grid{
     grid-template-columns: repeat(4, 1fr);
@@ -199,6 +200,7 @@
     color: white;
   }
   .nbl-wchb-reward-v1 {
+    width: 100%;
     g {
       stroke: white;
     }
@@ -207,6 +209,7 @@
     }
   }
   .nbl-wchb-lightning-v1 {
+    width: 100%;
     g {
       fill: white;
     }
@@ -549,128 +552,6 @@
     padding-left: 15px;
   }
 
-  {% comment %} Notification style =============== {% endcomment %}
-    /* overlay */
-  .nbl-notify-overlay-v1 {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    opacity: 0;
-    visibility: hidden;
-    transition: 0.3s;
-    z-index: 999;
-    display: block !important;
-  }
-  .nbl-notify-overlay-v1.nbl-notify-active-v1 {
-    opacity: 1;
-    visibility: visible;
-  }
-
-  /* base (FORCE hidden) */
-  .nbl-notify-base-v1 {
-    position: fixed;
-    left: 0;
-    width: 100%;
-    bottom: -120%;
-    opacity: 0;
-    pointer-events: none;
-    transition: 0.35s ease;
-    z-index: 1000;
-  }
-  .nbl-notify-base-v1.nbl-notify-active-v1 {
-    bottom: 0;
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  /* reward */
-  .nbl-notify-reward-container-v1 {
-    background: #19ba1f;
-    padding: 16px;
-    color: white;
-  }
-  .nbl-notify-reward-heading-v1 {
-    font-size: 16px;
-    padding-bottom: 10px;
-  }
-  .nbl-notify-reward-copy-wrapper-v1 {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 10px;
-  }
-  .nbl-notify-reward-code-v1 {
-    background: rgba(255, 255, 255, 0.25);
-    padding: 13px 10px;
-    text-align: center;
-    line-height: 1;
-    font-size: 14px;
-  }
-  .nbl-notify-reward-copy-btn-v1 {
-    background: #e3f5ce;
-    border: none;
-    cursor: pointer;
-    padding: 0 14px;
-  }
-  .nbl-notify-reward-close-v1 {
-    position: absolute;
-    right: 10px;
-    top: 10px;
-    cursor: pointer;
-  }
-
-  /* info */
-  .nbl-notify-info-container-v1 {
-    background: #222;
-    color: white;
-    padding: 16px;
-  }
-  .nbl-notify-info-close-v1 {
-    position: absolute;
-    right: 10px;
-    top: 10px;
-    cursor: pointer;
-  }
-  .nbl-notify-info-text-v1 {
-    font-size: 14px;
-    line-height: 1.3;
-    max-width: 90%;
-  }
-  .nbl-notify-info-claim-btn-v1 {
-    margin-top: 10px;
-    background: #19ba1f;
-    border: none;
-    padding: 10px 18px;
-    color: white;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 90px;
-    justify-content: center;
-    border-radius: 4px;
-    font-size: 14px;
-    transition: opacity 0.2s;
-  }
-  .nbl-notify-info-claim-btn-v1:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-  .nbl-notify-info-error-v1 {
-    display: none;
-    margin-top: 8px;
-    padding: 8px 10px;
-    background: rgba(255, 80, 80, 0.2);
-    border: 1px solid rgba(255, 80, 80, 0.5);
-    border-radius: 4px;
-    font-size: 13px;
-    color: #ff9a9a;
-  }
-  .nbl-notify-info-error-v1.nbl-notify-active-v1 {
-    display: block;
-  }
-  .nbl-notify-hidden-v1 {
-    display: none !important;
-  }
 
   /* spinner */
   .nbl-spinner-v1 {
@@ -692,7 +573,7 @@
   {% comment %} account activity style {% endcomment %}
    .nbl-haTa-head-v1 {
     display: grid;
-    grid-template-columns: repeat(4,1fr);
+    grid-template-columns: 85px 1fr 65px;
     justify-items: center;
     gap: 10px;
     border-bottom: .5px solid gray;
@@ -708,7 +589,7 @@
   }
   .nbl-haTa-list-v1 {
     display: grid;
-    grid-template-columns: repeat(4,1fr);
+    grid-template-columns: 85px 1fr 65px;
     justify-items: center;
     gap: 10px;
     border-bottom: .5px solid #80808029;

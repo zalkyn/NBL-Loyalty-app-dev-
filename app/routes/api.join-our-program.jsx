@@ -1,79 +1,153 @@
-import { logger } from "app/utils/logger"
+/**
+ * @file api.join-our-program.jsx
+ * @description Public API route for enrolling a customer into the loyalty/referral program.
+ *
+ * Endpoints:
+ *   POST /api/join-our-program  — Enroll a customer by shop + customerId
+ *   GET  /api/join-our-program  — Health check
+ *   OPTIONS (any)               — CORS preflight
+ */
+
+import { logger } from "app/utils/logger";
 import { unauthenticated } from "shopify-server";
-import getCorsHeaders from "app/utils/getCorsHeaders"
+import getCorsHeaders from "app/utils/getCorsHeaders";
 import { customer } from "app/graphql/query/customers";
-import { storeCustomer } from "@controller/customers/store"
-import { syncCustomerConfig } from "@controller/metafieldsSync/syncCustomerConfig"
+import { storeCustomer } from "@controller/customers/store";
+import { syncCustomerConfig } from "@controller/metafieldsSync/syncCustomerConfig";
 
+// ─── Constants ────────────────────────────────────────────────────────────────
 
+const MODULE = "api.join-our-program.jsx";
+
+const HTTP = /** @type {const} */ ({
+    OK: 200,
+    NO_CONTENT: 204,
+    BAD_REQUEST: 400,
+    UNAUTHORIZED: 401,
+    METHOD_NOT_ALLOWED: 405,
+    INTERNAL_SERVER_ERROR: 500,
+});
+
+// ─── POST: Join Program ───────────────────────────────────────────────────────
+
+/**
+ * Handles the POST /api/join-our-program action.
+ *
+ * Expects a JSON body: `{ shop: string, customerId: string }`
+ *
+ * Flow:
+ *  1. Validate method & parse body
+ *  2. Authenticate against Shopify via `unauthenticated.admin`
+ *  3. Fetch customer data, persist to DB, sync metafields
+ *  4. Return sanitised customer payload (no session/token)
+ *
+ * @param {{ request: Request }} context - React Router loader/action context
+ * @returns {Promise<Response>}
+ */
 export async function action({ request }) {
-    console.log("############################")
     const corsHeaders = getCorsHeaders(request);
 
-    // Handle CORS preflight
+    // ── Preflight ──────────────────────────────────────────────────────────────
     if (request.method === "OPTIONS") {
-        return new Response(null, { status: 204, headers: corsHeaders });
+        return new Response(null, { status: HTTP.NO_CONTENT, headers: corsHeaders });
     }
 
     if (request.method !== "POST") {
-        return new Response(
-            JSON.stringify({ error: "Method not allowed" }),
-            { status: 405, headers: corsHeaders }
-        );
+        return jsonResponse({ error: "Method not allowed" }, HTTP.METHOD_NOT_ALLOWED, corsHeaders);
     }
 
-    try {
-        const { shop, customerId } = await request.json();
-        if (!shop) {
-            throw new Error("Valid shop required")
-        }
+    // ── Parse & validate body ──────────────────────────────────────────────────
+    let shop, customerId;
 
+    try {
+        ({ shop, customerId } = await request.json());
+    } catch {
+        return jsonResponse({ error: "Invalid or malformed JSON body" }, HTTP.BAD_REQUEST, corsHeaders);
+    }
+
+    if (!shop) {
+        return jsonResponse({ error: "Field 'shop' is required" }, HTTP.BAD_REQUEST, corsHeaders);
+    }
+
+    if (!customerId) {
+        return jsonResponse({ error: "Field 'customerId' is required" }, HTTP.BAD_REQUEST, corsHeaders);
+    }
+
+    // ── Business logic ─────────────────────────────────────────────────────────
+    try {
         const { admin, session } = await unauthenticated.admin(shop);
 
         if (!session) {
-            throw new Error("Valid shop session required")
+            return jsonResponse({ error: "No active session found for shop" }, HTTP.UNAUTHORIZED, corsHeaders);
         }
 
-        console.log("customerId", customerId)
-        const customerResponse = await customer(admin, customerId)
-        await storeCustomer(session, customerResponse)
+        logger.info("Join program request received", { module: MODULE, shop, customerId });
+
+        const customerData = await customer(admin, customerId);
+        await storeCustomer(session, customerData);
         await syncCustomerConfig(admin, customerId);
 
-        return new Response(
-            JSON.stringify({
-                shop,
-                session,
-                customerResponse
-            }),
-            { status: 200, headers: corsHeaders }
-        );
+        logger.success("Customer successfully joined program", { module: MODULE, shop, customerId });
+
+        // NOTE: Never return `session` — it contains the Shopify access token.
+        return jsonResponse({ shop, customer: customerData }, HTTP.OK, corsHeaders);
 
     } catch (err) {
-        logger.error("Request to join our program API error", {
+        logger.error("Unhandled error in join-our-program action", {
+            module: MODULE,
+            shop,
+            customerId,
             error: err?.message,
             stack: err?.stack,
-            module: "api.join-our-program.jsx"
-        })
-        return new Response(
-            JSON.stringify({
-                error: "Failed to fetch to join our program",
-                details: err.message,
-            }),
-            { status: 500, headers: corsHeaders }
+        });
+
+        return jsonResponse(
+            { error: "Failed to join program", details: err?.message },
+            HTTP.INTERNAL_SERVER_ERROR,
+            corsHeaders
         );
     }
 }
 
-// ----- GET: Health Check --------------------------------------------------
+// ─── GET: Health Check ────────────────────────────────────────────────────────
+
+/**
+ * Handles GET /api/join-our-program.
+ *
+ * Returns a lightweight health-check payload so uptime monitors and
+ * frontend preflight checks can verify the route is reachable.
+ *
+ * @param {{ request: Request }} context - React Router loader/action context
+ * @returns {Promise<Response>}
+ */
 export async function loader({ request }) {
     const corsHeaders = getCorsHeaders(request);
 
     if (request.method === "OPTIONS") {
-        return new Response(null, { status: 204, headers: corsHeaders });
+        return new Response(null, { status: HTTP.NO_CONTENT, headers: corsHeaders });
     }
 
-    return new Response(
-        JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }),
-        { status: 200, headers: corsHeaders }
+    return jsonResponse(
+        { status: "ok", timestamp: new Date().toISOString() },
+        HTTP.OK,
+        corsHeaders
     );
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Builds a JSON `Response` with the correct `Content-Type` header and
+ * any additional headers (e.g. CORS).
+ *
+ * @param {Record<string, unknown>} data    - Payload to serialise as JSON
+ * @param {number}                  status  - HTTP status code
+ * @param {Record<string, string>}  headers - Extra response headers
+ * @returns {Response}
+ */
+function jsonResponse(data, status, headers) {
+    return new Response(JSON.stringify(data), {
+        status,
+        headers: { "Content-Type": "application/json", ...headers },
+    });
 }

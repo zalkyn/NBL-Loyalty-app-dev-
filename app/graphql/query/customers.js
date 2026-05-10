@@ -1,43 +1,72 @@
 import { normalizeCustomerGid } from "app/controller/customers/normalizeCustomerGid";
 
+const CUSTOMER_FIELDS = `#graphql
+    id
+    firstName
+    lastName
+    defaultEmailAddress {
+        emailAddress
+        marketingState
+    }
+    defaultPhoneNumber {
+        phoneNumber
+        marketingState
+        marketingCollectedFrom
+    }
+    createdAt
+    updatedAt
+    numberOfOrders
+    state
+    amountSpent {
+        amount
+        currencyCode
+    }
+    verifiedEmail
+    taxExempt
+    tags
+`;
+
+// fetches all customers with cursor-based pagination
 export default async function customers(admin) {
+    const allCustomers = [];
+    let cursor = null;
+    let hasNextPage = true;
+
     try {
-        const response = await admin.graphql(
-            `#graphql
-            query CustomerList {
-                customers(first: 250) {
-                nodes {
-                    id
-                    firstName
-                    lastName
-                    defaultEmailAddress {
-                        emailAddress
-                        marketingState
+        while (hasNextPage) {
+            const response = await admin.graphql(
+                `#graphql
+                query CustomerList($cursor: String) {
+                    customers(first: 250, after: $cursor) {
+                        nodes {
+                            ${CUSTOMER_FIELDS}
+                        }
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
                     }
-                    defaultPhoneNumber {
-                        phoneNumber
-                        marketingState
-                        marketingCollectedFrom
-                    }
-                    createdAt
-                    updatedAt
-                    numberOfOrders
-                    state
-                    amountSpent {
-                        amount
-                        currencyCode
-                    }
-                    verifiedEmail
-                    taxExempt
-                    tags
-                }
-                }
-            }`,
-        );
-        const json = await response.json();
-        return json.data;
+                }`,
+                { variables: { cursor } },
+            );
+
+            const json = await response.json();
+            const data = json.data?.customers;
+
+            if (!data) {
+                throw new Error("Invalid response from Shopify API");
+            }
+
+            allCustomers.push(...data.nodes);
+
+            hasNextPage = data.pageInfo.hasNextPage;
+            cursor = data.pageInfo.endCursor;
+        }
+
+        return { customers: { nodes: allCustomers } };
     } catch (error) {
         console.error("Error fetching customers from store:", error);
+        return null;
     }
 }
 
@@ -47,41 +76,20 @@ export const customer = async (admin, id) => {
         const gid = normalizeCustomerGid(id);
         const response = await admin.graphql(
             `#graphql
-                query {
-                    customer(id: "${gid}") {
-                        id
-                        firstName
-                        lastName
-                        defaultEmailAddress {
-                            emailAddress
-                            marketingState
-                        }
-                        defaultPhoneNumber {
-                            phoneNumber
-                            marketingState
-                            marketingCollectedFrom
-                        }
-                        createdAt
-                        updatedAt
-                        numberOfOrders
-                        state
-                        amountSpent {
-                            amount
-                            currencyCode
-                        }
-                        verifiedEmail
-                        taxExempt
-                        tags
+                query CustomerById($id: ID!) {
+                    customer(id: $id) {
+                        ${CUSTOMER_FIELDS}
                     }
                 }`,
+            { variables: { id: gid } },
         );
         const json = await response.json();
         return json.data?.customer || null;
     } catch (error) {
         console.error("Error fetching customer from store:", error);
+        return null;
     }
-}
-
+};
 
 export const customerOrderCount = async (admin, id) => {
     try {
@@ -89,16 +97,18 @@ export const customerOrderCount = async (admin, id) => {
         const gid = normalizeCustomerGid(id);
         const response = await admin.graphql(
             `#graphql
-                query {
-                    customer(id: "${gid}") {
+                query CustomerOrderCount($id: ID!) {
+                    customer(id: $id) {
                         id
                         numberOfOrders
                     }
                 }`,
+            { variables: { id: gid } },
         );
         const json = await response.json();
-        return Number(json.data?.customer?.numberOfOrders ?? 1);
+        return Number(json.data?.customer?.numberOfOrders ?? 0);
     } catch (error) {
-        console.error("Error fetching customer from store:", error);
+        console.error("Error fetching customer order count:", error);
+        return 0;
     }
-}
+};

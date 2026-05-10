@@ -81,6 +81,9 @@ export const loadingButtonAtom = atom({
 });
 
 
+export const savedRuleAtom = atom(emptyNewRule);
+export const savedConditionsAtom = atom(emptyConditions);
+
 
 
 export const newRuleAtom = atom(emptyNewRule);
