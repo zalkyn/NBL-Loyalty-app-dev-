@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import prisma from "db-server";
 import { authenticate } from "shopify-server";
 import { useActionData, useLoaderData, useSubmit, useNavigation } from "react-router";
+import syncAppConfig from "../controller/metafieldsSync/syncAppConfig";
 
 
 // ── Loader ────────────────────────────────────────────────────────────────────
@@ -21,7 +22,7 @@ export const loader = async ({ request }) => {
 // ── Action ────────────────────────────────────────────────────────────────────
 
 export const action = async ({ request }) => {
-    const { session } = await authenticate.admin(request);
+    const { session, admin } = await authenticate.admin(request);
     const formData = await request.formData();
     const intent = formData.get("intent");
 
@@ -44,6 +45,8 @@ export const action = async ({ request }) => {
             create: { shop: session.shop, sessionId: session.id, ...data },
         });
 
+        await syncAppConfig(admin, session);
+
         return { ok: true, intent, message: "Styles updated." };
     }
 
@@ -61,6 +64,8 @@ export const action = async ({ request }) => {
             create: { shop: session.shop, sessionId: session.id, ...data },
         });
 
+        await syncAppConfig(admin, session);
+
         return { ok: true, intent, message: "Styles reset to defaults." };
     }
 
@@ -77,6 +82,8 @@ export const action = async ({ request }) => {
             create: { shop: session.shop, sessionId: session.id, ...data },
         });
 
+        await syncAppConfig(admin, session);
+
         return { ok: true, intent, message: "Default styles saved to database." };
     }
 
@@ -90,11 +97,11 @@ const TABS = [
     { key: "actionButton", label: "Action Button" },
     { key: "header", label: "Header" },
     { key: "tabHome", label: "Home" },
-    { key: "tabEarnPoints", label: "Earn Points" },
-    { key: "tabRewards", label: "Rewards" },
-    { key: "tabActivity", label: "Activity" },
-    { key: "tabProfile", label: "Profile" },
-    { key: "tabReferral", label: "Referral" },
+    { key: "tabEarnPoints", label: "Earn Points", disabled: true },
+    { key: "tabRewards", label: "Rewards", disabled: true },
+    { key: "tabActivity", label: "Activity", disabled: true },
+    { key: "tabProfile", label: "Profile", disabled: true },
+    { key: "tabReferral", label: "Referral", disabled: true },
 ];
 
 const COLOR_PROPS = new Set([
@@ -350,15 +357,18 @@ export default function Customize() {
                     <div style={{ position: 'sticky', top: '0' }}>
                         <s-section>
                             <s-stack gap="small">
-                                {TABS.map(({ key, label }) => (
-                                    <s-button
+                                {TABS.map(({ key, label, disabled }) => {
+                                    if (disabled) {
+                                        return null;
+                                    }
+                                    return <s-button
                                         variant={activeTab === key ? "primary" : "tertiary"}
                                         key={key}
                                         onClick={() => setActiveTab(key)}
                                     >
                                         {label}
                                     </s-button>
-                                ))}
+                                })}
                             </s-stack>
                         </s-section>
                     </div>
