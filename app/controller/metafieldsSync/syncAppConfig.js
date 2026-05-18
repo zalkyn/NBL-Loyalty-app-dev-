@@ -24,6 +24,7 @@ export default async function syncAppConfig(admin, session) {
                     }
                 },
                 rewardRules: true,
+                styles: true
             }
         })
 

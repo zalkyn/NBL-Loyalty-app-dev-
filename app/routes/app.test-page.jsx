@@ -1,15 +1,15 @@
 import { useLoaderData } from "react-router";
 import { authenticate } from "shopify-server"
-// import afterAuthSetup from "app/controller/afterAuthSetup";
+import afterAuthSetup from "app/controller/afterAuthSetup";
 // import { customerOrderCount } from "app/graphql/query/customers";
 // import { getPointRuleByEvent } from "../controller/pointsRule/getPointRuleByEvent"
 // import prisma from "../db.server.js";
 // import { getAppstleMetafield } from "@graphql/mutation/order/getAppstleMetafield"
-import { sendPointsUpdate } from "../../server/webSocket/server.js";
+// import { sendPointsUpdate } from "../../server/webSocket/server.js";
 
 export const loader = async ({ request }) => {
     const { admin, session } = await authenticate.admin(request);
-    // await afterAuthSetup({ session, admin });
+    await afterAuthSetup({ session, admin });
     // const customer = await customerOrderCount(admin, "9359217918202");
     // const customer2 = await customerOrderCount(admin, "9361893785850");
     // const rule = await getPointRuleByEvent("Referral")
@@ -32,10 +32,10 @@ export const loader = async ({ request }) => {
 
     // const pointRuleByEvent = await getPointRuleByEvent("Referral");
 
-    sendPointsUpdate(9441305526522, { points: 100, totalPoints: 1500 });
+    // sendPointsUpdate(9441305526522, { points: 100, totalPoints: 1500 });
 
     return {
-        pointRuleByEvent
+        pointRuleByEvent: null
     }
 }
 

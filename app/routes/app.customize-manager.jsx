@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import prisma from "db-server";
 import { authenticate } from "shopify-server";
 import { useActionData, useLoaderData, useSubmit, useNavigation } from "react-router";
+import syncAppConfig from "../controller/metafieldsSync/syncAppConfig";
 
 
 // ── Loader ────────────────────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ export const loader = async ({ request }) => {
 // ── Action ────────────────────────────────────────────────────────────────────
 
 export const action = async ({ request }) => {
-    const { session } = await authenticate.admin(request);
+    const { session, admin } = await authenticate.admin(request);
     const formData = await request.formData();
     const intent = formData.get("intent");
 
@@ -106,6 +107,8 @@ export const action = async ({ request }) => {
             presetSynced = false;
             presetError = err.message;
         }
+
+        await syncAppConfig(admin, session);
 
         return {
             ok: true,
