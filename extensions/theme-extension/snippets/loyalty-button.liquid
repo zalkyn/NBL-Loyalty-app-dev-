@@ -1,3 +1,48 @@
+{% liquid
+  assign action_button_styles = shop.metafields.app.nbl_config_v1.value.styles.actionButton
+  assign button_position = 'left'
+  if action_button_styles['Button Position'] == 'Right' or action_button_styles['Button Position'] == 'right'
+    assign button_position = 'right'
+  endif
+%}
+
+{% comment %}
+  {
+      "Color": "#FFFFFF",
+      "Margin": "0px 0px 0px 0px",
+      "Padding": "10px 20px 10px 20px",
+      "Font Size": "14px",
+      "Box Shadow": "0 4px 12px rgba(78,203,168,0.35)",
+      "Font Weight": "600",
+      "Border Color": "#4ECBA8",
+      "Border Style": "solid",
+      "Border Radius": "9999px",
+      "Background Color": "#4ECBA8"
+  }
+{% endcomment %}
+
+<style>
+  .nbl-wo-wrapper-v1 {
+    position: fixed;
+    {{ button_position }}: 15px;
+    bottom: 35px;
+    display: block;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    z-index: 99999999999999;
+  }
+  .nbl-widget-open-button-v1 {
+    font-size: {{ action_button_styles["Font Size"] | default: '14px' }};
+    background: {{ action_button_styles["Background Color"] | default: '#52d8b8' }};
+    border: {{ action_button_styles["Border Style"] | default: 'solid' }} {{ action_button_styles["Border Color"] | default: '#4ECBA8' }} {{ action_button_styles["Border Width"] | default: '1px' }};
+    padding: {{ action_button_styles["Padding"] | default: '10px 20px' }};
+    border-radius: {{ action_button_styles["Border Radius"] | default: '8px' }};
+    cursor: pointer;
+    color: {{ action_button_styles["Color"] | default: '#000000' }};
+  }
+</style>
+
 <div class="nbl-wo-wrapper-v1 nbl-d-none-v1">
   <button class="nbl-widget-open-button-v1">
     NB Loyalty | <span class="nbl-customer-points-v1">1,000 points</span>

@@ -1,5 +1,124 @@
 {% comment %} Loyalty CSS {% endcomment %}
 
+{% comment %}
+  styles = {
+      "id": 4,
+      "shop": "nb-loyalty.myshopify.com",
+      "actionButton": {
+          "Color": "#FFFFFF",
+          "Margin": "0px 0px 0px 0px",
+          "Padding": "10px 20px 10px 20px",
+          "Font Size": "14px",
+          "Box Shadow": "0 4px 12px rgba(78,203,168,0.35)",
+          "Font Weight": "600",
+          "Border Color": "#4A27BE",
+          "Border Style": "solid",
+          "Border Radius": "9px",
+          "Background Color": "#9648D5"
+      },
+      "header": {
+          "Color": "#FFFFFF",
+          "Padding": "20px",
+          "Font Size": "20px",
+          "Font Weight": "700",
+          "Background Color": "#C44BEC"
+      },
+      "tabHome": {
+          "Color": "#1A1A1A",
+          "Padding": "16px",
+          "Font Size": "14px",
+          "navigation": {
+              "Color": "#1A1A1A",
+              "Margin": "0px 0px 16px 0px",
+              "Padding": "16px 0px 16px 0px",
+              "Font Size": "14px",
+              "Font Weight": "400",
+              "Background Color": "#FFFFFF"
+          },
+          "Font Weight": "400",
+          "activeRewards": {
+              "Color": "#FFFFFF",
+              "Margin": "0px 0px 16px 0px",
+              "Padding": "16px 0px 16px 0px",
+              "Font Size": "14px",
+              "Font Weight": "400",
+              "New Property": "",
+              "Background Color": "#4ECBA8"
+          },
+          "accountActivity": {
+              "Color": "#1A1A1A",
+              "Margin": "0px 0px 16px 0px",
+              "Padding": "16px 0px 16px 0px",
+              "Font Size": "14px",
+              "Font Weight": "400",
+              "Background Color": "#FFFFFF"
+          },
+          "Background Color": "#862727"
+      },
+      "tabRewards": {
+          "Color": "#1A1A1A",
+          "Padding": "16px",
+          "Font Size": "14px",
+          "Font Weight": "400",
+          "Background Color": "#FFFFFF"
+      },
+      "tabActivity": {
+          "Color": "#1A1A1A",
+          "Padding": "16px",
+          "Font Size": "13px",
+          "Font Weight": "400",
+          "Background Color": "#FFFFFF"
+      },
+      "tabProfile": {
+          "Color": "#1A1A1A",
+          "Padding": "16px",
+          "Font Size": "14px",
+          "Font Weight": "400",
+          "Background Color": "#FFFFFF"
+      },
+      "tabReferral": {
+          "Color": "#1B1818",
+          "Padding": "16px",
+          "Font Size": "14px",
+          "Font Weight": "400",
+          "Background Color": "#FFFFFF"
+      },
+      "tabEarnPoints": {
+          "Color": "#1A1A1A",
+          "Padding": "16px",
+          "Font Size": "14px",
+          "Font Weight": "400",
+          "Background Color": "#FFFFFF"
+      },
+      "accountActivity": {
+          "Color": "#1A1A1A",
+          "Padding": "16px",
+          "Font Size": "14px",
+          "Font Weight": "400",
+          "Background Color": "#FFFFFF"
+      },
+      "updatedAt": "2026-05-12T07:06:01.919Z",
+      "sessionId": "offline_nb-loyalty.myshopify.com"
+  }
+{% endcomment %}
+
+{% liquid
+  assign styles = shop.metafields.app.nbl_config_v1.value.styles
+  assign header_style = styles.header
+  assign header_nav_style = styles.header.Navigation
+  assign header_points_style = styles.header.Points
+  assign header_heading_style = styles.header.Heading
+  assign tab_home_style = styles.tabHome
+  assign tab_home_nav_style = styles.tabHome.navigation
+  assign tab_home_active_rewards_style = styles.tabHome.activeRewards
+  assign tab_home_account_activity_style = styles.tabHome.accountActivity
+  assign tab_rewards_style = styles.tabRewards
+  assign tab_activity_style = styles.tabActivity
+  assign tab_profile_style = styles.tabProfile
+  assign tab_referral_style = styles.tabReferral
+  assign tab_earn_points_style = styles.tabEarnPoints
+%}
+
 <style>
   * {
     box-sizing: border-box;
@@ -7,27 +126,6 @@
 
   .nbl-d-none-v1 {
     display: none !important;
-  }
-
-  .nbl-wo-wrapper-v1 {
-    position: fixed;
-    right: 15px;
-    bottom: 35px;
-    display: block;
-    margin: 0;
-    padding: 0;
-    line-height: 1;
-    z-index: 99999999999999;
-  }
-
-  .nbl-widget-open-button-v1 {
-    font-size: 15px;
-    background: #52d8b8;
-    border: none;
-    padding: 15px 20px;
-    border-radius: 8px;
-    cursor: pointer;
-    color: black;
   }
 
   .nbl-widget-close-button-v1 {
@@ -83,16 +181,16 @@
   }
 
   .nbl-widget-header-top-v1 {
-    background: #52d8b8;
+    background: {{ header_style["Background Color"] | default: '#50D3AE' }};
     width: 100%;
     box-sizing: border-box;
-    padding: 10px 15px;
+    padding: {{ header_style["Padding"] | default: '20px' }};
   }
 
   .nbl-wh-nav-wrapper-v1 {
     display: grid;
     min-height: 50px;
-    background-color: rgb(255, 255, 255);
+    background-color: {{ header_nav_style["Background Color"] | default: '#FFFFFF' }};
     box-sizing: border-box;
     padding: 21px 10px 7px 10px;
     grid-gap: 10px;
@@ -111,12 +209,12 @@
   .nbl-nav-item-v1 {
     background: none;
     border: none;
-    font-size: 13px;
+    font-size: {{ header_nav_style["Font Size"] | default: '14px' }};
     letter-spacing: 0.4px;
-    font-weight: 300;
+    font-weight: {{ header_nav_style["Font Weight"] | default: '400' }};
     cursor: pointer;
     box-sizing: border-box;
-    padding: 0px 0px 11px 0px;
+    padding:{{ header_nav_style["Padding"] | default: '11px 0px' }};
     line-height: 1;
     display: flex;
     align-items: center;
@@ -126,24 +224,28 @@
     transition: 0.3s;
   }
   .nbl-nav-item-v1.active {
-    border-bottom: 2px solid rgb(66, 212, 178);
-    color: rgb(66, 212, 178);
+    border-bottom: 2px solid {{ header_nav_style["Active Border Color"] | default: '#4A27BE' }};
+    color: {{ header_nav_style["Active Color"] | default: '#4A27BE' }};
   }
 
   .nbl-wh-title-v1 {
-    margin: 0;
-    font-size: 18px;
-    color: white;
-    font-weight: 500;
+    margin: {{ header_heading_style["Margin"] | default: '0px 0px 0px 0px' }};
+    font-size: {{ header_heading_style["Font Size"] | default: '18px' }};
+    color: {{ header_heading_style["Color"] | default: 'white' }};
+    font-weight: {{ header_heading_style["Font Weight"] | default: '500' }};
+    padding: {{ header_heading_style["Padding"] | default: '0px' }};
   }
   .nbl-wh-points-v1 {
-    font-size: 12px;
-    background: white;
+    font-size: {{ header_points_style["Font Size"] | default: '12px' }};
+    background: {{ header_points_style["Background Color"] | default: '#FFFFFF' }};
     display: inline;
-    color: cadetblue;
+    color: {{ header_points_style["Color"] | default: 'cadetblue' }};
     box-sizing: border-box;
-    padding: 4px 7px;
-    border-radius: 15px;
+    padding: {{ header_points_style["Padding"] | default: '4px 8px' }};
+    border-radius: {{ header_points_style["Border Radius"] | default: '15px' }};
+    border-color: {{ header_points_style["Border Color"] | default: '#FFFFFF' }};
+    border-width: {{ header_points_style["Border Width"] | default: '1px' }};
+    border-style: {{ header_points_style["Border Style"] | default: 'solid' }};
   }
 
   .nbl-widget-body-v1 {
@@ -188,12 +290,12 @@
   .nbl-home-nav-itm-v1 {
     display: grid;
     grid-template-columns: 35px 1fr auto;
-    grid-gap: 15px;
-    border-radius: 10px;
+    grid-gap: {{ tab_home_nav_style["Grid Gap"] | default: '10px' }};
+    border-radius: {{ tab_home_nav_style["Border Radius"] | default: '8px' }};
     cursor: pointer;
-    padding: 10px 15px;
-    margin: 5px;
-    background: rgba(29, 26, 46, 0.8);
+    padding: {{ tab_home_nav_style["Padding"] | default: '10px 15px' }};
+    margin: {{ tab_home_nav_style["Margin"] | default: '0 0 10px 0' }};
+    background: {{ tab_home_nav_style["Background Color"] | default: '#6350d6' }};
     align-items: center;
   }
   .nbl-wct-hb-text-v1 {

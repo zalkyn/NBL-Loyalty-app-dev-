@@ -101,7 +101,7 @@ NBL_v1.requestJoinProgram = async () => {
                 shop: Shopify.shop,
                 customerId: NBL_v1?.customer?.id || null,
             }),
-            signal: AbortSignal.timeout(6000),
+            signal: AbortSignal.timeout(1000 * 40),
         });
 
         if (!response.ok) throw new Error(`Request failed: ${response.status}`);
@@ -135,7 +135,7 @@ NBL_v1.requestToGetRewardVoucher = async ({ rewardRuleId, title }) => {
                 title,
                 customerIndex: NBL_v1.customer.config.id,
             }),
-            signal: AbortSignal.timeout(6000),
+            signal: AbortSignal.timeout(1000 * 40),
         });
 
         if (!response.ok) throw new Error(`Request failed: ${response.status}`);
@@ -148,7 +148,7 @@ NBL_v1.requestToGetRewardVoucher = async ({ rewardRuleId, title }) => {
         NBL_v1.bus.emit("notify:info:claim:success", { response: data, voucher });
 
     } catch (error) {
-        NBL_v1.bus.emit("notify:info:claim:error", { error });
+        NBL_v1.bus.emit("notify:info:claim:error", { ...error, message: "Something went wrong. Please try again." });
     }
 };
 
