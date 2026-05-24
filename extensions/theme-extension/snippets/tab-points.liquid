@@ -1,28 +1,6 @@
-{% comment %} points  {% endcomment %}
+{% comment %} Points List - Improved Version 4 (Trigger Based) {% endcomment %}
 
-<div class="nbl-points-list-v1">
-  <!-- rule Item -->
-  <div class="nbl-points-item-v1" data-rule-id="230710">
-    <!-- Icon -->
-    <div class="nbl-points-icon-v1">
-      {% render 'icons-earn-points', icon: 'review' %}
-    </div>
-
-    <!-- Content -->
-    <div class="nbl-points-content-v1">
-      <div class="nbl-points-title-v1">Voucher $5</div>
-
-      <div class="nbl-points-points-v1">50 points</div>
-    </div>
-
-    <!-- Action -->
-    <div class="nbl-points-action-v1">
-      <button class="nbl-points-btn-v1" disabled>
-        <div class="nbl-points-chevron-icon">{% render 'icon-chevron-right', stroke: 'rgb(66, 212, 178)' %}</div>
-      </button>
-    </div>
-  </div>
-</div>
+<div class="nbl-points-list-v1"></div>
 
 <script>
   NBL_v1.tab.renderEarnPointsList = () => {
@@ -41,7 +19,7 @@
     const formatDiscount = (value, type) =>
       type === 'percentage' ? `${value}% off` : `${currencySymbol}${formatNumber(value)} off`;
 
-    /* -------------------- Label Builder -------------------- */
+    /* -------------------- Label Builder (Trigger Based Logic) -------------------- */
 
     const buildLabel = (rule) => {
       const { type } = rule?.event || {};
@@ -50,19 +28,9 @@
       /* ===== REVIEW ===== */
       if (type === 'REVIEW') {
         const parts = [];
-
-        if (review.text) {
-          parts.push(`${formatPoints(review.text)} for text review`);
-        }
-
-        if (review.image) {
-          parts.push(`${formatPoints(review.image)} for photo review`);
-        }
-
-        if (review.video) {
-          parts.push(`${formatPoints(review.video)} for video review`);
-        }
-
+        if (review.text) parts.push(`${formatPoints(review.text)} for text review`);
+        if (review.image) parts.push(`${formatPoints(review.image)} for photo review`);
+        if (review.video) parts.push(`${formatPoints(review.video)} for video review`);
         return parts.join('. ');
       }
 
@@ -72,30 +40,47 @@
           const { points, amount } = earning.rate;
           return `Get ${formatPoints(points)} for every ${currencySymbol}${formatNumber(amount)} you spend`;
         }
-
         if (earning.type === 'fixed') {
           return `Get ${formatPoints(earning.fixedPoints)} for every order`;
         }
       }
 
-      /* ===== REFERRAL ===== */
+      /* ===== REFERRAL ===== (Trigger Based Smart Logic) */
       if (type === 'REFERRAL') {
         const { referrer = {}, referred = {} } = referral;
+        const trigger = referral?.trigger || 'oneTime'; // default fallback
         const parts = [];
 
-        if (referrer.firstOrderPoints) {
-          parts.push(`Get ${formatPoints(referrer.firstOrderPoints)} on first order`);
+        if (trigger === 'subscription') {
+          if (referrer.allowRenewalReward && referrer.renewalPoints > 0) {
+            parts.push(`You earn ${formatPoints(referrer.renewalPoints)} when your friend starts a subscription`);
+          }
+        } else if (trigger === 'oneTime' || trigger === 'firstOrder') {
+          if (referrer.firstOrderPoints > 0) {
+            parts.push(
+              `You earn ${formatPoints(referrer.firstOrderPoints)} when your friend makes a one-time purchase`
+            );
+          }
+        } else {
+          // If trigger is both or unknown - show both
+          if (referrer.firstOrderPoints > 0) {
+            parts.push(
+              `You earn ${formatPoints(referrer.firstOrderPoints)} when your friend makes a one-time purchase`
+            );
+          }
+          if (referrer.allowRenewalReward && referrer.renewalPoints > 0) {
+            parts.push(`You earn ${formatPoints(referrer.renewalPoints)} when your friend starts a subscription`);
+          }
         }
 
-        if (referrer.allowRenewalReward && referrer.renewalPoints) {
-          parts.push(`Get ${formatPoints(referrer.renewalPoints)} on renewal`);
-        }
-
+        // Friend Discount
         if (referred.discountValue) {
-          parts.push(`Friend gets ${formatDiscount(referred.discountValue, referred.discountType)}`);
+          parts.push(
+            `Your friend gets ${formatDiscount(referred.discountValue, referred.discountType)} on their first order`
+          );
         }
 
-        return parts.join('. ');
+        return parts.length ? parts.join('. ') : `Get points by referring friends`;
       }
 
       /* ===== DEFAULT ===== */
@@ -103,7 +88,7 @@
       return `Get ${formatPoints(fallback)} for completing this action`;
     };
 
-    /* -------------------- Points Summary -------------------- */
+    /* -------------------- Points Summary (Short) -------------------- */
 
     const buildPointsText = (rule) => {
       const { type } = rule?.event || {};
@@ -112,40 +97,38 @@
       /* ===== REVIEW ===== */
       if (type === 'REVIEW') {
         const parts = [];
-
         if (review.text) parts.push(`${formatPoints(review.text)} text`);
         if (review.image) parts.push(`${formatPoints(review.image)} photo`);
         if (review.video) parts.push(`${formatPoints(review.video)} video`);
-
         return parts.join(' · ');
       }
 
       /* ===== REFERRAL ===== */
       if (type === 'REFERRAL') {
         const { referrer = {}, referred = {} } = referral;
+        const trigger = referral?.trigger || 'oneTime';
         const parts = [];
 
-        if (referrer.firstOrderPoints) {
-          parts.push(`${formatPoints(referrer.firstOrderPoints)} on first order`);
+        if (trigger === 'subscription') {
+          if (referrer.allowRenewalReward && referrer.renewalPoints > 0) {
+            parts.push(`${formatPoints(referrer.renewalPoints)} (subscription)`);
+          }
+        } else if (trigger === 'oneTime' || trigger === 'firstOrder') {
+          if (referrer.firstOrderPoints > 0) {
+            parts.push(`${formatPoints(referrer.firstOrderPoints)} (one-time)`);
+          }
+        } else {
+          // both
+          if (referrer.firstOrderPoints > 0) parts.push(`${formatPoints(referrer.firstOrderPoints)} (one-time)`);
+          if (referrer.allowRenewalReward && referrer.renewalPoints > 0)
+            parts.push(`${formatPoints(referrer.renewalPoints)} (subscription)`);
         }
 
-        // optional (you can enable if needed)
-        /*
-      if (referrer.allowRenewalReward && referrer.renewalPoints) {
-        parts.push(`${formatPoints(referrer.renewalPoints)} on renewal`);
-      }
+        if (referred.discountValue) {
+          parts.push(`Friend gets ${formatDiscount(referred.discountValue, referred.discountType)}`);
+        }
 
-      if (referred.discountValue) {
-        parts.push(
-          `Friend gets ${formatDiscount(
-            referred.discountValue,
-            referred.discountType
-          )}`
-        );
-      }
-      */
-
-        return parts.join(' · ');
+        return parts.join(' · ') || '—';
       }
 
       /* ===== ORDER ===== */
@@ -154,7 +137,6 @@
           const { points, amount } = earning.rate;
           return `${formatPoints(points)} per ${currencySymbol}${formatNumber(amount)}`;
         }
-
         if (earning.type === 'fixed') {
           return `${formatPoints(earning.fixedPoints)} per order`;
         }
@@ -185,43 +167,37 @@
     const buildItem = (rule) => {
       const { id } = rule;
       const eventType = rule?.event?.type;
-      const title = rule?.event?.name || '';
+      const title = rule?.event?.name || rule.title || 'Earn Points';
 
       const icon = getIcon(eventType);
       const points = buildPointsText(rule);
       const label = buildLabel(rule);
 
       return `
-      <div class="nbl-points-item-v1" data-rule-id="${id}" data-label="${label}">
-        <div class="nbl-points-icon-v1">${icon}</div>
+        <div class="nbl-points-item-v1" data-rule-id="${id}" data-label="${label}">
+          <div class="nbl-points-icon-v1">${icon}</div>
 
-        <div class="nbl-points-content-v1">
-          <div class="nbl-points-title-v1">${title}</div>
-          <div class="nbl-points-points-v1">${points || '—'}</div>
-        </div>
+          <div class="nbl-points-content-v1">
+            <div class="nbl-points-title-v1">${title}</div>
+            <div class="nbl-points-points-v1">${points}</div>
+          </div>
 
-        <div class="nbl-points-action-v1">
-          <button class="nbl-points-btn-v1">
-            <div class="nbl-points-chevron-icon">
-              {% render 'icon-chevron-right', stroke: 'rgb(66, 212, 178)' %}
-            </div>
-          </button>
+          <div class="nbl-points-action-v1">
+            <button class="nbl-points-btn-v1">
+              <div class="nbl-points-chevron-icon">
+                {% render 'icon-chevron-right', stroke: 'rgb(66, 212, 178)' %}
+              </div>
+            </button>
+          </div>
         </div>
-      </div>
-    `;
+      `;
     };
 
     /* -------------------- Render -------------------- */
-
     container.innerHTML = pointRules.map(buildItem).join('');
   };
 
-  // render rule list after dom loaded
-  NBL_v1.bus.on('dom:loaded', () => {
-    NBL_v1.tab.renderEarnPointsList();
-  });
-
-  NBL_v1.bus.on('points:update', (points) => {
-    NBL_v1.tab.renderEarnPointsList();
-  });
+  // Auto render
+  NBL_v1.bus.on('dom:loaded', () => NBL_v1.tab.renderEarnPointsList());
+  NBL_v1.bus.on('points:update', () => NBL_v1.tab.renderEarnPointsList());
 </script>

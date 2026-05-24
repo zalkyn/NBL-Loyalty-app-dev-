@@ -117,6 +117,12 @@
   assign tab_profile_style = styles.tabProfile
   assign tab_referral_style = styles.tabReferral
   assign tab_earn_points_style = styles.tabEarnPoints
+
+  assign action_button_styles = styles.actionButton
+  assign button_position = 'left'
+  if action_button_styles['Button Position'] == 'Right' or action_button_styles['Button Position'] == 'right'
+    assign button_position = 'right'
+  endif
 %}
 
 <style>
@@ -147,7 +153,7 @@
   .nbl-widget-container-v1 {
     position: fixed;
     bottom: 100px;
-    right: 15px;
+    {{ button_position }}: 15px;
     background: white;
     height: 500px;
     width: 400px;
@@ -159,7 +165,12 @@
     box-shadow: rgb(153, 153, 153) 2px 2px 15px;
     overflow: hidden;
     scale: 0;
-    transform-origin: bottom right;
+    {% if button_position == 'left' %}
+      transform-origin: bottom left;
+    {% else %}
+      transform-origin: bottom right;
+    {% endif %}
+    
   }
   .nbl-widget-container-v1.active {
     scale: 1;
@@ -492,7 +503,7 @@
     font-size: 12px;
     color: rgb(105, 105, 105);
     margin-right: 5px;
-    line-height: 1;
+    line-height: 1.5;
     font-weight: 300;
   }
 
