@@ -11,86 +11,49 @@
 
     <!-- How it works -->
     <div class="nbl-referral-flow-v1">
-      <!-- Step 1 -->
       <div class="nbl-referral-step-v1">
         <div class="nbl-referral-icon-v1">🔗</div>
         <div class="nbl-referral-step-content-v1">
           <h4>Share your link</h4>
-          <p>Send your referral link to friends</p>
+          <p>Send this link to your friends</p>
         </div>
       </div>
 
-      <!-- Step 2 -->
       <div class="nbl-referral-step-v1">
         <div class="nbl-referral-icon-v1">🛍️</div>
         <div class="nbl-referral-step-content-v1">
           <h4>Friend makes a purchase</h4>
-          <p>They use your link and place an order</p>
+          <p>They click your link and place an order</p>
         </div>
       </div>
 
-      <!-- Step 3 -->
       <div class="nbl-referral-step-v1">
         <div class="nbl-referral-icon-v1">🎁</div>
         <div class="nbl-referral-step-content-v1">
           <h4>You both get rewards</h4>
-          <p>Simple, fast, and rewarding</p>
+          <p>Simple and rewarding</p>
         </div>
       </div>
     </div>
 
-    <!-- Rewards -->
-    {% comment %}
-      <div class="nbl-referral-rewards-v1">
-        <div class="nbl-referral-reward-card-v1">
-          <div class="nbl-referral-reward-icon-v1">👤</div>
-          <div>
-            <p class="nbl-referral-reward-label-v1">You get</p>
-            <h3 class="nbl-referral-reward-value-v1">100 Points</h3>
-            <span class="nbl-referral-reward-note-v1">After friend's first order</span>
-          </div>
-        </div>
+    <!-- Dynamic Rewards -->
+    <div class="nbl-referral-rewards-v1" id="nbl-referral-rewards"></div>
 
-        <div class="nbl-referral-reward-card-v1">
-          <div class="nbl-referral-reward-icon-v1">🎉</div>
-          <div>
-            <p class="nbl-referral-reward-label-v1">Friend gets</p>
-            <h3 class="nbl-referral-reward-value-v1">$10 Discount</h3>
-            <span class="nbl-referral-reward-note-v1">On first purchase</span>
-          </div>
-        </div>
-      </div>
-    {% endcomment %}
-
-    <!-- Link -->
+    <!-- Referral Link Only -->
     <div class="nbl-referral-section-v1">
       <label>Your Referral Link</label>
       <div class="nbl-referral-input-group-v1">
         <input
           class="nbl-referral-input-v1 nbl-referral-link-v1"
           type="text"
-          value="{{shop.url}}/?nbl-referral={{referral_link}}"
+          value="{{ shop.url }}/?nbl-referral={{ referral_link }}"
           readonly
         >
         <button class="nbl-referral-copy-btn-v1">Copy</button>
       </div>
     </div>
 
-    <!-- Code -->
-    <div class="nbl-referral-section-v1">
-      <label>Your Referral Code</label>
-      <div class="nbl-referral-input-group-v1">
-        <input
-          class="nbl-referral-input-v1 nbl-referral-code-v1"
-          type="text"
-          value="{{referral_link}}"
-          readonly
-        >
-        <button class="nbl-referral-copy-btn-v1">Copy</button>
-      </div>
-    </div>
-
-    <!-- Share -->
+    <!-- Share Buttons -->
     <div class="nbl-referral-share-v1">
       <p>Share your link</p>
       <div class="nbl-referral-share-buttons-v1">
@@ -107,101 +70,92 @@
   .nbl-referral-wrapper-v1 {
     display: flex;
     justify-content: center;
+    padding: 10px;
   }
 
   .nbl-referral-card-v1 {
     width: 100%;
+    max-width: 460px;
+    background: #fff;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
   }
 
-  /* Header */
   .nbl-referral-title-v1 {
-    font-size: 17px;
-    font-weight: 500;
-    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 4px 0;
+    color: #1f2937;
   }
 
   .nbl-referral-subtitle-v1 {
     color: #6b7280;
     font-size: 14px;
-    margin-bottom: 20px;
+    margin-bottom: 24px;
   }
 
-  /* Steps */
   .nbl-referral-flow-v1 {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
   }
 
   .nbl-referral-step-v1 {
     display: flex;
-    gap: 12px;
-    margin-bottom: 14px;
-    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+    align-items: flex-start;
   }
 
   .nbl-referral-icon-v1 {
     background: #eef2ff;
-    padding: 8px;
-    border-radius: 10px;
+    padding: 10px;
+    border-radius: 12px;
+    font-size: 20px;
+    flex-shrink: 0;
   }
 
   .nbl-referral-step-content-v1 h4 {
-    font-size: 14px;
-    margin: 0;
-    font-weight: 550;
+    font-size: 15px;
+    margin: 0 0 3px 0;
+    font-weight: 500;
   }
 
   .nbl-referral-step-content-v1 p {
-    font-size: 12px;
+    font-size: 13px;
     color: #6b7280;
     margin: 0;
   }
 
-  /* Rewards */
   .nbl-referral-rewards-v1 {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
   }
 
   .nbl-referral-reward-card-v1 {
     display: flex;
     gap: 12px;
-    background: #f9fafb;
+    background: #f8fafc;
     padding: 14px;
     border-radius: 12px;
     margin-bottom: 10px;
-    align-items: center;
-  }
-
-  .nbl-referral-reward-icon-v1 {
-    font-size: 20px;
-  }
-
-  .nbl-referral-reward-label-v1 {
-    font-size: 12px;
-    color: #6b7280;
-    margin: 0;
   }
 
   .nbl-referral-reward-value-v1 {
     margin: 0;
     font-size: 17px;
-    font-weight: 550;
+    font-weight: 500;
   }
 
   .nbl-referral-reward-note-v1 {
-    font-size: 11px;
-    color: #9ca3af;
-  }
-
-  /* Inputs */
-  .nbl-referral-section-v1 {
-    margin-bottom: 14px;
+    font-size: 12px;
+    color: #64748b;
   }
 
   .nbl-referral-section-v1 label {
     display: block;
-    font-size: 15px;
-    margin: 0 0 3px 0;
-    font-weight: 550;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #374151;
   }
 
   .nbl-referral-input-group-v1 {
@@ -211,81 +165,130 @@
 
   .nbl-referral-input-v1 {
     flex: 1;
-    padding: 10px;
+    padding: 12px 14px;
+    border: 1px solid #e2e8f0;
     border-radius: 10px;
-    border: 1px solid #ddd;
+    font-size: 15px;
+    background: #f8fafc;
   }
 
   .nbl-referral-copy-btn-v1 {
-    background: #189e7f;
-    color: #fff;
+    background: #10b981;
+    color: white;
     border: none;
-    padding: 0 14px;
+    padding: 0 18px;
     border-radius: 10px;
+    font-weight: 500;
     cursor: pointer;
   }
 
   .nbl-referral-copy-btn-v1:hover {
-    background: #11735c;
+    background: #059669;
   }
 
-  /* Share */
+  .nbl-referral-share-v1 p {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+
   .nbl-referral-share-buttons-v1 {
     display: flex;
-    gap: 8px;
     flex-wrap: wrap;
+    gap: 8px;
   }
 
   .nbl-referral-share-btn-v1 {
-    background: #f3f4f6;
+    background: #f1f5f9;
     border: none;
-    padding: 8px 12px;
-    border-radius: 20px;
+    padding: 9px 14px;
+    border-radius: 9999px;
+    font-size: 13px;
     cursor: pointer;
   }
-
-  .nbl-referral-share-btn-v1:hover {
-    background: #e0e7ff;
+  .nbl-referral-reward-label-v1 {
+    line-height: 1;
+    margin: 0 0 13px 0;
   }
 </style>
 
 <script>
   (function () {
-    const wrapper = document.querySelector('.nbl-referral-wrapper-v1');
-    if (!wrapper) return;
+    // Dynamic Rewards
+    const rewardsContainer = document.getElementById('nbl-referral-rewards');
+    const pointRules = NBL_v1?.appConfig?.pointRules || [];
+    const referralRule = pointRules.find((r) => r?.event?.type === 'REFERRAL');
 
-    const linkInput = wrapper.querySelector('.nbl-referral-link-v1');
-    const codeInput = wrapper.querySelector('.nbl-referral-code-v1');
-    const copyButtons = wrapper.querySelectorAll('.nbl-referral-copy-btn-v1');
-    const shareButtons = wrapper.querySelectorAll('.nbl-referral-share-btn-v1');
+    if (rewardsContainer && referralRule) {
+      const { referrer = {}, referred = {} } = referralRule.conditions?.referral || {};
+      const trigger = referralRule.conditions?.referral?.trigger || 'oneTime';
 
-    const referralLink = linkInput?.value;
+      let html = '';
 
-    copyButtons.forEach((btn, index) => {
-      btn.addEventListener('click', () => {
-        const input = index === 0 ? linkInput : codeInput;
-        navigator.clipboard.writeText(input.value);
-        btn.innerText = 'Copied ✓';
-        setTimeout(() => (btn.innerText = 'Copy'), 1500);
+      // You Earn Section
+      if (trigger === 'subscription' && referrer.allowRenewalReward && referrer.renewalPoints) {
+        html += `
+          <div class="nbl-referral-reward-card-v1">
+            <div class="nbl-referral-reward-icon-v1">👤</div>
+            <div>
+              <p class="nbl-referral-reward-label-v1">You get</p>
+              <h3 class="nbl-referral-reward-value-v1">${referrer.renewalPoints} Points</h3>
+              <span class="nbl-referral-reward-note-v1">When friend starts subscription</span>
+            </div>
+          </div>`;
+      } else if (referrer.firstOrderPoints) {
+        html += `
+          <div class="nbl-referral-reward-card-v1">
+            <div class="nbl-referral-reward-icon-v1">👤</div>
+            <div>
+              <p class="nbl-referral-reward-label-v1">You get</p>
+              <h3 class="nbl-referral-reward-value-v1">${referrer.firstOrderPoints} Points</h3>
+              <span class="nbl-referral-reward-note-v1">After friend's first order</span>
+            </div>
+          </div>`;
+      }
+
+      // Friend Gets Section
+      if (referred.discountValue) {
+        const discount =
+          referred.discountType === 'percentage' ? `${referred.discountValue}% off` : `$${referred.discountValue} off`;
+        html += `
+          <div class="nbl-referral-reward-card-v1">
+            <div class="nbl-referral-reward-icon-v1">🎉</div>
+            <div>
+              <p class="nbl-referral-reward-label-v1">Friend gets</p>
+              <h3 class="nbl-referral-reward-value-v1">${discount}</h3>
+              <span class="nbl-referral-reward-note-v1">On first purchase</span>
+            </div>
+          </div>`;
+      }
+
+      rewardsContainer.innerHTML = html;
+    }
+
+    // Copy Link Functionality
+    const linkInput = document.querySelector('.nbl-referral-link-v1');
+    const copyBtn = document.querySelector('.nbl-referral-copy-btn-v1');
+
+    if (linkInput && copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(linkInput.value);
+        copyBtn.textContent = 'Copied ✓';
+        setTimeout(() => (copyBtn.textContent = 'Copy'), 1800);
       });
-    });
+    }
 
-    shareButtons.forEach((btn) => {
+    // Share Buttons
+    document.querySelectorAll('.nbl-referral-share-btn-v1').forEach((btn) => {
       btn.addEventListener('click', () => {
+        const text = `Use my referral link and get rewards! ${linkInput.value}`;
         const type = btn.dataset.share;
 
-        if (type === 'whatsapp') {
-          window.open(`https://wa.me/?text=${encodeURIComponent(referralLink)}`);
-        }
-        if (type === 'email') {
-          window.open(`mailto:?subject=Join using my referral&body=${encodeURIComponent(referralLink)}`);
-        }
-        if (type === 'messenger') {
-          window.open(`https://www.facebook.com/dialog/send?link=${encodeURIComponent(referralLink)}`);
-        }
-        if (type === 'sms') {
-          window.open(`sms:?body=${encodeURIComponent(referralLink)}`);
-        }
+        if (type === 'whatsapp') window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
+        if (type === 'email') window.open(`mailto:?subject=Join me & get rewards&body=${encodeURIComponent(text)}`);
+        if (type === 'messenger')
+          window.open(`https://www.facebook.com/dialog/send?link=${encodeURIComponent(linkInput.value)}`);
+        if (type === 'sms') window.open(`sms:?body=${encodeURIComponent(text)}`);
       });
     });
   })();
