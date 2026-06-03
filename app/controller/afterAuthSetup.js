@@ -5,7 +5,7 @@ import syncAppConfig from "../controller/metafieldsSync/syncAppConfig.js"
 export default async function afterAuthSetup({ admin, session }) {
     try {
         await eventSeeder(session);
-        await syncAppConfig(admin);
+        await syncAppConfig(admin, session);
     } catch (error) {
         logger.error("## Error in afterAuthSetup:", error);
     }

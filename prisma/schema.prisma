@@ -49,7 +49,7 @@ model Customer {
   referralCode   String    @unique
   birthday       DateTime?
   isBlocked      Boolean   @default(false)
-  activeStatus   String    @default("ACTIVE") // "ACTIVE" | "INACTIVE" | "BLOCKED" | "DELETED"
+  activeStatus   String    @default("ACTIVE")
   metadata       Json?
   createdAt      DateTime  @default(now())
   enrolledAt     DateTime  @default(now())
@@ -60,13 +60,20 @@ model Customer {
   referralsUsed Referral?     @relation("Referred")
   rewards       Reward[]
 
-  session   Session @relation(fields: [sessionId], references: [id], onDelete: Restrict) // Restrict — don't delete customers on session issues
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   sessionId String
 
-  @@unique([sessionId, email]) // email unique per shop, not globally
+  @@unique([sessionId, email])
+  // ── existing ──────────────────────────────────────────
   @@index([sessionId])
   @@index([referralCode])
   @@index([activeStatus])
+  // ── pagination + sort (সবচেয়ে বেশি use হবে) ──────────
+  @@index([sessionId, enrolledAt(sort: Desc)]) // default sort
+  @@index([sessionId, points(sort: Desc)]) // points sort
+  @@index([sessionId, name]) // name sort + search prefix (যদি DB collation ঠিক থাকে)
+  // ── full-text search (name + email) ───────────────────
+  @@index([sessionId, email]) // email search / sort
 }
 
 model Event {
@@ -281,7 +288,7 @@ model AppSettings {
 }
 
 model Style {
-  id              Int      @id @default(autoincrement())
+  id              Int    @id @default(autoincrement())
   shop            String
   actionButton    Json?
   header          Json?
@@ -292,7 +299,11 @@ model Style {
   tabReferral     Json?
   tabEarnPoints   Json?
   accountActivity Json? // ← add
-  updatedAt       DateTime @updatedAt
+
+  cssVars      Json?
+  presetKey    String?
+  widgetConfig Json?
+  updatedAt    DateTime @updatedAt
 
   sessionId String
   session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
