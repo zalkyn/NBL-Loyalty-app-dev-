@@ -24,7 +24,20 @@ export default async function syncAppConfig(admin, session) {
                     }
                 },
                 rewardRules: true,
-                styles: true
+                styles: true,
+                physicalPrizes: {
+                    where: { isActive: true },
+                    orderBy: { createdAt: "desc" },
+                    select: {
+                        id: true,
+                        title: true,
+                        description: true,
+                        imageUrl: true,
+                        pointsCost: true,
+                        productValue: true,
+                        isActive: true,
+                    },
+                },
             }
         })
 

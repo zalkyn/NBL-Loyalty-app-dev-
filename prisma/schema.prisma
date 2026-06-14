@@ -26,12 +26,13 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 
-  customers   Customer[]
-  pointRules  PointsRule[]
-  rewardRules RewardRule[]
-  events      Event[]
-  styles      Style?
-  appSettings AppSettings?
+  customers      Customer[]
+  pointRules     PointsRule[]
+  rewardRules    RewardRule[]
+  events         Event[]
+  styles         Style?
+  appSettings    AppSettings?
+  physicalPrizes PhysicalPrize[]
 
   @@index([shop])
 }
@@ -49,30 +50,35 @@ model Customer {
   referralCode   String    @unique
   birthday       DateTime?
   isBlocked      Boolean   @default(false)
-  activeStatus   String    @default("ACTIVE") // "ACTIVE" | "INACTIVE" | "BLOCKED" | "DELETED"
+  activeStatus   String    @default("ACTIVE")
   metadata       Json?
   createdAt      DateTime  @default(now())
   enrolledAt     DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   transactions  Transaction[]
-  referralsSent Referral[]    @relation("Referrer")
-  referralsUsed Referral?     @relation("Referred")
+  referralsSent Referral[]           @relation("Referrer")
+  referralsUsed Referral?            @relation("Referred")
   rewards       Reward[]
+  prizeClaims   PhysicalPrizeClaim[]
 
-  session   Session @relation(fields: [sessionId], references: [id], onDelete: Restrict) // Restrict — don't delete customers on session issues
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   sessionId String
 
-  @@unique([sessionId, email]) // email unique per shop, not globally
+  @@unique([sessionId, email])
   @@index([sessionId])
   @@index([referralCode])
   @@index([activeStatus])
+  @@index([sessionId, enrolledAt(sort: Desc)])
+  @@index([sessionId, points(sort: Desc)])
+  @@index([sessionId, name])
+  @@index([sessionId, email])
 }
 
 model Event {
   id          Int      @id @default(autoincrement())
   shop        String
-  type        String // "ORDER" | "REFERRAL" | "BIRTHDAY" | "REVIEW" | "SIGNUP" | "SUBSCRIPTION" | "MANUAL" | "CUSTOM"
+  type        String
   name        String?
   description String?  @db.Text
   metadata    Json?
@@ -97,14 +103,14 @@ model PointsRule {
   id             Int       @id @default(autoincrement())
   name           String?
   description    String?   @db.Text
-  pointsType     String    @default("FIXED") // "FIXED" | "PER_CURRENCY" | "PERCENTAGE" | "MULTIPLIER"
-  pointsValue    Float     @default(0) // flat amount OR rate depending on pointsType
-  maxPoints      Int? // cap per transaction
+  pointsType     String    @default("FIXED")
+  pointsValue    Float     @default(0)
+  maxPoints      Int?
   priority       Int       @default(0)
   startDate      DateTime?
   endDate        DateTime?
-  minOrderAmount Float? // minimum order value to qualify
-  maxUsesPerUser Int? // per-customer earn limit for this rule
+  minOrderAmount Float?
+  maxUsesPerUser Int?
   conditions     Json?
   isActive       Boolean   @default(true)
   metadata       Json?
@@ -129,18 +135,18 @@ model RewardRule {
   title          String
   description    String?
   pointsCost     Int
-  discountType   String // "FIXED" | "PERCENTAGE"
-  rewardType     String // "ORDER_DISCOUNT" | "PRODUCT_DISCOUNT" | "FREE_PRODUCT" | "FREE_SHIPPING"
+  discountType   String
+  rewardType     String
   rewardValue    Float?
   couponPrefix   String?
-  usageLimit     Int? // total redemptions allowed across all customers
-  usagePerUser   Int? // per-customer redemption limit
-  usageCount     Int       @default(0) // running total of redemptions
+  usageLimit     Int?
+  usagePerUser   Int?
+  usageCount     Int       @default(0)
   isAutoApply    Boolean   @default(false)
   startDate      DateTime?
   endDate        DateTime?
   priority       Int       @default(0)
-  minOrderAmount Float? // minimum order value to qualify
+  minOrderAmount Float?
   conditions     Json?
   isActive       Boolean   @default(true)
   metadata       Json?
@@ -159,29 +165,27 @@ model RewardRule {
 model Transaction {
   id           Int       @id @default(autoincrement())
   customerId   Int
-  type         String // "EARN" | "REDEEM" | "EXPIRE" | "ADJUST" | "REVERSAL" | "REFERRAL"
-  points       Int // positive = earn, negative = redeem/expire
+  type         String
+  points       Int
   balanceAfter Int
   eventId      Int?
   expiresAt    DateTime?
   reason       String?   @db.Text
   metadata     Json?
   createdAt    DateTime  @default(now())
-  status       String    @default("APPROVED") // "APPROVED" | "PENDING" | "COMPLETED" | "CANCELLED" | "REVERSED"
-  activity     String? // human-readable summary e.g. "Earned 50 pts for order #1234"
+  status       String    @default("APPROVED")
+  activity     String?
 
   customer     Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
   event        Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
   pointsRule   PointsRule? @relation(fields: [pointsRuleId], references: [id], onDelete: SetNull)
   pointsRuleId Int?
-  reward       Reward?     @relation(fields: [rewardId], references: [id], onDelete: SetNull) // SetNull — keep ledger intact even if reward deleted
+  reward       Reward?     @relation(fields: [rewardId], references: [id], onDelete: SetNull)
   rewardId     Int?
   referral     Referral?   @relation(fields: [referralId], references: [id], onDelete: SetNull)
   referralId   Int?
 
-  // @@unique([rewardId]) and @@unique([referralId]) removed —
-  // cancellations and reversals need multiple transactions per reward/referral.
-  // enforce single-earn logic in the application layer instead.
+  physicalPrizeClaim PhysicalPrizeClaim? // opposite side of PhysicalPrizeClaim.transaction
 
   @@index([customerId])
   @@index([customerId, createdAt])
@@ -194,26 +198,25 @@ model Transaction {
 }
 
 model Referral {
-  id           Int      @id @default(autoincrement())
-  referrerId   Int // the customer who referred (earns points/reward)
-  referredId   Int // the customer who was referred (one-time discount eligibility)
-  orderId      String?
-  status       String?  @default("PENDING") // "ACTIVE" | "PENDING" | "USED" | "CANCELLED" | "EXPIRED"
-  discountCode String?
-  discountInfo String?  @db.Text
-  discountUsed Boolean  @default(false)
-  rewardGiven  Boolean  @default(false)
-  metadata     Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
+  id                     Int      @id @default(autoincrement())
+  referrerId             Int
+  referredId             Int
+  orderId                String?
+  status                 String?  @default("PENDING")
+  discountCode           String?
+  discountInfo           String?  @db.Text
+  discountUsed           Boolean  @default(false)
+  rewardGiven            Boolean  @default(false)
+  metadata               Json?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
   subscriptionContractId String?
 
   referrer     Customer      @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
   referred     Customer      @relation("Referred", fields: [referredId], references: [id], onDelete: Cascade)
-  transactions Transaction[] // one-to-many — supports cancellation/reversal entries
+  transactions Transaction[]
 
-  @@unique([referredId]) // a customer can only be referred once
+  @@unique([referredId])
   @@index([referrerId])
   @@index([status])
   @@index([discountCode])
@@ -223,13 +226,13 @@ model Referral {
 model Reward {
   id           Int       @id @default(autoincrement())
   title        String?
-  event        String? // "ORDER" | "REFERRAL" | "BIRTHDAY" | "REVIEW" | "SIGNUP" | "SUBSCRIPTION" | "MANUAL" | "CAMPAIGN"
-  type         String?   @default("DEFAULT") // "FIRST" | "RECURRING" | "VERIFIED" | "BONUS" | "DEFAULT"
+  event        String?
+  type         String?   @default("DEFAULT")
   code         String?
-  rewardKey    String?   @unique // idempotency key
+  rewardKey    String?   @unique
   orderId      String?
   pointsCost   Int?
-  status       String?   @default("PENDING") // "PENDING" | "ACTIVE" | "USED" | "EXPIRED" | "CANCELLED" | "REDEEMED" | "FAILED" 
+  status       String?   @default("PENDING")
   discountUsed Boolean   @default(false)
   usedAt       DateTime?
   expiresAt    DateTime?
@@ -244,7 +247,7 @@ model Reward {
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   customerId Int
 
-  transactions Transaction[] // one-to-many — supports cancellation/reversal entries
+  transactions Transaction[]
 
   @@index([customerId])
   @@index([rewardRuleId])
@@ -257,8 +260,8 @@ model WebhookEvent {
   id        String   @id @default(cuid())
   shop      String
   eventKey  String   @unique
-  topic     String? // e.g. "orders/paid" | "customers/create"
-  status    String   @default("PROCESSED") // "PROCESSED" | "FAILED" | "SKIPPED"
+  topic     String?
+  status    String   @default("PROCESSED")
   error     String?  @db.Text
   createdAt DateTime @default(now())
 
@@ -267,14 +270,12 @@ model WebhookEvent {
 }
 
 model AppSettings {
-  id   Int    @id @default(autoincrement())
-  shop String
-
+  id        Int      @id @default(autoincrement())
+  shop      String
   settings  Json
   updatedAt DateTime @updatedAt
-
   sessionId String
-  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId])
   @@unique([shop])
@@ -291,12 +292,63 @@ model Style {
   tabProfile      Json?
   tabReferral     Json?
   tabEarnPoints   Json?
-  accountActivity Json? // ← add
+  accountActivity Json?
+  cssVars         Json?
+  presetKey       String?
+  widgetConfig    Json?
   updatedAt       DateTime @updatedAt
-
-  sessionId String
-  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId       String
+  session         Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId])
   @@unique([shop])
+}
+
+model PhysicalPrize {
+  id           Int      @id @default(autoincrement())
+  title        String
+  description  String?
+  imageUrl     String?
+  pointsCost   Int
+  productValue Float?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+
+  claims PhysicalPrizeClaim[]
+
+  @@index([sessionId])
+  @@index([isActive])
+}
+
+model PhysicalPrizeClaim {
+  id          Int       @id @default(autoincrement())
+  status      String    @default("PENDING") // "PENDING" | "FULFILLED" | "COMPLETED" | "CANCELLED"
+  pointsCost  Int
+  createdAt   DateTime  @default(now())
+  fulfilledAt DateTime?
+  completedAt DateTime?
+
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId Int
+
+  prize           PhysicalPrize @relation(fields: [physicalPrizeId], references: [id], onDelete: Cascade)
+  physicalPrizeId Int
+
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  transactionId Int?         @unique
+
+  isSeenByAdmin Boolean @default(false)
+  viewedByAdmin Boolean   @default(false) 
+  viewedAt      DateTime?
+
+  adminNote     String? @db.Text
+  trackingInfo  String? @db.Text // (license key, download link etc.)
+
+  @@index([customerId])
+  @@index([physicalPrizeId])
+  @@index([status])
 }

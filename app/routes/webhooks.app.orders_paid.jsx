@@ -23,80 +23,6 @@ const ENABLE_IDEMPOTENCY = true;
 const BACKGROUND_PROCESS_DELAY_MS = 20 * 1000;
 
 // ============================================================
-// HELPERS
-// ============================================================
-
-/**
- * Returns a short human-readable order label e.g. "#1234".
- * Falls back gracefully if order_number or name is unavailable.
- *
- * @param {Object} order - Shopify order payload
- * @returns {string}
- */
-const getOrderLabel = (order) => {
-    if (order?.name) return order.name;
-    if (order?.order_number) return `#${order.order_number}`;
-    const gid = order?.admin_graphql_api_id || "";
-    return gid ? `#${gid.split("/").pop()}` : "your order";
-};
-
-/**
- * Calculates the eligible order total based on points rule conditions.
- * Handles three modes:
- *   - allProducts:      full total minus excluded products (respects quantity)
- *   - specificProducts: sum of only matched products (respects quantity)
- *   - default:          full order total as-is
- *
- * @param {Object} order      - Shopify order payload
- * @param {Object} conditions - PointsRule conditions object
- * @returns {number} Eligible order total in store currency
- */
-const getEligibleOrderTotal = (order, conditions) => {
-    const items = order?.line_items || [];
-    const appliesToType = conditions?.appliesTo?.type;
-
-    if (appliesToType === "allProducts") {
-        const excluded = new Set(conditions?.excludedProducts?.products || []);
-        return items.reduce((total, item) => {
-            return excluded.has(item.product_id?.toString())
-                ? total - Number(item.price) * (item.quantity || 1)
-                : total;
-        }, Number(order?.total_price) || 0);
-    }
-
-    if (appliesToType === "specificProducts") {
-        const specific = new Set(conditions?.appliesTo?.products || []);
-        return items.reduce((sum, item) => {
-            return specific.has(item.product_id?.toString())
-                ? sum + Number(item.price) * (item.quantity || 1)
-                : sum;
-        }, 0);
-    }
-
-    return Number(order?.total_price) || 0;
-};
-
-/**
- * Calculates points to award based on earning type.
- *   - incremental: floor(total / rate.amount) * rate.points
- *   - fixed:       flat points regardless of order value
- *
- * @param {number} orderTotal - Eligible order total
- * @param {Object} conditions - PointsRule conditions object
- * @returns {number} Points to award (may be 0)
- */
-const calculatePoints = (orderTotal, conditions) => {
-    if (conditions?.earning?.type === "incremental") {
-        const rate = conditions?.earning?.rate;
-        if (rate?.amount > 0) {
-            return Math.floor(orderTotal / rate.amount) * rate.points;
-        }
-        return 0;
-    }
-    return Number(conditions?.earning?.fixedPoints) || 0;
-};
-
-// ============================================================
 // WEBHOOK ENTRY
 // ============================================================
 
@@ -114,8 +40,6 @@ export const action = async ({ request }) => {
         const { payload, session, topic, shop, admin } = await authenticate.webhook(request);
         const order = payload;
 
-        // Prefer Shopify's webhook ID for idempotency; fall back to topic + order GID
-        // topic prefix avoids GID collision across different webhook topics
         const webhookId = request.headers.get("X-Shopify-Webhook-Id");
         const eventKey = webhookId
             ? `SHOPIFY:${webhookId}`
@@ -150,8 +74,8 @@ export const action = async ({ request }) => {
 
 /**
  * Orchestrates order processing after the background delay.
- * Determines whether the order is a referral order or a normal order
- * and delegates to the appropriate handler.
+ * Fetches customer + Appstle metafield (with resolved interval) in parallel,
+ * then delegates to referral or normal order handler.
  *
  * @param {Object} params
  * @param {Object} params.admin   - Shopify Admin GraphQL client
@@ -167,7 +91,7 @@ const mainHandler = async ({ admin, session, order, shop }) => {
             return;
         }
 
-        // Fetch customer + Appstle metafield in parallel — independent reads
+        // Fetch customer + Appstle metafield (interval included) in parallel
         const [customer, appstle] = await Promise.all([
             prisma.customer.findFirst({
                 where: { shopifyId: customerGid },
@@ -181,14 +105,17 @@ const mainHandler = async ({ admin, session, order, shop }) => {
             return;
         }
 
-        const contract = appstle?.subscriptionContract || null;
-        const referralContext = detectReferralOrder({ order, customer, contract });
-        logger.info(shop, "Referral context", { ...referralContext });
+        // Destructure resolved appstle shape
+        // { subscriptionContract, subscriptionInterval, isSubscription }
+        const { subscriptionContract, subscriptionInterval, isSubscription } = appstle;
+
+        const referralContext = detectReferralOrder({ order, customer, contract: subscriptionContract });
+        logger.info(shop, "Referral context", { ...referralContext, subscriptionInterval, isSubscription });
 
         if (!referralContext.isReferralOrder) {
-            await handleNormalOrder({ admin, order, customer, session, shop });
+            await handleNormalOrder({ admin, order, customer, session, shop, subscriptionInterval, isSubscription });
         } else {
-            await handleReferral({ admin, referralContext, order, contract, session, shop });
+            await handleReferral({ admin, referralContext, order, subscriptionContract, subscriptionInterval, isSubscription, session, shop });
         }
 
         // Always run — referral orders may also have separate reward vouchers applied
@@ -205,23 +132,21 @@ const mainHandler = async ({ admin, session, order, shop }) => {
 /**
  * Determines whether an order qualifies as a referral order.
  *
- * Two referral types are detected:
- *   - FIRST:     Order contains the referral discount code (first purchase)
- *   - RECURRING: Order is tied to a subscription contract previously linked to a referral
+ * Two referral types:
+ *   FIRST:     Order contains the referral discount code (first purchase)
+ *   RECURRING: Order is tied to a subscription contract previously linked to a referral
  *
  * @param {Object} params
  * @param {Object} params.order    - Shopify order payload
  * @param {Object} params.customer - DB customer record (with referralsUsed)
- * @param {Object|null} params.contract - Appstle subscription contract (if any)
+ * @param {Object|null} params.contract - Appstle subscription contract
  * @returns {{ isReferralOrder: boolean, type?: "FIRST"|"RECURRING", referral?: Object }}
  */
 const detectReferralOrder = ({ order, customer, contract }) => {
     const referral = customer?.referralsUsed;
     if (!referral) return { isReferralOrder: false };
 
-    const discountMatch = order?.discount_codes?.find(
-        (d) => d.code === referral.discountCode
-    );
+    const discountMatch = order?.discount_codes?.find((d) => d.code === referral.discountCode);
     if (discountMatch) return { isReferralOrder: true, type: "FIRST", referral };
 
     if (
@@ -236,35 +161,308 @@ const detectReferralOrder = ({ order, customer, contract }) => {
 };
 
 // ============================================================
+// ORDER POINTS RESOLVER
+// ============================================================
+
+/**
+ * Resolves points for a single line item based on the P1→P4 priority chain.
+ *
+ * Priority:
+ *   P4 (highest) — product is in a group AND interval matches
+ *   P3           — product is in a group, no interval match
+ *   P2           — product not in any group, interval matches
+ *   P1 (lowest)  — global fallback
+ *
+ * @param {Object} item               - Shopify line_item
+ * @param {Object} ord                - conditions.order object
+ * @param {string|null} interval      - Resolved subscription interval e.g. "monthly"
+ * @returns {number} Points for this line item
+ */
+const resolveLineItemPoints = (item, ord, interval) => {
+    // line_item.product_id is always a numeric Shopify product ID
+    // We normalize it to GID format to match conditions.order.groups[].products[].id
+    if (!item?.product_id) return 0;
+    const productGid = `gid://shopify/Product/${item.product_id}`;
+    const itemTotal = Number(item.price) * (item.quantity || 1);
+
+    // Excluded products — never earn points regardless of any rule
+    const isExcluded = (ord.excludedProducts ?? []).some((p) => p.id === productGid);
+    if (isExcluded) return 0;
+
+    // Find which group this product belongs to (if any)
+    const group = (ord.groups ?? []).find((g) =>
+        g.products.some((p) => p.id === productGid)
+    );
+
+    if (group) {
+        // P4 — group + interval match
+        if (interval) {
+            const iv = (group.intervals ?? []).find((i) => i.interval === interval);
+            if (iv) return calcPoints(ord.type, iv, itemTotal);
+        }
+        // P3 — group only
+        return calcPoints(ord.type, group, itemTotal);
+    }
+
+    // P2 — global interval match (no group)
+    if (interval) {
+        const iv = (ord.intervals ?? []).find((i) => i.interval === interval);
+        if (iv) return calcPoints(ord.type, iv, itemTotal);
+    }
+
+    // P1 — global fallback
+    return calcPoints(ord.type, ord, itemTotal);
+};
+
+/**
+ * Calculates points from a rule object based on earning type.
+ *
+ * @param {"fixed"|"incremental"} type
+ * @param {Object} rule       - Object with fixedPoints or rate.{amount, points}
+ * @param {number} itemTotal  - Line item total (price × quantity)
+ * @returns {number}
+ */
+const calcPoints = (type, rule, itemTotal) => {
+    if (type === "incremental") {
+        const { amount, points } = rule.rate ?? {};
+        if (amount > 0) return Math.floor(itemTotal / amount) * points;
+        return 0;
+    }
+    return Number(rule.fixedPoints) || 0;
+};
+
+/**
+ * Resolves total points for an order by summing per-line-item points.
+ * Respects trigger (oneTime / subscription / both) before calculating.
+ *
+ * @param {Object} order          - Shopify order payload
+ * @param {Object} conditions     - Full pointsRule conditions object
+ * @param {string|null} interval  - Resolved subscription interval
+ * @param {boolean} isSubscription
+ * @returns {number} Total points to award
+ */
+const resolveOrderPoints = (order, conditions, interval, isSubscription) => {
+    const ord = conditions?.order;
+    if (!ord) {
+        logger.warn("resolveOrderPoints: conditions.order is missing");
+        return 0;
+    }
+
+    // Trigger check
+    if (ord.trigger === "oneTime" && isSubscription) return 0;
+    if (ord.trigger === "subscription" && !isSubscription) return 0;
+
+    const items = order?.line_items ?? [];
+    if (!items.length) return 0;
+
+    return items.reduce((total, item) => total + resolveLineItemPoints(item, ord, interval), 0);
+};
+
+// ============================================================
+// REFERRAL POINTS RESOLVER
+// ============================================================
+
+/**
+ * Resolves referrer + referred points based on the P1→P4 priority chain.
+ * Uses the first matched product from the order line items for group lookup.
+ *
+ * For RECURRING (renewal):
+ *   - Uses renewalPoints instead of points
+ *   - Respects allowRenewalReward at group or global level
+ *
+ * @param {Object} conditions     - Full pointsRule conditions object
+ * @param {Array}  lineItems      - Shopify order line_items
+ * @param {string|null} interval  - Resolved subscription interval
+ * @param {boolean} isRenewal     - true for RECURRING, false for FIRST
+ * @returns {{ referrerPoints: number, referredPoints: number }}
+ */
+const resolveReferralPoints = (conditions, lineItems, interval, isRenewal) => {
+    const ref = conditions?.referral;
+    if (!ref) {
+        logger.warn("resolveReferralPoints: conditions.referral is missing");
+        return { referrerPoints: 0, referredPoints: 0 };
+    }
+
+    // Find the first line item that matches a group
+    let resolved = null;
+
+    for (const item of lineItems ?? []) {
+        const productGid = `gid://shopify/Product/${item.product_id}`;
+        const group = (ref.groups ?? []).find((g) =>
+            g.products.some((p) => p.id === productGid)
+        );
+
+        if (group) {
+            // P4 — group + interval match
+            if (interval) {
+                const iv = (group.intervals ?? []).find((i) => i.interval === interval);
+                if (iv) {
+                    resolved = {
+                        referrerPoints: isRenewal ? iv.referrer.renewalPoints : iv.referrer.points,
+                        referredPoints: isRenewal ? iv.referred.renewalPoints : iv.referred.points,
+                        referrerAllowRenewal: group.referrer.allowRenewalReward,
+                        referredAllowRenewal: group.referred.allowRenewalReward,
+                    };
+                    break;
+                }
+            }
+            // P3 — group only
+            resolved = {
+                referrerPoints: isRenewal ? group.referrer.renewalPoints : group.referrer.points,
+                referredPoints: isRenewal ? group.referred.renewalPoints : group.referred.points,
+                referrerAllowRenewal: group.referrer.allowRenewalReward,
+                referredAllowRenewal: group.referred.allowRenewalReward,
+            };
+            break;
+        }
+    }
+
+    if (!resolved) {
+        // P2 — global interval match (no group matched)
+        if (interval) {
+            const iv = (ref.intervals ?? []).find((i) => i.interval === interval);
+            if (iv) {
+                resolved = {
+                    referrerPoints: isRenewal ? iv.referrer.renewalPoints : iv.referrer.points,
+                    referredPoints: isRenewal ? iv.referred.renewalPoints : iv.referred.points,
+                    referrerAllowRenewal: ref.referrer.allowRenewalReward,
+                    referredAllowRenewal: ref.referred.allowRenewalReward,
+                };
+            }
+        }
+    }
+
+    if (!resolved) {
+        // P1 — global fallback
+        resolved = {
+            referrerPoints: isRenewal ? ref.referrer.renewalPoints : ref.referrer.points,
+            referredPoints: isRenewal ? ref.referred.renewalPoints : ref.referred.points,
+            referrerAllowRenewal: ref.referrer.allowRenewalReward,
+            referredAllowRenewal: ref.referred.allowRenewalReward,
+        };
+    }
+
+    // For renewal — gate points behind allowRenewalReward
+    if (isRenewal) {
+        return {
+            referrerPoints: resolved.referrerAllowRenewal ? (resolved.referrerPoints ?? 0) : 0,
+            referredPoints: resolved.referredAllowRenewal ? (resolved.referredPoints ?? 0) : 0,
+        };
+    }
+
+    return {
+        referrerPoints: resolved.referrerPoints ?? 0,
+        referredPoints: resolved.referredPoints ?? 0,
+    };
+};
+
+// ============================================================
+// NORMAL ORDER HANDLER
+// ============================================================
+
+/**
+ * Handles points earning for standard (non-referral) orders.
+ * Uses per-product P1→P4 priority resolution.
+ *
+ * @param {Object} params
+ * @param {Object} params.admin          - Shopify Admin GraphQL client
+ * @param {Object} params.order          - Shopify order payload
+ * @param {Object} params.customer       - DB customer record
+ * @param {Object} params.session        - Shopify session
+ * @param {string} params.shop           - Shop domain
+ * @param {string|null} params.subscriptionInterval
+ * @param {boolean} params.isSubscription
+ */
+const handleNormalOrder = async ({ admin, order, customer, session, shop, subscriptionInterval, isSubscription }) => {
+    const rule = await getPointRuleByEvent("ORDER");
+    if (!rule?.isActive) {
+        logger.warn(shop, "ORDER rule inactive, skipping");
+        return;
+    }
+
+    const orderLabel = getOrderLabel(order);
+    const points = resolveOrderPoints(order, rule.conditions, subscriptionInterval, isSubscription);
+
+    if (points <= 0) {
+        logger.info(shop, "Order earned 0 points (trigger mismatch or all excluded), skipping transaction", {
+            orderLabel,
+            subscriptionInterval,
+            isSubscription,
+        });
+        return;
+    }
+
+    logger.info(shop, "Order points resolved", { points, orderLabel, subscriptionInterval });
+
+    await createTransaction(
+        {
+            customerId: customer.id,
+            type: "EARN",
+            eventId: rule.event.id,
+            pointsRuleId: rule.id,
+            reason: `Points earned for order ${orderLabel}`,
+            activity: `+${points} points for order ${orderLabel}`,
+            points,
+            status: "COMPLETED",
+        },
+        session
+    );
+
+    await syncCustomerConfig(admin, customer.shopifyId);
+
+    logger.success(shop, "Normal order handled", { points, orderLabel, customerId: customer.id });
+};
+
+// ============================================================
 // REFERRAL HANDLER
 // ============================================================
 
 /**
  * Handles points and reward creation for referral orders.
- * Supports two referral types: FIRST and RECURRING.
- *
- * FIRST:     Referrer + referred earn points. Reward voucher marked as USED.
- * RECURRING: Referrer and/or referred earn points based on rule conditions.
- *            Duplicate guard prevents double-awarding on webhook retry.
+ * Supports FIRST and RECURRING types with full P1→P4 priority resolution.
  *
  * @param {Object} params
- * @param {Object} params.admin           - Shopify Admin GraphQL client
- * @param {Object} params.referralContext - Output of detectReferralOrder()
- * @param {Object} params.order           - Shopify order payload
- * @param {Object|null} params.contract   - Appstle subscription contract
- * @param {Object} params.session         - Shopify session
- * @param {string} params.shop            - Shop domain
+ * @param {Object} params.admin                - Shopify Admin GraphQL client
+ * @param {Object} params.referralContext      - Output of detectReferralOrder()
+ * @param {Object} params.order                - Shopify order payload
+ * @param {Object|null} params.subscriptionContract
+ * @param {string|null} params.subscriptionInterval
+ * @param {boolean} params.isSubscription
+ * @param {Object} params.session              - Shopify session
+ * @param {string} params.shop                 - Shop domain
  */
-const handleReferral = async ({ admin, referralContext, order, contract, session, shop }) => {
+const handleReferral = async ({
+    admin,
+    referralContext,
+    order,
+    subscriptionContract,
+    subscriptionInterval,
+    isSubscription,
+    session,
+    shop,
+}) => {
     const rule = await getPointRuleByEvent("REFERRAL");
     if (!rule?.isActive) {
         logger.warn(shop, "REFERRAL rule inactive, skipping");
         return;
     }
 
-    const conditions = rule.conditions?.referral;
+    const conditions = rule.conditions;
+    const refConditions = conditions.referral;
     const { type, referral } = referralContext;
     const orderLabel = getOrderLabel(order);
+    const lineItems = order?.line_items ?? [];
+
+    // ── Trigger check ─────────────────────────────────────────────────────────
+    const trigger = refConditions.trigger;
+    if (trigger === "oneTime" && isSubscription) {
+        logger.info(shop, "REFERRAL trigger=oneTime but order is subscription, skipping", { type });
+        return;
+    }
+    if (trigger === "subscription" && !isSubscription) {
+        logger.info(shop, "REFERRAL trigger=subscription but order is one-time, skipping", { type });
+        return;
+    }
 
     // ── FIRST referral order ──────────────────────────────────────────────────
     if (type === "FIRST") {
@@ -273,10 +471,11 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
             return;
         }
 
-        const referrerPoints = conditions?.referrer?.firstOrderPoints || 0;
-        const referredPoints = conditions?.referred?.firstOrderPoints || 0;
+        const { referrerPoints, referredPoints } = resolveReferralPoints(
+            conditions, lineItems, subscriptionInterval, false
+        );
 
-        // Mark referral + create both transactions in parallel — independent writes
+        // Mark referral + create both transactions in parallel
         await Promise.all([
             prisma.referral.update({
                 where: { id: referral.id },
@@ -284,11 +483,10 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
                     status: "USED",
                     discountUsed: true,
                     orderId: order.admin_graphql_api_id,
-                    subscriptionContractId: contract?.id?.toString() ?? null,
-                    metadata: contract ?? {},
+                    subscriptionContractId: subscriptionContract?.id?.toString() ?? null,
+                    metadata: subscriptionContract ?? {},
                 },
             }),
-            // Referrer — earns points for a successful referral
             createTransaction(
                 {
                     customerId: referral.referrerId,
@@ -302,7 +500,6 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
                 },
                 session
             ),
-            // Referred — records discount usage; earns points if rule awards any
             createTransaction(
                 {
                     customerId: referral.referredId,
@@ -334,7 +531,6 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
             });
         }
 
-        // Sync both customers in parallel
         await Promise.all([
             syncCustomerConfig(admin, referral.referrerId),
             syncCustomerConfig(admin, referral.referredId),
@@ -346,12 +542,12 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
             referredPoints,
             orderLabel,
         });
+        return;
     }
 
     // ── RECURRING referral (subscription renewal) ─────────────────────────────
     if (type === "RECURRING") {
-        // Duplicate guard — Shopify at-least-once delivery can fire this twice,
-        // causing both referrer and referred to receive double points
+        // Duplicate guard — Shopify at-least-once delivery can fire this twice
         const alreadyRewarded = await prisma.reward.findFirst({
             where: {
                 referralId: referral.id,
@@ -369,11 +565,13 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
             return;
         }
 
-        // Build reward tasks based on rule conditions — only enabled parties included
+        const { referrerPoints, referredPoints } = resolveReferralPoints(
+            conditions, lineItems, subscriptionInterval, true
+        );
+
         const rewardTasks = [];
 
-        if (conditions?.referrer?.allowRenewalReward) {
-            const renewalPoints = conditions?.referrer?.renewalPoints || 0;
+        if (referrerPoints > 0) {
             rewardTasks.push(
                 createTransaction(
                     {
@@ -382,8 +580,8 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
                         eventId: rule.event.id,
                         referralId: referral.id,
                         reason: `Subscription renewal reward — referred customer renewed their subscription (${orderLabel})`,
-                        activity: `+${renewalPoints} points for referral renewal`,
-                        points: renewalPoints,
+                        activity: `+${referrerPoints} points for referral renewal`,
+                        points: referrerPoints,
                         status: "COMPLETED",
                     },
                     session
@@ -393,7 +591,7 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
                     event: "REFERRAL",
                     type: "RECURRING",
                     title: "Referral renewal reward",
-                    description: `Your referred customer renewed their subscription. You earned ${renewalPoints} points.`,
+                    description: `Your referred customer renewed their subscription. You earned ${referrerPoints} points.`,
                     orderId: order.admin_graphql_api_id,
                     referralId: referral.id,
                     status: "COMPLETED",
@@ -401,8 +599,7 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
             );
         }
 
-        if (conditions?.referred?.allowRenewalReward) {
-            const referredRenewalPoints = conditions?.referred?.renewalPoints || 0;
+        if (referredPoints > 0) {
             rewardTasks.push(
                 createTransaction(
                     {
@@ -411,8 +608,8 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
                         eventId: rule.event.id,
                         referralId: referral.id,
                         reason: `Subscription renewal reward — earned for renewing your subscription (${orderLabel})`,
-                        activity: `+${referredRenewalPoints} points for subscription renewal`,
-                        points: referredRenewalPoints,
+                        activity: `+${referredPoints} points for subscription renewal`,
+                        points: referredPoints,
                         status: "COMPLETED",
                     },
                     session
@@ -422,7 +619,7 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
                     event: "REFERRAL",
                     type: "RECURRING",
                     title: "Subscription renewal reward",
-                    description: `You earned ${referredRenewalPoints} points for renewing your subscription.`,
+                    description: `You earned ${referredPoints} points for renewing your subscription.`,
                     orderId: order.admin_graphql_api_id,
                     referralId: referral.id,
                     status: "COMPLETED",
@@ -430,16 +627,14 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
             );
         }
 
-        // All reward tasks + referral metadata update in parallel
         await Promise.all([
             ...rewardTasks,
             prisma.referral.update({
                 where: { id: referral.id },
-                data: { metadata: contract ?? {} },
+                data: { metadata: subscriptionContract ?? {} },
             }),
         ]);
 
-        // Sync both customers in parallel
         await Promise.all([
             syncCustomerConfig(admin, referral.referrerId),
             syncCustomerConfig(admin, referral.referredId),
@@ -447,67 +642,11 @@ const handleReferral = async ({ admin, referralContext, order, contract, session
 
         logger.success(shop, "Referral RECURRING order handled", {
             referralId: referral.id,
+            referrerPoints,
+            referredPoints,
             orderLabel,
         });
     }
-};
-
-// ============================================================
-// NORMAL ORDER HANDLER
-// ============================================================
-
-/**
- * Handles points earning for standard (non-referral) orders.
- *
- * Supports two earning modes:
- *   - incremental: points per currency unit spent (e.g. 1pt per $1)
- *   - fixed:       flat points per order
- *
- * Product filtering (allProducts / specificProducts) is applied
- * before points calculation via getEligibleOrderTotal().
- *
- * @param {Object} params
- * @param {Object} params.admin    - Shopify Admin GraphQL client
- * @param {Object} params.order    - Shopify order payload
- * @param {Object} params.customer - DB customer record
- * @param {Object} params.session  - Shopify session
- * @param {string} params.shop     - Shop domain
- */
-const handleNormalOrder = async ({ admin, order, customer, session, shop }) => {
-    const rule = await getPointRuleByEvent("ORDER");
-    if (!rule?.isActive) {
-        logger.warn(shop, "CREATE ORDER rule inactive, skipping");
-        return;
-    }
-
-    const conditions = rule.conditions;
-    const orderLabel = getOrderLabel(order);
-    const orderTotal = getEligibleOrderTotal(order, conditions);
-    const points = calculatePoints(orderTotal, conditions);
-
-    logger.info(shop, "Order points calculated", { points, orderTotal, orderLabel });
-
-    await createTransaction(
-        {
-            customerId: customer.id,
-            type: "EARN",
-            eventId: rule.event.id,
-            pointsRuleId: rule.id,
-            reason: `Points earned for order ${orderLabel}`,
-            activity: `+${points} points for order ${orderLabel}`,
-            points,
-            status: "COMPLETED",
-        },
-        session
-    );
-
-    await syncCustomerConfig(admin, customer.shopifyId);
-
-    logger.success(shop, "Normal order handled", {
-        points,
-        orderLabel,
-        customerId: customer.id,
-    });
 };
 
 // ============================================================
@@ -519,12 +658,6 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop }) => {
  * was applied on the current order.
  *
  * Runs after both normal and referral order handling.
- * Each matched reward is updated via updateCustomerReward() for consistency.
- * A REDEEM transaction with points: 0 is created per voucher so the customer
- * can see the voucher use in their activity history.
- *
- * Note: points: 0 because points were spent at reward creation time,
- * not at redemption — this entry is for the activity log only.
  *
  * @param {Object} params
  * @param {Object} params.admin    - Shopify Admin GraphQL client
@@ -537,7 +670,7 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
     try {
         if (!order || !customer?.id) return;
 
-        const orderDiscountCodes = order?.discount_codes || [];
+        const orderDiscountCodes = order?.discount_codes ?? [];
         if (!orderDiscountCodes.length) return;
 
         const discountCodeSet = new Set(
@@ -545,7 +678,6 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
         );
         if (!discountCodeSet.size) return;
 
-        // Pre-filter matched rewards in DB — avoids JS-side filtering on large reward sets
         const rewards = await prisma.reward.findMany({
             where: {
                 customerId: customer.id,
@@ -559,7 +691,6 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
 
         const orderLabel = getOrderLabel(order);
 
-        // Per-voucher: update + activity transaction in parallel — independent writes
         await Promise.all(
             rewards.map((reward) =>
                 Promise.all([
@@ -595,4 +726,21 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
     } catch (error) {
         logger.error(shop, "Voucher update error", error, { customerId: customer?.id });
     }
+};
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+/**
+ * Returns a short human-readable order label e.g. "#1234".
+ *
+ * @param {Object} order - Shopify order payload
+ * @returns {string}
+ */
+const getOrderLabel = (order) => {
+    if (order?.name) return order.name;
+    if (order?.order_number) return `#${order.order_number}`;
+    const gid = order?.admin_graphql_api_id || "";
+    return gid ? `#${gid.split("/").pop()}` : "your order";
 };

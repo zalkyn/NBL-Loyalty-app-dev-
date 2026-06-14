@@ -22,20 +22,39 @@ const CUSTOMER_INCLUDE = {
     },
     referralsSent: true,
     referralsUsed: true,
+    prizeClaims: {
+        orderBy: { createdAt: "desc" },
+        select: {
+            id: true,
+            status: true,
+            pointsCost: true,
+            physicalPrizeId: true,
+            createdAt: true,
+            fulfilledAt: true,
+        },
+    },
 };
 
 const BATCH_SIZE = 10;
 
-const buildMetafield = (customer) => ({
-    namespace: "app",
-    key: "nbl_customer_v1",
-    value: JSON.stringify({
-        appName: "North Borders Loyalty App",
-        ...customer,
-    }),
-    type: "json",
-    ownerId: customer.shopifyId,
-});
+const buildMetafield = (customer) => {
+    const bm = {
+        namespace: "app",
+        key: "nbl_customer_v1",
+        value: JSON.stringify({
+            appName: "North Borders Loyalty App",
+            ...customer,
+        }),
+        type: "json",
+        ownerId: customer.shopifyId,
+    };
+
+    logger.info("build metafield=========", {
+        ...bm
+    })
+
+    return bm;
+};
 
 export const syncCustomersConfig = async (admin, session) => {
     try {
