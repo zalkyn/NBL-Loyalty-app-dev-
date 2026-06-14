@@ -145,7 +145,7 @@ export const customerOrderCount = async (admin, id) => {
             query CustomerOrderCount($id: ID!) {
                 customer(id: $id) {
                     numberOfOrders
-                    orders(first: 50) {
+                    orders(first: 150) {
                         nodes {
                             id
                         }
