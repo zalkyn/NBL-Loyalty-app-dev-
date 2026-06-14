@@ -508,23 +508,6 @@
     }
 }
 
-@keyframes nbl-hdr-shimmer-sweep {
-    0% {
-        transform: translateX(-100%);
-        opacity: 0;
-    }
-
-    10% {
-        opacity: 1;
-    }
-
-    60%,
-    100% {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-}
-
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    WIDGET CONTAINER
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -641,62 +624,25 @@
     will-change: auto;
 }
 
-/* decorative blobs — replaced by .nbl-hdr-blob-v1 elements */
+/* header ::before/::after decorative pseudo-elements disabled */
 .nbl-widget-header-top-v1::before,
 .nbl-widget-header-top-v1::after {
     display: none;
 }
 
-/* ── Header effect visibility — controlled by data-effect on .nbl-widget-header-top-v1 ──
-   All effect elements are always in the DOM.
-   Only the matching set is shown via the data-effect attribute. ── */
+/* ── Header effect: wave elements always visible ── */
+.nbl-widget-header-top-v1 .nbl-hdr-wave-v1 {
+    display: block;
+}
 
-/* Hide ALL effect elements by default */
-.nbl-widget-header-top-v1 .nbl-hdr-blob-v1,
-.nbl-widget-header-top-v1 .nbl-hdr-drop-v1,
-.nbl-widget-header-top-v1 .nbl-hdr-wave-v1,
-.nbl-widget-header-top-v1 .nbl-hdr-ripple-canvas-v1 {
+/* Hide wave when effect is disabled */
+.nbl-widget-header-top-v1[data-effect="none"] .nbl-hdr-wave-v1 {
     display: none;
 }
 
-/* Show only the active effect */
-.nbl-widget-header-top-v1[data-effect="bubble"] .nbl-hdr-blob-v1 {
-    display: block;
-}
-
-.nbl-widget-header-top-v1[data-effect="drop"] .nbl-hdr-drop-v1 {
-    display: block;
-}
-
-.nbl-widget-header-top-v1[data-effect="wave"] .nbl-hdr-wave-v1 {
-    display: block;
-}
-
-.nbl-widget-header-top-v1[data-effect="ripple"] .nbl-hdr-ripple-canvas-v1 {
-    display: block;
-    position: absolute;
-    inset: 0;
-}
-
 /* Animations paused until .nbl-hdr-animated-v1 is added by JS after first paint */
-.nbl-widget-header-top-v1 .nbl-hdr-blob-v1 {
-    animation-play-state: paused;
-}
-
-.nbl-widget-header-top-v1 .nbl-hdr-drop-v1 {
-    animation-play-state: paused;
-}
-
 .nbl-widget-header-top-v1 .nbl-hdr-wave-v1 {
     animation-play-state: paused;
-}
-
-.nbl-widget-header-top-v1.nbl-hdr-animated-v1 .nbl-hdr-blob-v1 {
-    animation-play-state: running;
-}
-
-.nbl-widget-header-top-v1.nbl-hdr-animated-v1 .nbl-hdr-drop-v1 {
-    animation-play-state: running;
 }
 
 .nbl-widget-header-top-v1.nbl-hdr-animated-v1 .nbl-hdr-wave-v1 {
@@ -708,287 +654,6 @@
     overflow: hidden;
 }
 
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   HEADER — WATER BUBBLE / DROPLET ANIMATIONS
-   Bubble colors are set dynamically by applyTheme() in JS,
-   based on the header background luminance, so they remain
-   visible regardless of what color the dashboard configures.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-/* ── Base bubble — structure only, colors injected by JS ── */
-.nbl-hdr-blob-v1 {
-    position: absolute;
-    border-radius: 50%;
-    pointer-events: none;
-    will-change: transform;
-    /* background, box-shadow, border → set by applyBubbleColors() in applyTheme() */
-}
-
-/* ── Specular highlight dot inside each bubble ── */
-.nbl-hdr-blob-dot-v1 {
-    position: absolute;
-    top: 18%;
-    left: 20%;
-    width: 30%;
-    height: 22%;
-    border-radius: 50%;
-    /* background → set by applyBubbleColors() */
-    filter: blur(1.5px);
-    transform: rotate(-35deg);
-    display: block;
-    pointer-events: none;
-}
-
-/* ── Bubble 1 — large, top-right, slow float ── */
-.nbl-hdr-blob1-v1 {
-    width: 72px;
-    height: 72px;
-    top: -18px;
-    right: 24px;
-    animation: nbl-bubble-float1 6s ease-in-out infinite;
-}
-
-/* ── Bubble 2 — medium, bottom-left, opposite phase ── */
-.nbl-hdr-blob2-v1 {
-    width: 48px;
-    height: 48px;
-    bottom: -10px;
-    left: 28px;
-    animation: nbl-bubble-float2 5s ease-in-out infinite 1.2s;
-    opacity: 0.88;
-}
-
-/* ── Bubble 3 — small, mid-centre-right, faster ── */
-.nbl-hdr-blob3-v1 {
-    width: 32px;
-    height: 32px;
-    top: 50%;
-    right: 30%;
-    transform: translateY(-50%);
-    animation: nbl-bubble-float3 3.8s ease-in-out infinite 0.6s;
-    opacity: 0.82;
-}
-
-/* ── Bubble 4 — tiny, centre-left area ── */
-.nbl-hdr-blob4-v1 {
-    width: 22px;
-    height: 22px;
-    top: 28%;
-    left: 50%;
-    animation: nbl-bubble-float4 4.5s ease-in-out infinite 2s;
-    opacity: 0.70;
-}
-
-/* ── Bubble 5 — extra small, rises from bottom and fades ── */
-.nbl-hdr-blob5-v1 {
-    width: 14px;
-    height: 14px;
-    bottom: 10px;
-    right: 20%;
-    animation: nbl-bubble-rise 7s ease-in-out infinite 0.8s;
-    opacity: 0.65;
-}
-
-/* Float animations — organic, non-linear paths */
-@keyframes nbl-bubble-float1 {
-    0% {
-        transform: translate(0, 0) scale(1);
-    }
-
-    25% {
-        transform: translate(-6px, 8px) scale(1.04);
-    }
-
-    50% {
-        transform: translate(4px, 14px) scale(0.97);
-    }
-
-    75% {
-        transform: translate(-3px, 6px) scale(1.02);
-    }
-
-    100% {
-        transform: translate(0, 0) scale(1);
-    }
-}
-
-@keyframes nbl-bubble-float2 {
-    0% {
-        transform: translate(0, 0) scale(1);
-    }
-
-    30% {
-        transform: translate(8px, -10px) scale(1.06);
-    }
-
-    60% {
-        transform: translate(-5px, -5px) scale(0.95);
-    }
-
-    100% {
-        transform: translate(0, 0) scale(1);
-    }
-}
-
-@keyframes nbl-bubble-float3 {
-    0% {
-        transform: translateY(-50%) scale(1);
-    }
-
-    40% {
-        transform: translateY(calc(-50% - 10px)) scale(1.1);
-    }
-
-    70% {
-        transform: translateY(calc(-50% + 4px)) scale(0.93);
-    }
-
-    100% {
-        transform: translateY(-50%) scale(1);
-    }
-}
-
-@keyframes nbl-bubble-float4 {
-    0% {
-        transform: translate(0, 0) rotate(0deg) scale(1);
-    }
-
-    50% {
-        transform: translate(5px, -8px) rotate(8deg) scale(1.08);
-    }
-
-    100% {
-        transform: translate(0, 0) rotate(0deg) scale(1);
-    }
-}
-
-/* Tiny bubble slowly rises and fades out — like a real water bubble */
-@keyframes nbl-bubble-rise {
-    0% {
-        transform: translateY(0) scale(1);
-        opacity: 0.65;
-    }
-
-    60% {
-        transform: translateY(-20px) scale(1.05);
-        opacity: 0.45;
-    }
-
-    85% {
-        transform: translateY(-30px) scale(1.1);
-        opacity: 0.20;
-    }
-
-    100% {
-        transform: translateY(-36px) scale(0.9);
-        opacity: 0;
-    }
-}
-
-/* ── Shimmer sweep across header ── */
-.nbl-hdr-shimmer-v1 {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(108deg,
-            transparent 15%,
-            rgba(255, 255, 255, 0.06) 35%,
-            rgba(255, 255, 255, 0.16) 50%,
-            rgba(255, 255, 255, 0.06) 65%,
-            transparent 85%);
-    animation: nbl-hdr-shimmer-sweep 6s ease-in-out infinite 2s;
-    transform: translateX(-110%);
-    z-index: 1;
-}
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   HEADER — WATER DROP EFFECT
-   Teardrop-shaped drops fall from various horizontal
-   positions, each with a different delay and duration.
-   Colors injected by applyHeaderEffectColors() in JS.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-/* ── Base drop — realistic teardrop: wide bottom, tapered top ── */
-.nbl-hdr-drop-v1 {
-    position: absolute;
-    /* Teardrop pointing downward */
-    border-radius: 50% 50% 40% 40% / 40% 40% 60% 60%;
-    pointer-events: none;
-    will-change: transform, opacity;
-    top: -30px;
-    /* start above the header */
-    /* background, border, box-shadow → set by applyHeaderEffectColors() */
-}
-
-/* Drop sizes, positions, timing */
-.nbl-hdr-drop1-v1 {
-    width: 14px;
-    height: 20px;
-    left: 12%;
-    animation: nbl-drop-fall 4.0s ease-in infinite 0.0s;
-}
-
-.nbl-hdr-drop2-v1 {
-    width: 10px;
-    height: 15px;
-    left: 28%;
-    animation: nbl-drop-fall 5.2s ease-in infinite 1.6s;
-}
-
-.nbl-hdr-drop3-v1 {
-    width: 18px;
-    height: 26px;
-    left: 48%;
-    animation: nbl-drop-fall 3.6s ease-in infinite 0.4s;
-}
-
-.nbl-hdr-drop4-v1 {
-    width: 8px;
-    height: 12px;
-    left: 65%;
-    animation: nbl-drop-fall 4.8s ease-in infinite 2.4s;
-}
-
-.nbl-hdr-drop5-v1 {
-    width: 12px;
-    height: 18px;
-    left: 80%;
-    animation: nbl-drop-fall 4.4s ease-in infinite 1.0s;
-}
-
-.nbl-hdr-drop6-v1 {
-    width: 7px;
-    height: 10px;
-    left: 92%;
-    animation: nbl-drop-fall 5.8s ease-in infinite 3.2s;
-}
-
-@keyframes nbl-drop-fall {
-    0% {
-        transform: translateY(0) scaleX(1);
-        opacity: 0;
-    }
-
-    8% {
-        opacity: 1;
-    }
-
-    70% {
-        transform: translateY(90px) scaleX(0.92);
-        opacity: 0.9;
-    }
-
-    88% {
-        transform: translateY(130px) scaleX(1.2) scaleY(0.55);
-        opacity: 0.5;
-    }
-
-    100% {
-        transform: translateY(145px) scaleX(1.5) scaleY(0.15);
-        opacity: 0;
-    }
-}
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    HEADER — WAVE EFFECT
@@ -2421,8 +2086,8 @@
 
 .nbl-notify-info-close-v1 {
     position: absolute;
-    right: 14px;
-    top: 14px;
+    right: 8px;
+    top: 8px;
     width: 24px;
     height: 24px;
     display: flex;
@@ -2432,6 +2097,7 @@
     border-radius: 50%;
     cursor: pointer;
     transition: background 0.15s;
+    z-index: 2;
 }
 
 .nbl-notify-info-close-v1:hover {
@@ -2439,9 +2105,18 @@
 }
 
 .nbl-notify-info-close-v1 svg {
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.9);
     width: 12px;
     height: 12px;
+}
+
+/* close button sitting on top of image — needs dark bg to stay visible */
+.nbl-notify-info-img-wrap-v1 .nbl-notify-info-close-v1 {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.nbl-notify-info-img-wrap-v1 .nbl-notify-info-close-v1:hover {
+    background: rgba(0, 0, 0, 0.5);
 }
 
 .nbl-notify-info-text-v1 {
@@ -2611,8 +2286,9 @@
 /* ── Notify info: status badge (inside image area) ───────────────────────── */
 .nbl-notify-info-badge-v1 {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: 8px;
+    left: 8px;
+    right: auto;
     padding: var(--nbl-notify-info-badge-padding);
     border-radius: var(--nbl-notify-info-badge-radius);
     font-size: var(--nbl-notify-info-badge-font-size);
@@ -2620,6 +2296,7 @@
     border: 1px solid transparent;
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
+    z-index: 2;
 }
 
 .nbl-notify-info-badge-pending-v1 {
@@ -2648,30 +2325,16 @@
 
 /* ── Notify info: when image is present ─────────────────────────────────── */
 .nbl-notify-info-container-v1.nbl-notify-has-img-v1 {
-    padding: 14px 14px 0;
+    padding: 0;
 }
 
 .nbl-notify-info-container-v1.nbl-notify-has-img-v1 .nbl-notify-info-img-wrap-v1 {
-    border-radius: var(--nbl-radius-md);
+    /* top corners match container radius, bottom corners flat → seamless join with body */
+    border-radius: var(--nbl-radius-xl) var(--nbl-radius-xl) 0 0;
 }
 
 .nbl-notify-info-container-v1.nbl-notify-has-img-v1 .nbl-notify-info-body-v1 {
-    padding: 12px 2px 18px;
-}
-
-.nbl-notify-info-container-v1.nbl-notify-has-img-v1 .nbl-notify-info-close-v1 {
-    top: 24px;
-    left: 24px;
-    right: auto;
-    background: rgba(0, 0, 0, 0.35);
-}
-
-.nbl-notify-info-container-v1.nbl-notify-has-img-v1 .nbl-notify-info-close-v1:hover {
-    background: rgba(0, 0, 0, 0.55);
-}
-
-.nbl-notify-info-container-v1.nbl-notify-has-img-v1 .nbl-notify-info-close-v1 svg {
-    color: rgba(255, 255, 255, 0.9);
+    padding: 14px 18px 18px;
 }
 
 /* ── Notify info: sub-label (value, pts) shown below title ───────────────── */

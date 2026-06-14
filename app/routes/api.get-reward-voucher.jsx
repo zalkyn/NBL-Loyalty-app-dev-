@@ -184,7 +184,7 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
         }),
     ]);
 
-    // Record the points debit as a completed transaction
+    // Deduct points + record transaction atomically via createTransaction
     await createTransaction(
         {
             customerId: customer.id,

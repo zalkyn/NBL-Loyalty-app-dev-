@@ -21,7 +21,6 @@
      → Notifications panel injected + wired
      → Compact header scroll listener attached
      → Nav chevrons initialised (also updates on every tab:activated)
-     → Mouse / cursor particle effect mounted
      → Home tab data rendered (active rewards + recent activities)
      → Accordion tab elements cached
 
@@ -580,18 +579,8 @@
             },
 
             // ── Header animation effect ──────────────────────────────────────────
-            // 'bubble' | 'drop' | 'wave' | 'ripple' | 'none'
-            headerEffect: 'wave',
+            headerEffectEnabled: true,
             headerEffectOpacity: 0.55,
-            // 'auto' | 'light' | 'dark' | 'custom'
-            headerEffectColorMode: 'auto',
-            headerEffectColor: 'rgba(255,255,255,0.5)',
-
-            // ── Mouse cursor effect ──────────────────────────────────────────────
-            // 'fire' | 'smoke' | 'sparkle' | 'ripple' | 'bubble' | 'none'
-            mouseEffect: 'bubble',
-            // 0.0 (barely visible) → 1.0 (full strength)
-            mouseEffectIntensity: 0.7,
 
             // ── Event bus logging ────────────────────────────────────────────────
             // All logging is disabled by default. Set enabled: true to activate.
@@ -624,7 +613,7 @@
 
         // ── Override WIDGET_CONFIG from dashboard settings ────────────────────
         // appConfig.styles.widgetConfig holds non-CSS settings saved by the
-        // dashboard Customize page (header effect, mouse effect, etc.)
+        // dashboard Customize page (header effect, etc.)
         (function applyWidgetConfigOverrides() {
             var wc = appConfig.styles && appConfig.styles.widgetConfig;
             if (!wc || typeof wc !== 'object') return;
@@ -655,13 +644,8 @@
             if (wc.prizeShowFulfilledDate !== undefined) WIDGET_CONFIG.prize.showFulfilledDate = !!wc.prizeShowFulfilledDate;
 
             // Header animation
-            if (wc.headerEffect !== undefined) WIDGET_CONFIG.headerEffect = wc.headerEffect;
+            if (wc.headerEffectEnabled !== undefined) WIDGET_CONFIG.headerEffectEnabled = !!wc.headerEffectEnabled;
             if (wc.headerEffectOpacity !== undefined) WIDGET_CONFIG.headerEffectOpacity = Number(wc.headerEffectOpacity);
-            if (wc.headerEffectColorMode !== undefined) WIDGET_CONFIG.headerEffectColorMode = wc.headerEffectColorMode;
-
-            // Mouse effect
-            if (wc.mouseEffect !== undefined) WIDGET_CONFIG.mouseEffect = wc.mouseEffect;
-            if (wc.mouseEffectIntensity !== undefined) WIDGET_CONFIG.mouseEffectIntensity = Number(wc.mouseEffectIntensity);
 
             // Labels — deep merge so only overridden keys are replaced
             if (wc.labels && typeof wc.labels === 'object') {
@@ -737,22 +721,9 @@
                                 <button class="nbl-widget-close-button-v1" aria-label="Close">${icon('close')}</button>
                                 <div class="nbl-widget-header-wrapper-v1">
                                     <div class="nbl-widget-header-top-v1">
-                                        <div class="nbl-hdr-blob-v1 nbl-hdr-blob1-v1"><span class="nbl-hdr-blob-dot-v1"></span></div>
-                                        <div class="nbl-hdr-blob-v1 nbl-hdr-blob2-v1"><span class="nbl-hdr-blob-dot-v1"></span></div>
-                                        <div class="nbl-hdr-blob-v1 nbl-hdr-blob3-v1"><span class="nbl-hdr-blob-dot-v1"></span></div>
-                                        <div class="nbl-hdr-blob-v1 nbl-hdr-blob4-v1"><span class="nbl-hdr-blob-dot-v1"></span></div>
-                                        <div class="nbl-hdr-blob-v1 nbl-hdr-blob5-v1"><span class="nbl-hdr-blob-dot-v1"></span></div>
-                                        <div class="nbl-hdr-drop-v1 nbl-hdr-drop1-v1"></div>
-                                        <div class="nbl-hdr-drop-v1 nbl-hdr-drop2-v1"></div>
-                                        <div class="nbl-hdr-drop-v1 nbl-hdr-drop3-v1"></div>
-                                        <div class="nbl-hdr-drop-v1 nbl-hdr-drop4-v1"></div>
-                                        <div class="nbl-hdr-drop-v1 nbl-hdr-drop5-v1"></div>
-                                        <div class="nbl-hdr-drop-v1 nbl-hdr-drop6-v1"></div>
                                         <div class="nbl-hdr-wave-v1 nbl-hdr-wave1-v1"></div>
                                         <div class="nbl-hdr-wave-v1 nbl-hdr-wave2-v1"></div>
                                         <div class="nbl-hdr-wave-v1 nbl-hdr-wave3-v1"></div>
-                                        <div class="nbl-hdr-ripple-canvas-v1"></div>
-                                        <div class="nbl-hdr-shimmer-v1"></div>
                                         ${headerTopHTML}
                                     </div>
                                     ${navHTML}
@@ -1178,149 +1149,36 @@
                     });
 
                     // ── Header effect — cssVars path ─────────────────────────────
-                    // Legacy path runs applyHeaderEffectColors() inside its own rAF.
-                    // cssVars path must do the same — previously it was skipped entirely.
-                    // Read --nbl-header-bg from the vars we just set so 'auto' mode
-                    // can still calculate luminance correctly.
                     (function applyHeaderEffectColors() {
-                        var effect = WIDGET_CONFIG.headerEffect;
-                        var opacity = Math.max(0, Math.min(1,
-                            WIDGET_CONFIG.headerEffectOpacity != null ? WIDGET_CONFIG.headerEffectOpacity : 0.55));
-                        var mode = WIDGET_CONFIG.headerEffectColorMode || 'auto';
-                        var custom = WIDGET_CONFIG.headerEffectColor || 'rgba(255,255,255,0.5)';
-
                         var hdrTop = document.querySelector('.nbl-widget-header-top-v1');
                         if (!hdrTop) return;
-                        hdrTop.setAttribute('data-effect', effect);
-                        if (effect === 'none') return;
 
-                        var isDark;
-                        if (mode === 'light') { isDark = true; }
-                        else if (mode === 'dark') { isDark = false; }
-                        else if (mode === 'custom') { isDark = null; }
-                        else {
-                            // Read from the CSS var we just set (fallback to legacy object or default)
-                            var resolvedBg = (savedCssVars['--nbl-header-bg'] || header['Background Color'] || '#8b5cf6');
-                            var hexColor = resolvedBg.replace('#', '');
-                            if (hexColor.length === 3) hexColor = hexColor[0] + hexColor[0] + hexColor[1] + hexColor[1] + hexColor[2] + hexColor[2];
-                            var redLuminance = parseInt(hexColor.slice(0, 2), 16) / 255;
-                            var greenLuminance = parseInt(hexColor.slice(2, 4), 16) / 255;
-                            var blueLuminance = parseInt(hexColor.slice(4, 6), 16) / 255;
-                            isDark = (0.2126 * redLuminance + 0.7152 * greenLuminance + 0.0722 * blueLuminance) < 0.45;
+                        if (!WIDGET_CONFIG.headerEffectEnabled) {
+                            hdrTop.setAttribute('data-effect', 'none');
+                            return;
                         }
+
+                        var opacity = Math.max(0, Math.min(1,
+                            WIDGET_CONFIG.headerEffectOpacity != null ? WIDGET_CONFIG.headerEffectOpacity : 0.55));
+                        hdrTop.setAttribute('data-effect', 'wave');
+
+                        var resolvedBg = (savedCssVars['--nbl-header-bg'] || header['Background Color'] || '#8b5cf6');
+                        var hexColor = resolvedBg.replace('#', '');
+                        if (hexColor.length === 3) hexColor = hexColor[0] + hexColor[0] + hexColor[1] + hexColor[1] + hexColor[2] + hexColor[2];
+                        var r = parseInt(hexColor.slice(0, 2), 16) / 255;
+                        var g = parseInt(hexColor.slice(2, 4), 16) / 255;
+                        var b = parseInt(hexColor.slice(4, 6), 16) / 255;
+                        var isDark = (0.2126 * r + 0.7152 * g + 0.0722 * b) < 0.45;
 
                         function a(v) { return +(v * opacity).toFixed(2); }
 
-                        var effectColors = isDark === null ? {
-                            hi: custom, mid: custom, edge: 'transparent',
-                            bdr: custom, sh: 'rgba(0,0,0,' + a(0.12) + ')', shIn: custom, dot: custom
-                        } : isDark ? {
-                            hi: 'rgba(255,255,255,' + a(0.65) + ')',
-                            mid: 'rgba(255,255,255,' + a(0.22) + ')',
-                            edge: 'rgba(0,0,0,' + a(0.08) + ')',
-                            bdr: 'rgba(255,255,255,' + a(0.50) + ')',
-                            sh: 'rgba(0,0,0,' + a(0.18) + ')',
-                            shIn: 'rgba(255,255,255,' + a(0.45) + ')',
-                            dot: 'rgba(255,255,255,' + a(0.70) + ')'
-                        } : {
-                            hi: 'rgba(0,0,0,' + a(0.14) + ')',
-                            mid: 'rgba(0,0,0,' + a(0.06) + ')',
-                            edge: 'rgba(255,255,255,' + a(0.35) + ')',
-                            bdr: 'rgba(0,0,0,' + a(0.12) + ')',
-                            sh: 'rgba(0,0,0,' + a(0.08) + ')',
-                            shIn: 'rgba(255,255,255,' + a(0.65) + ')',
-                            dot: 'rgba(255,255,255,' + a(0.75) + ')'
-                        };
+                        var waveColors = isDark
+                            ? ['rgba(255,255,255,' + a(0.22) + ')', 'rgba(255,255,255,' + a(0.13) + ')', 'rgba(255,255,255,' + a(0.07) + ')']
+                            : ['rgba(0,0,0,' + a(0.12) + ')', 'rgba(0,0,0,' + a(0.07) + ')', 'rgba(0,0,0,' + a(0.04) + ')'];
+                        hdrTop.querySelectorAll('.nbl-hdr-wave-v1').forEach(function (el, i) {
+                            el.style.background = waveColors[i] || waveColors[0];
+                        });
 
-                        if (effect === 'bubble') {
-                            hdrTop.querySelectorAll('.nbl-hdr-blob-v1').forEach(function (el) {
-                                el.style.background = 'radial-gradient(circle at 32% 28%,' + effectColors.hi + ' 0%,' + effectColors.mid + ' 38%,' + effectColors.edge + ' 72%,transparent 100%)';
-                                el.style.boxShadow = 'inset -2px -2px 5px ' + effectColors.sh + ',inset 2px 2px 4px ' + effectColors.shIn + ',0 4px 12px ' + effectColors.sh;
-                                el.style.border = '1px solid ' + effectColors.bdr;
-                                var blobDotElement = el.querySelector('.nbl-hdr-blob-dot-v1');
-                                if (blobDotElement) blobDotElement.style.background = effectColors.dot;
-                            });
-                        }
-
-                        if (effect === 'drop') {
-                            hdrTop.querySelectorAll('.nbl-hdr-drop-v1').forEach(function (el) {
-                                el.style.background = 'radial-gradient(ellipse at 35% 25%,' + effectColors.hi + ' 0%,transparent 42%),radial-gradient(ellipse at 60% 65%,' + effectColors.mid + ' 0%,transparent 75%)';
-                                el.style.border = '1px solid ' + effectColors.bdr;
-                                el.style.boxShadow = '0 5px 14px ' + effectColors.sh + ',inset 0 -2px 4px ' + effectColors.mid;
-                            });
-                        }
-
-                        if (effect === 'wave') {
-                            var waveColors = isDark === null
-                                ? [custom, custom, custom]
-                                : isDark
-                                    ? ['rgba(255,255,255,' + a(0.22) + ')', 'rgba(255,255,255,' + a(0.13) + ')', 'rgba(255,255,255,' + a(0.07) + ')']
-                                    : ['rgba(0,0,0,' + a(0.12) + ')', 'rgba(0,0,0,' + a(0.07) + ')', 'rgba(0,0,0,' + a(0.04) + ')'];
-                            hdrTop.querySelectorAll('.nbl-hdr-wave-v1').forEach(function (el, i) {
-                                el.style.background = waveColors[i] || waveColors[0];
-                            });
-                        }
-
-                        if (effect === 'ripple') {
-                            var anchor = hdrTop.querySelector('.nbl-hdr-ripple-canvas-v1');
-                            if (!anchor || anchor._init) return;
-                            anchor._init = true;
-
-                            var rippleCanvas = document.createElement('canvas');
-                            rippleCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;';
-                            anchor.appendChild(rippleCanvas);
-                            var rippleContext = rippleCanvas.getContext('2d');
-                            var rings = [];
-                            var rippleColorRGB = (isDark === null || isDark) ? '255,255,255' : '0,0,0';
-
-                            function sizeCanvas() {
-                                rippleCanvas.width = hdrTop.offsetWidth || 390;
-                                rippleCanvas.height = hdrTop.offsetHeight || 90;
-                            }
-                            sizeCanvas();
-                            window.addEventListener('resize', sizeCanvas, { passive: true });
-
-                            function spawnRipple(x, y, maxR) {
-                                rings.push({ x: x, y: y, r: 1, maxR: maxR, life: 1 });
-                            }
-
-                            (function tickRipple() {
-                                rippleContext.clearRect(0, 0, rippleCanvas.width, rippleCanvas.height);
-                                rings = rings.filter(function (ring) {
-                                    ring.r += (ring.maxR - ring.r) * 0.045 + 0.3;
-                                    ring.life -= 0.018;
-                                    if (ring.life <= 0) return false;
-                                    var alpha = ring.life * opacity * 0.6;
-                                    rippleContext.beginPath();
-                                    rippleContext.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
-                                    rippleContext.strokeStyle = 'rgba(' + rippleColorRGB + ',' + alpha.toFixed(2) + ')';
-                                    rippleContext.lineWidth = 1.5;
-                                    rippleContext.stroke();
-                                    return true;
-                                });
-                                requestAnimationFrame(tickRipple);
-                            })();
-
-                            (function spawnLoop() {
-                                var w = rippleCanvas.width, h = rippleCanvas.height;
-                                if (w > 0 && h > 0) {
-                                    var count = 1 + Math.floor(Math.random() * 2);
-                                    for (var i = 0; i < count; i++) {
-                                        spawnRipple(
-                                            20 + Math.random() * (w - 40),
-                                            8 + Math.random() * (h - 16),
-                                            10 + Math.random() * 34
-                                        );
-                                    }
-                                }
-                                setTimeout(spawnLoop, 800 + Math.random() * 600);
-                            })();
-                        }
-
-                        // Trigger CSS animations — same double-rAF pattern as legacy path.
-                        // nbl-hdr-animated-v1 is the gate class that enables keyframe
-                        // animations on blobs, drops, waves etc. in ui_v2.css.
-                        // Without this the elements are painted but never animate.
                         requestAnimationFrame(function () {
                             requestAnimationFrame(function () {
                                 hdrTop.classList.add('nbl-hdr-animated-v1');
@@ -1477,152 +1335,33 @@
 
                 // ── Header effect — runs once after first paint ───────────────────
                 (function applyHeaderEffectColors() {
-                    var effect = WIDGET_CONFIG.headerEffect;
-                    var opacity = Math.max(0, Math.min(1,
-                        WIDGET_CONFIG.headerEffectOpacity != null ? WIDGET_CONFIG.headerEffectOpacity : 0.55));
-                    var mode = WIDGET_CONFIG.headerEffectColorMode || 'auto';
-                    var custom = WIDGET_CONFIG.headerEffectColor || 'rgba(255,255,255,0.5)';
-
                     var hdrTop = document.querySelector('.nbl-widget-header-top-v1');
                     if (!hdrTop) return;
-                    hdrTop.setAttribute('data-effect', effect);
-                    if (effect === 'none') return;
 
-                    var isDark;
-                    if (mode === 'light') { isDark = true; }
-                    else if (mode === 'dark') { isDark = false; }
-                    else if (mode === 'custom') { isDark = null; }
-                    else {
-                        var hexColor = (header['Background Color'] || '#8b5cf6').replace('#', '');
-                        if (hexColor.length === 3) hexColor = hexColor[0] + hexColor[0] + hexColor[1] + hexColor[1] + hexColor[2] + hexColor[2];
-                        var redLuminance = parseInt(hexColor.slice(0, 2), 16) / 255;
-                        var greenLuminance = parseInt(hexColor.slice(2, 4), 16) / 255;
-                        var blueLuminance = parseInt(hexColor.slice(4, 6), 16) / 255;
-                        isDark = (0.2126 * redLuminance + 0.7152 * greenLuminance + 0.0722 * blueLuminance) < 0.45;
+                    if (!WIDGET_CONFIG.headerEffectEnabled) {
+                        hdrTop.setAttribute('data-effect', 'none');
+                        return;
                     }
+
+                    var opacity = Math.max(0, Math.min(1,
+                        WIDGET_CONFIG.headerEffectOpacity != null ? WIDGET_CONFIG.headerEffectOpacity : 0.55));
+                    hdrTop.setAttribute('data-effect', 'wave');
+
+                    var hexColor = (header['Background Color'] || '#8b5cf6').replace('#', '');
+                    if (hexColor.length === 3) hexColor = hexColor[0] + hexColor[0] + hexColor[1] + hexColor[1] + hexColor[2] + hexColor[2];
+                    var r = parseInt(hexColor.slice(0, 2), 16) / 255;
+                    var g = parseInt(hexColor.slice(2, 4), 16) / 255;
+                    var b = parseInt(hexColor.slice(4, 6), 16) / 255;
+                    var isDark = (0.2126 * r + 0.7152 * g + 0.0722 * b) < 0.45;
 
                     function a(v) { return +(v * opacity).toFixed(2); }
 
-                    var effectColors = isDark === null ? {
-                        hi: custom, mid: custom, edge: 'transparent',
-                        bdr: custom, sh: 'rgba(0,0,0,' + a(0.12) + ')', shIn: custom, dot: custom
-                    } : isDark ? {
-                        hi: 'rgba(255,255,255,' + a(0.65) + ')',
-                        mid: 'rgba(255,255,255,' + a(0.22) + ')',
-                        edge: 'rgba(0,0,0,' + a(0.08) + ')',
-                        bdr: 'rgba(255,255,255,' + a(0.50) + ')',
-                        sh: 'rgba(0,0,0,' + a(0.18) + ')',
-                        shIn: 'rgba(255,255,255,' + a(0.45) + ')',
-                        dot: 'rgba(255,255,255,' + a(0.70) + ')'
-                    } : {
-                        hi: 'rgba(0,0,0,' + a(0.14) + ')',
-                        mid: 'rgba(0,0,0,' + a(0.06) + ')',
-                        edge: 'rgba(255,255,255,' + a(0.35) + ')',
-                        bdr: 'rgba(0,0,0,' + a(0.12) + ')',
-                        sh: 'rgba(0,0,0,' + a(0.08) + ')',
-                        shIn: 'rgba(255,255,255,' + a(0.65) + ')',
-                        dot: 'rgba(255,255,255,' + a(0.75) + ')'
-                    };
-
-                    if (effect === 'bubble') {
-                        hdrTop.querySelectorAll('.nbl-hdr-blob-v1').forEach(function (el) {
-                            el.style.background = 'radial-gradient(circle at 32% 28%,' + effectColors.hi + ' 0%,' + effectColors.mid + ' 38%,' + effectColors.edge + ' 72%,transparent 100%)';
-                            el.style.boxShadow = 'inset -2px -2px 5px ' + effectColors.sh + ',inset 2px 2px 4px ' + effectColors.shIn + ',0 4px 12px ' + effectColors.sh;
-                            el.style.border = '1px solid ' + effectColors.bdr;
-                            var blobDotElement = el.querySelector('.nbl-hdr-blob-dot-v1');
-                            if (blobDotElement) blobDotElement.style.background = effectColors.dot;
-                        });
-                    }
-
-                    if (effect === 'drop') {
-                        hdrTop.querySelectorAll('.nbl-hdr-drop-v1').forEach(function (el) {
-                            el.style.background = 'radial-gradient(ellipse at 35% 25%,' + effectColors.hi + ' 0%,transparent 42%),radial-gradient(ellipse at 60% 65%,' + effectColors.mid + ' 0%,transparent 75%)';
-                            el.style.border = '1px solid ' + effectColors.bdr;
-                            el.style.boxShadow = '0 5px 14px ' + effectColors.sh + ',inset 0 -2px 4px ' + effectColors.mid;
-                        });
-                    }
-
-                    if (effect === 'wave') {
-                        var waveColors = isDark === null
-                            ? [custom, custom, custom]
-                            : isDark
-                                ? ['rgba(255,255,255,' + a(0.22) + ')', 'rgba(255,255,255,' + a(0.13) + ')', 'rgba(255,255,255,' + a(0.07) + ')']
-                                : ['rgba(0,0,0,' + a(0.12) + ')', 'rgba(0,0,0,' + a(0.07) + ')', 'rgba(0,0,0,' + a(0.04) + ')'];
-                        hdrTop.querySelectorAll('.nbl-hdr-wave-v1').forEach(function (el, i) {
-                            el.style.background = waveColors[i] || waveColors[0];
-                        });
-                    }
-
-                    if (effect === 'ripple') {
-                        var anchor = hdrTop.querySelector('.nbl-hdr-ripple-canvas-v1');
-                        if (!anchor || anchor._init) return;
-                        anchor._init = true;
-
-                        var rippleCanvas = document.createElement('canvas');
-                        rippleCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;';
-                        anchor.appendChild(rippleCanvas);
-                        var rippleContext = rippleCanvas.getContext('2d');
-                        var rings = [];
-                        var rippleColorRGB = (isDark === null || isDark) ? '255,255,255' : '0,0,0';
-
-                        function sizeCanvas() {
-                            rippleCanvas.width = hdrTop.offsetWidth || 390;
-                            rippleCanvas.height = hdrTop.offsetHeight || 90;
-                        }
-                        sizeCanvas();
-                        window.addEventListener('resize', sizeCanvas, { passive: true });
-
-                        function spawnRipple(x, y, maxR) {
-                            rings.push({ x: x, y: y, r: 1, maxR: maxR, life: 1 });
-                        }
-
-                        function spawnBatch() {
-                            var canvasWidth = rippleCanvas.width, canvasHeight = rippleCanvas.height;
-                            if (canvasWidth < 1 || canvasHeight < 1) return;
-                            var count = 1 + Math.floor(Math.random() * 2);
-                            for (var i = 0; i < count; i++) {
-                                spawnRipple(
-                                    20 + Math.random() * (canvasWidth - 40),
-                                    8 + Math.random() * (canvasHeight - 16),
-                                    10 + Math.random() * 34
-                                );
-                            }
-                        }
-
-                        (function initialBurst() {
-                            var canvasWidth = rippleCanvas.width, canvasHeight = rippleCanvas.height;
-                            if (canvasWidth < 1 || canvasHeight < 1) { setTimeout(initialBurst, 100); return; }
-                            for (var i = 0; i < 4; i++) {
-                                setTimeout(function () { spawnBatch(); }, i * 180);
-                            }
-                        })();
-
-                        function autoSpawn() {
-                            spawnBatch();
-                            setTimeout(autoSpawn, 400 + Math.random() * 700);
-                        }
-                        setTimeout(autoSpawn, 750);
-
-                        (function rLoop() {
-                            rippleContext.clearRect(0, 0, rippleCanvas.width, rippleCanvas.height);
-                            for (var i = rings.length - 1; i >= 0; i--) {
-                                var rippleRing = rings[i];
-                                rippleRing.r += (rippleRing.maxR - rippleRing.r) * 0.08;
-                                rippleRing.life -= 0.022;
-                                if (rippleRing.life <= 0) { rings.splice(i, 1); continue; }
-                                for (var n = 0; n < 3; n++) {
-                                    var ringRadius = rippleRing.r * (1 - n * 0.3);
-                                    if (ringRadius < 1) continue;
-                                    rippleContext.beginPath();
-                                    rippleContext.arc(rippleRing.x, rippleRing.y, ringRadius, 0, Math.PI * 2);
-                                    rippleContext.strokeStyle = 'rgba(' + rippleColorRGB + ',' + (rippleRing.life * opacity * 0.5 * (1 - n * 0.3)) + ')';
-                                    rippleContext.lineWidth = (1.8 - n * 0.4) * rippleRing.life;
-                                    rippleContext.stroke();
-                                }
-                            }
-                            requestAnimationFrame(rLoop);
-                        })();
-                    }
+                    var waveColors = isDark
+                        ? ['rgba(255,255,255,' + a(0.22) + ')', 'rgba(255,255,255,' + a(0.13) + ')', 'rgba(255,255,255,' + a(0.07) + ')']
+                        : ['rgba(0,0,0,' + a(0.12) + ')', 'rgba(0,0,0,' + a(0.07) + ')', 'rgba(0,0,0,' + a(0.04) + ')'];
+                    hdrTop.querySelectorAll('.nbl-hdr-wave-v1').forEach(function (el, i) {
+                        el.style.background = waveColors[i] || waveColors[0];
+                    });
 
                     requestAnimationFrame(function () {
                         requestAnimationFrame(function () {
@@ -3881,262 +3620,6 @@
                 points: cost ? -Math.abs(Number(cost)) : 0,
                 createdAt: new Date(createdAt).toISOString()
             });
-        });
-
-        // ─────────────────────────────────────────────────────────────────────────
-        // SECTION 17b: MOUSE CURSOR EFFECTS
-        // Initialises on widget:first-open — no canvas is created until the
-        // widget is opened for the first time.
-        // ─────────────────────────────────────────────────────────────────────────
-
-        /**
-         * @listens widget:first-open
-         * Sets up the cursor particle canvas and begins the render loop.
-         */
-        eventBus.on('widget:first-open', function () {
-            if (WIDGET_CONFIG.mouseEffect === 'none') return;
-
-            var effect = WIDGET_CONFIG.mouseEffect;
-            var intensity = Math.max(0.1, Math.min(1, WIDGET_CONFIG.mouseEffectIntensity != null ? WIDGET_CONFIG.mouseEffectIntensity : 0.8));
-
-            var canvas, ctx, animId;
-            var particles = [];
-            var isOpen = false;
-
-            function makeSmoke(x, y) {
-                var spread = 6 * intensity;
-                return { type: 'smoke', x: x + (Math.random() - 0.5) * spread, y: y, vx: (Math.random() - 0.5) * 0.5, vy: -(0.4 + Math.random() * 0.6) * intensity, size: (8 + Math.random() * 10) * intensity, life: 1, maxLife: 0.9 + Math.random() * 0.6, rot: Math.random() * Math.PI * 2, rotV: (Math.random() - 0.5) * 0.04 };
-            }
-
-            function makeFlame(x, y) {
-                var spread = 8 * intensity;
-                var hue = 5 + Math.random() * 15;
-                return { type: 'flame', x: x + (Math.random() - 0.5) * spread, y: y, vx: (Math.random() - 0.5) * 1.2 * intensity, vy: -(1.5 + Math.random() * 2.0) * intensity, size: (5 + Math.random() * 9) * intensity, life: 1, maxLife: 0.5 + Math.random() * 0.4, hue: hue, turbX: (Math.random() - 0.5) * 0.3 };
-            }
-
-            function makeEmber(x, y) {
-                var angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.8;
-                var speed = (2 + Math.random() * 3.5) * intensity;
-                return { type: 'ember', x: x + (Math.random() - 0.5) * 6, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, size: (1.5 + Math.random() * 2.5) * intensity, life: 1, maxLife: 0.6 + Math.random() * 0.5, hue: 40 + Math.random() * 20 };
-            }
-
-            function makeSparkleParticle(x, y) {
-                var angle = Math.random() * Math.PI * 2;
-                var speed = (1 + Math.random() * 3) * intensity;
-                var size = (2 + Math.random() * 5) * intensity;
-                var life = 0.4 + Math.random() * 0.6;
-                return { type: 'sparkle', x: x, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, size: size, life: life, maxLife: life, hue: Math.random() * 60 + 200 };
-            }
-
-            function makeBubble(x, y) {
-                var sz = (6 + Math.random() * 14) * intensity;
-                return { type: 'bubble', x: x + (Math.random() - 0.5) * 10, y: y, vx: (Math.random() - 0.5) * 0.8, vy: -(0.6 + Math.random() * 1.2) * intensity, size: sz, life: 1, maxLife: 0.8 + Math.random() * 0.8, wobble: Math.random() * Math.PI * 2, wobbleSpeed: 1.5 + Math.random() * 2 };
-            }
-
-            function makeRipple(x, y) {
-                return { type: 'ripple', x: x, y: y, r: 2, maxR: (20 + Math.random() * 20) * intensity, life: 1, maxLife: 1, rings: Math.floor(2 + Math.random() * 2) };
-            }
-
-            var lastX = -1, lastY = -1, frameSkip = 0;
-            var time = 0;
-
-            function spawnFire(x, y) {
-                var fc = Math.ceil(3 * intensity);
-                var ec = Math.ceil(intensity * 2);
-                if (Math.random() < 0.5) particles.push(makeSmoke(x, y));
-                for (var i = 0; i < fc; i++) particles.push(makeFlame(x, y));
-                for (var i = 0; i < ec; i++) particles.push(makeEmber(x, y));
-            }
-
-            function spawnAt(mouseX, mouseY) {
-                if (effect === 'fire') {
-                    spawnFire(mouseX, mouseY);
-                } else if (effect === 'smoke') {
-                    // Pure smoke trail — softer and slower than fire smoke.
-                    // Spawns 1-2 smoke puffs per move with gentle upward drift.
-                    frameSkip++;
-                    if (frameSkip % 2 === 0) {
-                        var sc = 1 + (Math.random() < 0.4 ? 1 : 0);
-                        for (var i = 0; i < sc; i++) particles.push(makeSmoke(mouseX, mouseY));
-                    }
-                } else if (effect === 'sparkle') {
-                    var count = Math.ceil(3 * intensity);
-                    for (var i = 0; i < count; i++) particles.push(makeSparkleParticle(mouseX, mouseY));
-                } else if (effect === 'bubble') {
-                    frameSkip++;
-                    if (frameSkip % 3 === 0) {
-                        var bc = 1 + (Math.random() < 0.4 ? 1 : 0);
-                        for (var i = 0; i < bc; i++) particles.push(makeBubble(mouseX, mouseY));
-                    }
-                } else if (effect === 'ripple') {
-                    frameSkip++;
-                    if (frameSkip % 3 === 0) particles.push(makeRipple(mouseX, mouseY));
-                }
-            }
-
-            var deltaTime = 1 / 60;
-
-            function tick() {
-                if (!ctx || !isOpen) { animId = requestAnimationFrame(tick); return; }
-                time += deltaTime;
-                ctx.globalCompositeOperation = (effect === 'fire') ? 'screen' : 'source-over';
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                if (effect === 'fire') {
-                    var order = { smoke: 0, flame: 1, ember: 2 };
-                    particles.sort(function (a, b) { return (order[a.type] || 0) - (order[b.type] || 0); });
-                }
-
-                for (var i = particles.length - 1; i >= 0; i--) {
-                    var particle = particles[i];
-                    particle.life -= deltaTime;
-                    if (particle.life <= 0) { particles.splice(i, 1); continue; }
-                    var lifeRatio = particle.life / particle.maxLife;
-
-                    if (particle.type === 'ripple') {
-                        particle.r += (particle.maxR - particle.r) * 0.10;
-                        for (var n = 0; n < particle.rings; n++) {
-                            var ringRadius = particle.r * (1 - n * 0.32);
-                            if (ringRadius < 1) continue;
-                            var ringAlpha = lifeRatio * (1 - n * 0.35) * 0.65 * intensity;
-                            var ringLineWidth = (2.2 - n * 0.6) * lifeRatio;
-                            var hue = 220 + n * 40;
-                            ctx.beginPath();
-                            ctx.arc(particle.x, particle.y, ringRadius, 0, Math.PI * 2);
-                            ctx.strokeStyle = 'hsla(' + hue + ',80%,65%,' + ringAlpha + ')';
-                            ctx.lineWidth = Math.max(0.5, ringLineWidth);
-                            ctx.stroke();
-                        }
-                        continue;
-                    }
-
-                    if (particle.type === 'bubble') {
-                        particle.x += particle.vx + Math.sin(time * particle.wobbleSpeed + particle.wobble) * 0.5;
-                        particle.y += particle.vy;
-                        particle.vy *= 0.995;
-                        var sz = particle.size;
-                        var alpha = lifeRatio < 0.15 ? lifeRatio / 0.15 : (lifeRatio > 0.85 ? (1 - lifeRatio) / 0.15 : 1);
-                        alpha *= 0.82 * intensity;
-                        var bg = ctx.createRadialGradient(particle.x, particle.y, sz * 0.1, particle.x, particle.y, sz);
-                        bg.addColorStop(0, 'rgba(200,220,255,' + (alpha * 0.08) + ')');
-                        bg.addColorStop(0.75, 'rgba(180,210,255,' + (alpha * 0.15) + ')');
-                        bg.addColorStop(1, 'rgba(160,200,255,' + (alpha * 0.55) + ')');
-                        ctx.beginPath(); ctx.arc(particle.x, particle.y, sz, 0, Math.PI * 2); ctx.fillStyle = bg; ctx.fill();
-                        ctx.strokeStyle = 'rgba(200,225,255,' + (alpha * 0.65) + ')'; ctx.lineWidth = 1; ctx.stroke();
-                        var hx = particle.x - sz * 0.30, hy = particle.y - sz * 0.32;
-                        var hg = ctx.createRadialGradient(hx, hy, 0, hx, hy, sz * 0.28);
-                        hg.addColorStop(0, 'rgba(255,255,255,' + (alpha * 0.90) + ')');
-                        hg.addColorStop(0.5, 'rgba(220,235,255,' + (alpha * 0.45) + ')');
-                        hg.addColorStop(1, 'rgba(200,220,255,0)');
-                        ctx.beginPath(); ctx.ellipse(hx, hy, sz * 0.28, sz * 0.18, -0.5, 0, Math.PI * 2); ctx.fillStyle = hg; ctx.fill();
-                        continue;
-                    }
-
-                    if (particle.type === 'smoke') {
-                        particle.x += particle.vx; particle.y += particle.vy; particle.vx *= 0.99; particle.rot += particle.rotV;
-                        var sz = particle.size * (1 + (1 - lifeRatio) * 0.8);
-                        var alpha = lifeRatio < 0.3 ? lifeRatio / 0.3 * 0.18 : (1 - lifeRatio) * 0.18;
-                        ctx.save(); ctx.translate(particle.x, particle.y); ctx.rotate(particle.rot);
-                        var sg = ctx.createRadialGradient(0, 0, 0, 0, 0, sz);
-                        sg.addColorStop(0, 'rgba(80,60,50,' + (alpha * intensity) + ')');
-                        sg.addColorStop(0.6, 'rgba(60,40,30,' + (alpha * 0.5 * intensity) + ')');
-                        sg.addColorStop(1, 'rgba(40,20,10,0)');
-                        ctx.beginPath(); ctx.arc(0, 0, sz, 0, Math.PI * 2); ctx.fillStyle = sg; ctx.fill(); ctx.restore();
-                        continue;
-                    }
-
-                    if (particle.type === 'flame') {
-                        particle.vx += Math.sin(time * 8 + particle.turbX * 20) * 0.08;
-                        particle.vy -= 0.04 * intensity; particle.vx *= 0.97; particle.x += particle.vx; particle.y += particle.vy;
-                        var hShift = (1 - lifeRatio) * 35;
-                        var bright = 45 + (1 - lifeRatio) * 45;
-                        var sz = particle.size * Math.sqrt(lifeRatio);
-                        var alpha = lifeRatio * 0.9 * intensity;
-                        var fg = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, sz);
-                        fg.addColorStop(0, 'hsla(' + (particle.hue + hShift + 40) + ',100%,95%,' + (alpha * 0.9) + ')');
-                        fg.addColorStop(0.3, 'hsla(' + (particle.hue + hShift) + ',100%,' + bright + '%,' + alpha + ')');
-                        fg.addColorStop(0.7, 'hsla(' + particle.hue + ',100%,40%,' + (alpha * 0.6) + ')');
-                        fg.addColorStop(1, 'hsla(' + particle.hue + ',100%,20%,0)');
-                        ctx.beginPath(); ctx.arc(particle.x, particle.y, sz, 0, Math.PI * 2); ctx.fillStyle = fg; ctx.fill();
-                        continue;
-                    }
-
-                    if (particle.type === 'ember') {
-                        particle.vy += 0.12; particle.vx *= 0.98; particle.vy *= 0.98; particle.x += particle.vx; particle.y += particle.vy;
-                        var emberSize = particle.size * lifeRatio;
-                        var alpha = lifeRatio * intensity;
-                        var eg = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, emberSize + 1);
-                        eg.addColorStop(0, 'hsla(' + (particle.hue + 20) + ',100%,100%,' + alpha + ')');
-                        eg.addColorStop(0.5, 'hsla(' + particle.hue + ',100%,80%,' + (alpha * 0.7) + ')');
-                        eg.addColorStop(1, 'hsla(' + particle.hue + ',100%,50%,0)');
-                        ctx.beginPath(); ctx.arc(particle.x, particle.y, emberSize + 1, 0, Math.PI * 2); ctx.fillStyle = eg; ctx.fill();
-                        continue;
-                    }
-
-                    if (particle.type === 'sparkle') {
-                        particle.x += particle.vx; particle.y += particle.vy; particle.vy += 0.05;
-                        var sz = particle.size * lifeRatio;
-                        var alpha = lifeRatio * 0.85 * intensity;
-                        ctx.save(); ctx.translate(particle.x, particle.y); ctx.rotate(lifeRatio * 4);
-                        ctx.fillStyle = 'hsla(' + particle.hue + ',90%,75%,' + alpha + ')';
-                        ctx.beginPath();
-                        var sparkleHalfSize = sz;
-                        ctx.moveTo(0, -sparkleHalfSize); ctx.lineTo(sparkleHalfSize * 0.25, -sparkleHalfSize * 0.25);
-                        ctx.lineTo(sparkleHalfSize, 0); ctx.lineTo(sparkleHalfSize * 0.25, sparkleHalfSize * 0.25);
-                        ctx.lineTo(0, sparkleHalfSize); ctx.lineTo(-sparkleHalfSize * 0.25, sparkleHalfSize * 0.25);
-                        ctx.lineTo(-sparkleHalfSize, 0); ctx.lineTo(-sparkleHalfSize * 0.25, -sparkleHalfSize * 0.25);
-                        ctx.closePath(); ctx.fill();
-                        ctx.beginPath(); ctx.arc(0, 0, sz * 0.25, 0, Math.PI * 2);
-                        ctx.fillStyle = 'hsla(60,100%,95%,' + alpha + ')'; ctx.fill();
-                        ctx.restore();
-                    }
-                }
-
-                ctx.globalCompositeOperation = 'source-over';
-                animId = requestAnimationFrame(tick);
-            }
-
-            function mount() {
-                var container = document.querySelector('.nbl-widget-scroll-area-v1');
-                if (!container) return;
-                canvas = document.createElement('canvas');
-                canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;border-radius:inherit;';
-                container.appendChild(canvas);
-
-                function resize() { canvas.width = container.offsetWidth; canvas.height = container.offsetHeight; }
-                resize();
-                ctx = canvas.getContext('2d');
-
-                container.addEventListener('mousemove', function (e) {
-                    if (!isOpen) return;
-                    var rect = canvas.getBoundingClientRect();
-                    var mouseX = e.clientX - rect.left;
-                    var mouseY = e.clientY - rect.top;
-                    if (Math.abs(mouseX - lastX) > 2 || Math.abs(mouseY - lastY) > 2) {
-                        spawnAt(mouseX, mouseY);
-                        lastX = mouseX; lastY = mouseY;
-                    }
-                }, { passive: true });
-
-                // mount() is called from widget:first-open, which fires inside
-                // widget:opened — so the widget is already open at this point.
-                // Set isOpen = true immediately so mousemove works on the first open.
-                isOpen = true;
-
-                /** @listens widget:opened */
-                eventBus.on('widget:opened', function () { isOpen = true; });
-                /** @listens widget:closed */
-                eventBus.on('widget:closed', function () {
-                    isOpen = false;
-                    particles = [];
-                    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-                });
-
-                window.addEventListener('resize', resize, { passive: true });
-                tick();
-            }
-
-            mount();
         });
 
         // ─────────────────────────────────────────────────────────────────────────

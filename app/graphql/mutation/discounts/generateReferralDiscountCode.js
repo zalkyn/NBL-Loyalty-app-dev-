@@ -131,8 +131,8 @@ export const generateReferralDiscountCode = async (admin, customerId, referralCo
                             }
                         },
                         customerGets: {
-                            appliesOnOneTimePurchase: referralTrigger === 'ontTime' ? true : false,
-                            appliesOnSubscription: referralTrigger === 'subscription' ? true : false,
+                            appliesOnOneTimePurchase: referralTrigger === 'oneTime' || referralTrigger === 'both',
+                            appliesOnSubscription: referralTrigger === 'subscription' || referralTrigger === 'both',
                             value: discountInput,
                             items: { all: true }
                         },

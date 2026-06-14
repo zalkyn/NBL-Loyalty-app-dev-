@@ -12,6 +12,29 @@ import {
     deepClone, isEqual, buildInitialVars, buildInitialWidgetConfig,
     HEX_RE, isHex, DS, SECTION_TO_SCENE,
 } from "@app/presets/widgetPresets";
+
+// Read a (possibly nested) configKey value from widgetConfig.
+// Supports: "someKey", "labels.foo", "prize.bar"
+function getConfigValue(widgetConfig, configKey, fallback) {
+    if (configKey.startsWith("labels.")) {
+        return widgetConfig.labels?.[configKey.slice(7)] ?? fallback;
+    }
+    if (configKey.startsWith("prize.")) {
+        return widgetConfig.prize?.[configKey.slice(6)] ?? fallback;
+    }
+    return widgetConfig[configKey] ?? fallback;
+}
+
+// Read a default value for a (possibly nested) configKey from WIDGET_CONFIG_DEFAULTS.
+function getConfigDefault(configKey) {
+    if (configKey.startsWith("labels.")) {
+        return WIDGET_CONFIG_DEFAULTS.labels?.[configKey.slice(7)];
+    }
+    if (configKey.startsWith("prize.")) {
+        return WIDGET_CONFIG_DEFAULTS.prize?.[configKey.slice(6)];
+    }
+    return WIDGET_CONFIG_DEFAULTS[configKey];
+}
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER / ACTION
 // ─────────────────────────────────────────────────────────────────────────────
@@ -509,10 +532,10 @@ function PresetCard({ preset, isActive, onApply, disabled }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ConfigToggleField({ field, widgetConfig, onChange, disabled }) {
-    const value = widgetConfig[field.configKey] ?? field.default;
-    const isDirty = value !== WIDGET_CONFIG_DEFAULTS[field.configKey];
+    const value = getConfigValue(widgetConfig, field.configKey, field.default);
+    const isDirty = value !== getConfigDefault(field.configKey);
 
-    function handleRevert() { onChange(field.configKey, WIDGET_CONFIG_DEFAULTS[field.configKey]); }
+    function handleRevert() { onChange(field.configKey, getConfigDefault(field.configKey)); }
 
     return (
         <FieldWrapper isDirty={isDirty} onRevert={handleRevert} disabled={disabled}>
@@ -540,10 +563,10 @@ function ConfigToggleField({ field, widgetConfig, onChange, disabled }) {
 }
 
 function ConfigSelectField({ field, widgetConfig, onChange, disabled }) {
-    const value = widgetConfig[field.configKey] ?? field.default;
-    const isDirty = value !== WIDGET_CONFIG_DEFAULTS[field.configKey];
+    const value = getConfigValue(widgetConfig, field.configKey, field.default);
+    const isDirty = value !== getConfigDefault(field.configKey);
 
-    function handleRevert() { onChange(field.configKey, WIDGET_CONFIG_DEFAULTS[field.configKey]); }
+    function handleRevert() { onChange(field.configKey, getConfigDefault(field.configKey)); }
 
     return (
         <FieldWrapper isDirty={isDirty} onRevert={handleRevert} disabled={disabled}>
@@ -574,14 +597,14 @@ function ConfigSelectField({ field, widgetConfig, onChange, disabled }) {
 }
 
 function ConfigRangeField({ field, widgetConfig, onChange, disabled }) {
-    const raw = widgetConfig[field.configKey] ?? field.default;
+    const raw = getConfigValue(widgetConfig, field.configKey, field.default);
     const display = field.displayValue ? field.displayValue(raw) : Number(raw);
-    const isDirty = raw !== WIDGET_CONFIG_DEFAULTS[field.configKey];
+    const isDirty = raw !== getConfigDefault(field.configKey);
 
     function handleChange(v) {
         onChange(field.configKey, field.parseValue ? field.parseValue(v) : v);
     }
-    function handleRevert() { onChange(field.configKey, WIDGET_CONFIG_DEFAULTS[field.configKey]); }
+    function handleRevert() { onChange(field.configKey, getConfigDefault(field.configKey)); }
 
     const safeNum = isNaN(display) ? field.min : display;
 
@@ -631,6 +654,26 @@ function ConfigLabelField({ field, widgetConfig, onChange, disabled }) {
     );
 }
 
+function ConfigTextField({ field, widgetConfig, onChange, disabled }) {
+    const value = getConfigValue(widgetConfig, field.configKey, field.default);
+    const isDirty = value !== getConfigDefault(field.configKey);
+
+    function handleRevert() { onChange(field.configKey, getConfigDefault(field.configKey)); }
+
+    return (
+        <FieldWrapper isDirty={isDirty} onRevert={handleRevert} disabled={disabled}>
+            <FieldLabel label={field.label} hint={field.hint} isDirty={isDirty} />
+            <s-text-field
+                value={value ?? ""}
+                onInput={(e) => onChange(field.configKey, e.target.value)}
+                disabled={disabled}
+                auto-complete="off"
+                placeholder={field.default ?? ""}
+            />
+        </FieldWrapper>
+    );
+}
+
 function ConfigSectionPanel({ section, widgetConfig, onChange, disabled }) {
     return (
         <div>
@@ -653,6 +696,7 @@ function ConfigSectionPanel({ section, widgetConfig, onChange, disabled }) {
                     if (field.type === "select") return <ConfigSelectField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onChange} disabled={disabled} />;
                     if (field.type === "range") return <ConfigRangeField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onChange} disabled={disabled} />;
                     if (field.type === "label") return <ConfigLabelField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onChange} disabled={disabled} />;
+                    if (field.type === "text") return <ConfigTextField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onChange} disabled={disabled} />;
                     return null;
                 })}
             </div>
@@ -776,6 +820,10 @@ export default function CustomizeNew() {
                 const labelKey = f.configKey.slice(7);
                 return widgetConfig.labels?.[labelKey] !== persistedWidgetConfig.labels?.[labelKey];
             }
+            if (f.configKey.startsWith("prize.")) {
+                const prizeKey = f.configKey.slice(6);
+                return widgetConfig.prize?.[prizeKey] !== persistedWidgetConfig.prize?.[prizeKey];
+            }
             return widgetConfig[f.configKey] !== persistedWidgetConfig[f.configKey];
         }).length;
     }, [widgetConfig, persistedWidgetConfig]);
@@ -793,6 +841,9 @@ export default function CustomizeNew() {
         if (key.startsWith("labels.")) {
             const labelKey = key.slice(7);
             setWidgetConfig((prev) => ({ ...prev, labels: { ...prev.labels, [labelKey]: value } }));
+        } else if (key.startsWith("prize.")) {
+            const prizeKey = key.slice(6);
+            setWidgetConfig((prev) => ({ ...prev, prize: { ...prev.prize, [prizeKey]: value } }));
         } else {
             setWidgetConfig((prev) => ({ ...prev, [key]: value }));
         }

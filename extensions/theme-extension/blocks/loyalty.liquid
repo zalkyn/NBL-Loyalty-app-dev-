@@ -53,20 +53,20 @@
     var preloadLink = document.createElement('link');
     preloadLink.rel  = 'preload';
     preloadLink.as   = 'style';
-    preloadLink.href = cssUrl;
-    {% comment %} preloadLink.href = appUrl + '/widget/ui.v2.css'; {% endcomment %}
+    {% comment %} preloadLink.href = cssUrl; {% endcomment %}
+    preloadLink.href = appUrl + '/widget/ui.v3.css';
     document.head.appendChild(preloadLink);
 
     var styleLink = document.createElement('link');
     styleLink.id   = 'nbl-widget-css';
     styleLink.rel  = 'stylesheet';
-    styleLink.href = cssUrl;
-    {% comment %} styleLink.href = appUrl + '/widget/ui.v2.css'; {% endcomment %}
+    {% comment %} styleLink.href = cssUrl; {% endcomment %}
+    styleLink.href = appUrl + '/widget/ui.v3.css';
     document.head.appendChild(styleLink);
 
     var scriptTag = document.createElement('script');
-    scriptTag.src   = jsUrl;
-    {% comment %} scriptTag.src   = appUrl + '/widget/ui.v2.js'; {% endcomment %}
+    {% comment %} scriptTag.src   = jsUrl; {% endcomment %}
+    scriptTag.src   = appUrl + '/widget/ui.v3.js';
     scriptTag.async = true;
     document.head.appendChild(scriptTag);
   })();

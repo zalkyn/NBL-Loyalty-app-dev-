@@ -121,48 +121,37 @@ const loadSession = (sessionId) =>
 /**
  * Resolves reward config for a given review type from rule conditions.
  *
- * Supports two shapes transparently:
+ * Conditions shape (conditions.review):
+ *   {
+ *     text:  { points: 10, isActive: true },
+ *     image: { points: 20, isActive: true },   // Loox uses "image" key for photo
+ *     video: { points: 30, isActive: false },
+ *     rewardMode: "per_type"
+ *   }
  *
- * Current (flat number):
- *   { text: 10, image: 20, video: 30, rewardMode: "per_type" }
- *
- * Future (object per type, when isActive and other fields are added):
- *   { text: { points: 10, isActive: true }, image: { points: 20, isActive: false }, ... }
- *
- * The function detects which shape is present at runtime and reads accordingly.
- * When the future shape is adopted, simply uncomment the isActive guard below --
- * no other changes needed.
- *
- * Note: Loox uses "image" as the key for photo reviews internally.
+ * Returns null when the review type is disabled (isActive === false).
  *
  * @param {Object} conditions - PointsRule.conditions JSON
  * @param {"TEXT"|"PHOTO"|"VIDEO"} reviewType
- * @returns {{ points: number, rewardMode: string, typeConfig: Object }}
+ * @returns {{ points: number, rewardMode: string, typeConfig: Object } | null}
  */
 const resolveRewardConfig = (conditions, reviewType) => {
     const review = conditions?.review ?? {};
 
-    const rawMap = {
+    // Loox uses "image" as the key for photo reviews
+    const typeKeyMap = {
         [REVIEW_TYPE.VIDEO]: review.video,
-        [REVIEW_TYPE.PHOTO]: review.image, // Loox uses "image" key
+        [REVIEW_TYPE.PHOTO]: review.image,
         [REVIEW_TYPE.TEXT]: review.text,
     };
 
-    const raw = rawMap[reviewType];
+    const typeConfig = typeKeyMap[reviewType] ?? {};
 
-    // Detect shape at runtime:
-    //   flat number -> { text: 10 }             (current)
-    //   object      -> { text: { points: 10 } } (future)
-    const isObject = raw !== null && typeof raw === "object";
-    const typeConfig = isObject ? raw : {};
-    const points = isObject
-        ? Number(typeConfig.points) || 0
-        : Number(raw) || 0;
+    // If this review type is disabled, skip — no points awarded
+    if (typeConfig.isActive === false) return null;
 
+    const points = Number(typeConfig.points) || 0;
     const rewardMode = review.rewardMode ?? REWARD_MODE.PER_TYPE;
-
-    // Uncomment when isActive is added to per-type config:
-    // if (typeConfig.isActive === false) return null;
 
     return { points, rewardMode, typeConfig };
 };
@@ -428,7 +417,11 @@ const handleLooxReview = async (reviewData) => {
         return;
     }
     if (!rule) {
-        logger.warn(MODULE, "REVIEW rule not found or inactive, skipping");
+        logger.warn(MODULE, "REVIEW rule not found, skipping");
+        return;
+    }
+    if (!rule.isActive) {
+        logger.warn(MODULE, "REVIEW rule is inactive, skipping");
         return;
     }
 
@@ -439,14 +432,15 @@ const handleLooxReview = async (reviewData) => {
         return;
     }
 
-    // 5. Resolve reward config
-    const { points, rewardMode, typeConfig } = resolveRewardConfig(rule.conditions, reviewType);
+    // 5. Resolve reward config — returns null if review type is disabled
+    const rewardConfig = resolveRewardConfig(rule.conditions, reviewType);
 
-    // Uncomment when isActive is added to per-type config:
-    // if (!typeConfig || typeConfig.isActive === false) {
-    //     logger.warn(MODULE, `${reviewType} review type is disabled, skipping`, { email });
-    //     return;
-    // }
+    if (!rewardConfig) {
+        logger.info(MODULE, `${reviewType} review type is disabled, skipping`, { email });
+        return;
+    }
+
+    const { points, rewardMode, typeConfig } = rewardConfig;
 
     logger.info(MODULE, "Review resolved", { reviewType, rewardMode, points, email, product_title });
 

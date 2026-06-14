@@ -47,13 +47,30 @@ export const LABEL_DEFAULTS = {
     // Launcher
     launcherTitle: "Loyalty Rewards",
     launcherSubtitle: "[points] pts",
+    // Prizes
+    navPrizes: "Prizes",
+    navMyPrizes: "My Prizes",
+    sectionPrizeRequests: "My Prize Requests",
+    emptyPrizes: "No prizes available",
+    emptyMyPrizes: "You have no prize requests yet",
+    prizeStatusPending: "🕐 Pending",
+    prizeStatusFulfilled: "📦 Fulfilled",
+    prizeStatusCompleted: "✅ Completed",
+    prizeStatusCancelled: "❌ Cancelled",
+    prizeContactUsText: "Contact us",
+    prizeClaimSuccessMsg: "✅ Your request has been submitted! We'll contact you soon to arrange delivery.",
+    claimingLabel: "Processing...",
+    claimRetryLabel: "Try again",
 };
 
 export const WIDGET_CONFIG_DEFAULTS = {
     showHomeRewardsSection: true,
     showHomeActivitiesSection: true,
+    showHomePrizeRequestsSection: true,
     homeRewardsPerPage: 5,
-    homeActivitiesPerPage: 7,
+    homeActivitiesPerPage: 5,
+    homePrizeRequestsPerPage: 5,
+    myPrizesPerPage: 5,
     paginationMode: "pagination",
     headerEffect: "wave",
     headerEffectOpacity: 0.55,
@@ -61,6 +78,17 @@ export const WIDGET_CONFIG_DEFAULTS = {
     mouseEffect: "bubble",
     mouseEffectIntensity: 0.7,
     labels: { ...LABEL_DEFAULTS },
+    prize: {
+        showImage: true,
+        imageFit: "cover",
+        imageHeight: 150,
+        imagePosition: "center",
+        contactUrl: "",
+        showAdminNote: true,
+        showTrackingInfo: true,
+        showRequestDate: true,
+        showFulfilledDate: true,
+    },
 };
 
 export const WIDGET_CONFIG_SECTIONS = [
@@ -120,6 +148,137 @@ export const WIDGET_CONFIG_SECTIONS = [
                 options: [{ value: "pagination", label: "Arrows" }, { value: "loadmore", label: "Load More button" }],
                 configKey: "paginationMode",
                 default: "pagination",
+            },
+            {
+                key: "showHomePrizeRequestsSection",
+                label: "Show prize requests on Home tab",
+                hint: "Display the 'My Prize Requests' section on the Home tab",
+                type: "toggle",
+                configKey: "showHomePrizeRequestsSection",
+                default: true,
+            },
+            {
+                key: "homePrizeRequestsPerPage",
+                label: "Prize requests per page (Home)",
+                hint: "How many prize request items to show at once on the Home tab",
+                type: "range",
+                min: 1,
+                max: 10,
+                unit: "",
+                configKey: "homePrizeRequestsPerPage",
+                default: 5,
+                parseValue: (v) => Number(v),
+                displayValue: (v) => Number(v),
+            },
+            {
+                key: "myPrizesPerPage",
+                label: "Prize requests per page (My Prizes tab)",
+                hint: "How many prize request items to show at once on the My Prizes tab",
+                type: "range",
+                min: 1,
+                max: 20,
+                unit: "",
+                configKey: "myPrizesPerPage",
+                default: 8,
+                parseValue: (v) => Number(v),
+                displayValue: (v) => Number(v),
+            },
+        ],
+    },
+    {
+        key: "prizeNotifications",
+        label: "Prize Notifications",
+        icon: "🏆",
+        description: "Control how prize request details appear in the slide-up notification panel.",
+        fields: [
+            {
+                key: "prize_contactUrl",
+                label: "Contact page URL",
+                hint: "URL shown as a 'Contact us' button on Pending and Cancelled prize notifications. Leave empty to hide the button. E.g. /pages/contact",
+                type: "text",
+                configKey: "prize.contactUrl",
+                default: "",
+            },
+            {
+                key: "prize_showImage",
+                label: "Show prize image",
+                hint: "Display the prize image (or a placeholder icon) at the top of the notification",
+                type: "toggle",
+                configKey: "prize.showImage",
+                default: true,
+            },
+            {
+                key: "prize_imageFit",
+                label: "Image fit",
+                hint: "How the image fills the banner area — Cover crops to fill, Contain shows the full image, Auto uses natural height",
+                type: "select",
+                options: [
+                    { value: "cover", label: "Cover (crop to fill)" },
+                    { value: "contain", label: "Contain (show full image)" },
+                    { value: "auto", label: "Auto (natural height)" },
+                ],
+                configKey: "prize.imageFit",
+                default: "cover",
+            },
+            {
+                key: "prize_imageHeight",
+                label: "Image banner height",
+                hint: "Height of the image area in pixels (ignored when fit is Auto)",
+                type: "range",
+                min: 80,
+                max: 300,
+                unit: "px",
+                configKey: "prize.imageHeight",
+                default: 150,
+                parseValue: (v) => Number(v),
+                displayValue: (v) => Number(v),
+            },
+            {
+                key: "prize_imagePosition",
+                label: "Image focal point",
+                hint: "Which part of the image stays visible when cropped",
+                type: "select",
+                options: [
+                    { value: "center", label: "Center" },
+                    { value: "top", label: "Top" },
+                    { value: "bottom", label: "Bottom" },
+                    { value: "left", label: "Left" },
+                    { value: "right", label: "Right" },
+                ],
+                configKey: "prize.imagePosition",
+                default: "center",
+            },
+            {
+                key: "prize_showRequestDate",
+                label: "Show request date",
+                hint: "Display when the prize was requested in the notification",
+                type: "toggle",
+                configKey: "prize.showRequestDate",
+                default: true,
+            },
+            {
+                key: "prize_showFulfilledDate",
+                label: "Show dispatch / completion date",
+                hint: "Display when the prize was dispatched or completed in the notification",
+                type: "toggle",
+                configKey: "prize.showFulfilledDate",
+                default: true,
+            },
+            {
+                key: "prize_showAdminNote",
+                label: "Show admin note",
+                hint: "Display the admin note in the notification (e.g. cancellation reason or delivery details)",
+                type: "toggle",
+                configKey: "prize.showAdminNote",
+                default: true,
+            },
+            {
+                key: "prize_showTrackingInfo",
+                label: "Show tracking info",
+                hint: "Display tracking link or license key in the notification (shown for Fulfilled and Completed prizes)",
+                type: "toggle",
+                configKey: "prize.showTrackingInfo",
+                default: true,
             },
         ],
     },
@@ -239,6 +398,19 @@ export const WIDGET_CONFIG_SECTIONS = [
             { key: "lbl_notifyInfoClaim", label: "Info popup claim button", hint: "Text on the action button inside the info slide-up panel", type: "label", configKey: "labels.notifyInfoClaimBtn", default: LABEL_DEFAULTS.notifyInfoClaimBtn },
             { key: "lbl_launcherTitle", label: "Launcher title", hint: "Main title text on the floating launcher button", type: "label", configKey: "labels.launcherTitle", default: LABEL_DEFAULTS.launcherTitle },
             { key: "lbl_launcherSubtitle", label: "Launcher subtitle", hint: "Text shown below the launcher button title. Use [points] for balance. E.g. '[points] pts'", type: "label", configKey: "labels.launcherSubtitle", default: LABEL_DEFAULTS.launcherSubtitle },
+            { key: "lbl_navPrizes", label: "Nav — Prizes tab", hint: "Label shown on the Prizes navigation tab", type: "label", configKey: "labels.navPrizes", default: LABEL_DEFAULTS.navPrizes },
+            { key: "lbl_navMyPrizes", label: "Nav — My Prizes tab", hint: "Label shown on the My Prizes navigation tab", type: "label", configKey: "labels.navMyPrizes", default: LABEL_DEFAULTS.navMyPrizes },
+            { key: "lbl_sectionPrizeRequests", label: "Section — My Prize Requests", hint: "Heading of the Prize Requests section on the Home tab", type: "label", configKey: "labels.sectionPrizeRequests", default: LABEL_DEFAULTS.sectionPrizeRequests },
+            { key: "lbl_emptyPrizes", label: "Empty state — No prizes", hint: "Message shown when there are no prizes available", type: "label", configKey: "labels.emptyPrizes", default: LABEL_DEFAULTS.emptyPrizes },
+            { key: "lbl_emptyMyPrizes", label: "Empty state — No prize requests", hint: "Message shown when the customer has no prize requests", type: "label", configKey: "labels.emptyMyPrizes", default: LABEL_DEFAULTS.emptyMyPrizes },
+            { key: "lbl_prizeStatusPending", label: "Prize status — Pending", hint: "Text shown when a prize request is pending", type: "label", configKey: "labels.prizeStatusPending", default: LABEL_DEFAULTS.prizeStatusPending },
+            { key: "lbl_prizeStatusFulfilled", label: "Prize status — Fulfilled", hint: "Text shown when a prize has been dispatched", type: "label", configKey: "labels.prizeStatusFulfilled", default: LABEL_DEFAULTS.prizeStatusFulfilled },
+            { key: "lbl_prizeStatusCompleted", label: "Prize status — Completed", hint: "Text shown when a prize has been delivered", type: "label", configKey: "labels.prizeStatusCompleted", default: LABEL_DEFAULTS.prizeStatusCompleted },
+            { key: "lbl_prizeStatusCancelled", label: "Prize status — Cancelled", hint: "Text shown when a prize request has been cancelled", type: "label", configKey: "labels.prizeStatusCancelled", default: LABEL_DEFAULTS.prizeStatusCancelled },
+            { key: "lbl_prizeContactUsText", label: "Prize — Contact us button", hint: "Label on the Contact us button shown in prize notifications", type: "label", configKey: "labels.prizeContactUsText", default: LABEL_DEFAULTS.prizeContactUsText },
+            { key: "lbl_prizeClaimSuccessMsg", label: "Prize — Claim success message", hint: "Message shown after a prize is successfully claimed", type: "label", configKey: "labels.prizeClaimSuccessMsg", default: LABEL_DEFAULTS.prizeClaimSuccessMsg },
+            { key: "lbl_claimingLabel", label: "Claim button — Processing", hint: "Text on the claim button while the request is being submitted", type: "label", configKey: "labels.claimingLabel", default: LABEL_DEFAULTS.claimingLabel },
+            { key: "lbl_claimRetryLabel", label: "Claim button — Retry", hint: "Text on the claim button after a failed attempt", type: "label", configKey: "labels.claimRetryLabel", default: LABEL_DEFAULTS.claimRetryLabel },
         ],
     },
 ];
@@ -875,11 +1047,12 @@ export function buildInitialVars(savedCssVars) {
 }
 
 export function buildInitialWidgetConfig(saved) {
-    const base = { ...WIDGET_CONFIG_DEFAULTS, labels: { ...LABEL_DEFAULTS } };
+    const base = { ...WIDGET_CONFIG_DEFAULTS, labels: { ...LABEL_DEFAULTS }, prize: { ...WIDGET_CONFIG_DEFAULTS.prize } };
     if (!saved || typeof saved !== "object") return base;
     const merged = { ...base, ...saved };
-    // Deep merge labels so partial saves don't lose defaults
+    // Deep merge labels and prize so partial saves don't lose defaults
     merged.labels = { ...LABEL_DEFAULTS, ...(saved.labels || {}) };
+    merged.prize = { ...WIDGET_CONFIG_DEFAULTS.prize, ...(saved.prize || {}) };
     return merged;
 }
 export const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
