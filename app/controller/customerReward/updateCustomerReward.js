@@ -1,5 +1,5 @@
-import prisma from "db-server";
-import { logger } from "@app/utils/logger";
+import prisma from "../../db.server.js";
+import { logger } from "../../utils/logger.js"
 
 /**
  * Updates an existing customer reward by ID.

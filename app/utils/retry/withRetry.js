@@ -20,12 +20,12 @@ export const withRetry = async (fn, options = {}) => {
         try {
             const result = await fn();
 
-            // ✅ if success after retry
+            // ✅ success after retry — log recovery
             if (attempt > 1) {
                 logger.success(
                     context.shop,
-                    `Recovered after ${attempt} attempts`,
-                    { attempt, ...context }
+                    `Recovered on attempt ${attempt}/${maxAttempts}`,
+                    { attempt, maxAttempts, ...context }
                 );
             }
 
@@ -35,43 +35,46 @@ export const withRetry = async (fn, options = {}) => {
             lastError = error;
             const message = error?.message || 'Unknown error';
 
-            // ❌ skip retry if not retryable
+            // ❌ skip retry if error is not in retryableErrors list
+            // retryableErrors entries can be strings (message.includes check)
+            // or constructors/classes (instanceof check)
             if (
                 retryableErrors.length &&
                 !retryableErrors.some(e =>
-                    error instanceof e || message.includes(e)
+                    typeof e === 'string'
+                        ? message.toLowerCase().includes(e.toLowerCase())
+                        : (typeof e === 'function' && error instanceof e)
                 )
             ) {
                 logger.error(
                     context.shop,
-                    `Non-retryable error`,
-                    { attempt, error: message, ...context }
-                );
-                throw error;
-            }
-
-            // ❌ last attempt → throw
-            if (attempt === maxAttempts) {
-                logger.error(
-                    context.shop,
-                    `All retries failed`,
+                    `Non-retryable error — aborting`,
                     { attempt, maxAttempts, error: message, ...context }
                 );
                 throw error;
             }
 
-            // ⏳ calculate delay (simple + readable)
+            // ❌ last attempt exhausted → throw
+            if (attempt === maxAttempts) {
+                logger.error(
+                    context.shop,
+                    `All ${maxAttempts} attempts failed`,
+                    { attempt, maxAttempts, error: message, ...context }
+                );
+                throw error;
+            }
+
+            // ⏳ calculate delay with exponential backoff + jitter
             let delay = baseDelayMs * (backoffFactor ** (attempt - 1));
             delay = Math.min(delay, maxDelayMs);
-
             if (jitterFactor) {
                 delay += Math.random() * delay * jitterFactor;
             }
 
             logger.warn(
                 context.shop,
-                `Retry ${attempt} failed → next in ${Math.round(delay)}ms`,
-                { error: message, ...context }
+                `Attempt ${attempt}/${maxAttempts} failed — retrying in ${Math.round(delay)}ms`,
+                { attempt, maxAttempts, error: message, delayMs: Math.round(delay), ...context }
             );
 
             await new Promise(res => setTimeout(res, delay));

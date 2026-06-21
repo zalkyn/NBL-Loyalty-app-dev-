@@ -1,5 +1,5 @@
 import { logger } from "../utils/logger.js";
-import prisma from "db-server";
+import prisma from "../db.server.js";
 import syncAppConfig from "../controller/metafieldsSync/syncAppConfig.js"
 
 export default async function afterAuthSetup({ admin, session }) {

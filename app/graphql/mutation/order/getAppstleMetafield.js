@@ -1,156 +1,159 @@
-import { logger } from "../../../utils/logger";
+import { logger } from "../../../utils/logger.js";
+
+/** @constant {string} Module identifier for structured logging */
+const MODULE = "graphql/order/getAppstleMetafield.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// INTERVAL MAP
-// Shopify SellingPlan billingPolicy → our internal interval string
-// Must match values stored in conditions.order.intervals[n].interval
-// and conditions.referral.intervals[n].interval
+// Interval Map
+// Shopify SellingPlan billingPolicy → our internal interval string.
+// Uses Shopify's internal interval + intervalCount — never merchant-facing
+// plan names, which can be renamed at any time from the Appstle dashboard.
+// Must match values in conditions.order.intervals[n].interval
+// and conditions.referral.intervals[n].interval.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const INTERVAL_MAP = {
-    WEEK:  { 1: "weekly", 2: "every_two_weeks" },
+    WEEK: { 1: "weekly", 2: "every_two_weeks" },
     MONTH: { 1: "monthly", 2: "every_two_months", 3: "every_three_months", 6: "every_six_months" },
-    YEAR:  { 1: "yearly" },
+    YEAR: { 1: "yearly" },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAIN EXPORT
+// Main Export
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Fetches Appstle subscription metafield from an order, then resolves the
- * subscription interval via a second Shopify GraphQL call to the SellingPlan API.
+ * Resolves subscription interval from pre-fetched Appstle metafield data.
  *
- * Two sequential GraphQL calls:
- *   1. Order metafield  → extracts appstle data + sellingPlanId
- *   2. SellingPlan      → resolves billingPolicy interval + intervalCount
+ * This function accepts the already-fetched Appstle metafield value (from
+ * fetchFullOrder) so it only needs to make ONE additional API call to resolve
+ * the billing interval — rather than fetching the metafield itself.
  *
- * @param {Object} admin    - Shopify Admin GraphQL client
- * @param {string} orderId  - Order ID (numeric or full GID)
+ * The single API call fetches product.sellingPlanGroups and matches the plan
+ * by GID to read its billingPolicy.interval + intervalCount. This is the only
+ * reliable approach because:
+ *   - `sellingPlan(id)` root query does not exist in Shopify Admin API
+ *   - LineItemSellingPlan only exposes name + sellingPlanId — no billingPolicy
+ *   - Plan names are merchant-editable and cannot be used for interval mapping
+ *   - billingPolicy.interval/intervalCount are Shopify-internal, never change
+ *
+ * @param {Object}      admin      - Shopify Admin GraphQL client
+ * @param {Object|null} appstle    - Pre-fetched Appstle metafield value (jsonValue)
+ * @param {string}      orderId    - Order GID (used for logging only)
  *
  * @returns {Promise<{
  *   subscriptionContract: Object|null,
  *   subscriptionInterval: string|null,
- *   isSubscription: boolean,
+ *   isSubscription:       boolean,
  * }>}
  *
  * Always returns the shape above — never throws.
- * subscriptionInterval is null for one-time orders or unmapped plans.
  */
-export const getAppstleMetafield = async (admin, orderId) => {
+export const getAppstleMetafield = async (admin, appstle, orderId) => {
     const fallback = { subscriptionContract: null, subscriptionInterval: null, isSubscription: false };
 
     try {
-        if (!orderId) {
-            logger.warn("getAppstleMetafield: orderId is required");
-            return fallback;
-        }
-
-        const orderGid = normalizeOrderGid(orderId);
-
-        // ── Step 1: Fetch Appstle metafield from order ────────────────────────
-        const metafieldRes = await admin.graphql(
-            `#graphql
-            query GetOrderAppstleMetafield($id: ID!) {
-                order(id: $id) {
-                    id
-                    appstle_subscription: metafield(
-                        key: "details",
-                        namespace: "appstle_subscription"
-                    ) {
-                        value: jsonValue
-                    }
-                }
-            }`,
-            { variables: { id: orderGid } }
-        );
-
-        const metafieldJson = await metafieldRes.json();
-        const appstle = metafieldJson?.data?.order?.appstle_subscription?.value ?? null;
-
         // No metafield = one-time order
         if (!appstle) return fallback;
 
         const contract = appstle?.subscriptionContract ?? null;
-
-        // ── Step 2: Resolve interval from SellingPlan ─────────────────────────
+        const lineItems = contract?.subscriptionLineItemList ?? [];
+        const productGid = lineItems[0]?.productId ?? null;
         const planId = contract?.sellingPlanIds?.[0] ?? null;
 
-        if (!planId) {
-            logger.warn("getAppstleMetafield: no sellingPlanId found in contract", { orderId });
+        if (!productGid || !planId) {
+            logger.warn(MODULE, "Missing productId or sellingPlanId in Appstle contract", {
+                orderId, productGid, planId,
+            });
             return { subscriptionContract: contract, subscriptionInterval: null, isSubscription: true };
         }
 
         const planGid = normalizeSellingPlanGid(planId);
 
+        // ── Fetch product.sellingPlanGroups and match by planGid ──────────────
+        // This is the only Shopify-supported way to get a plan's billingPolicy by ID.
         const planRes = await admin.graphql(
             `#graphql
-            query GetSellingPlanInterval($id: ID!) {
-                sellingPlan(id: $id) {
-                    id
-                    billingPolicy {
-                        ... on SellingPlanRecurringBillingPolicy {
-                            interval
-                            intervalCount
+            query GetSellingPlanInterval($productId: ID!) {
+                product(id: $productId) {
+                    sellingPlanGroups(first: 10) {
+                        edges {
+                            node {
+                                sellingPlans(first: 20) {
+                                    edges {
+                                        node {
+                                            id
+                                            billingPolicy {
+                                                ... on SellingPlanRecurringBillingPolicy {
+                                                    interval
+                                                    intervalCount
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }`,
-            { variables: { id: planGid } }
+            { variables: { productId: productGid } }
         );
 
         const planJson = await planRes.json();
-        const billing = planJson?.data?.sellingPlan?.billingPolicy ?? null;
+
+        // Flatten all plans across all groups, then match by GID
+        const allPlans = (planJson?.data?.product?.sellingPlanGroups?.edges ?? [])
+            .flatMap(({ node }) =>
+                (node?.sellingPlans?.edges ?? []).map(({ node: plan }) => plan)
+            );
+
+        const matchedPlan = allPlans.find((plan) => plan?.id === planGid) ?? null;
+        const billing = matchedPlan?.billingPolicy ?? null;
+
+        if (!billing) {
+            logger.warn(MODULE, "Selling plan not found in product groups", {
+                orderId, productGid, planGid,
+                availablePlanIds: allPlans.map((p) => p?.id),
+            });
+            return { subscriptionContract: contract, subscriptionInterval: null, isSubscription: true };
+        }
 
         const subscriptionInterval = billing?.interval && billing?.intervalCount
             ? (INTERVAL_MAP[billing.interval]?.[billing.intervalCount] ?? null)
             : null;
 
-        if (billing && !subscriptionInterval) {
-            logger.warn("getAppstleMetafield: unmapped interval", {
-                interval: billing.interval,
-                intervalCount: billing.intervalCount,
-                planId,
-                orderId,
+        if (!subscriptionInterval) {
+            logger.warn(MODULE, "Unmapped billing interval — add to INTERVAL_MAP if needed", {
+                orderId, interval: billing.interval, intervalCount: billing.intervalCount, planGid,
             });
         }
 
-        return {
-            subscriptionContract: contract,
+        logger.info(MODULE, "Subscription interval resolved", {
+            orderId, planGid,
+            interval: billing.interval,
+            intervalCount: billing.intervalCount,
             subscriptionInterval,
-            isSubscription: true,
-        };
+        });
+
+        return { subscriptionContract: contract, subscriptionInterval, isSubscription: true };
 
     } catch (error) {
-        logger.error("getAppstleMetafield failed", {
-            error: error?.message,
-            stack: error?.stack,
-            orderId,
-            module: "graphql/order/getAppstleMetafield.js",
-        });
+        logger.error(MODULE, "getAppstleMetafield failed", { error: error?.message, orderId });
         return fallback;
     }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NORMALIZERS
+// Normalizers
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Normalizes Shopify Order ID to full GID.
- * Accepts: 7970071281762 or gid://shopify/Order/7970071281762
- */
-const normalizeOrderGid = (orderId) => {
-    if (!orderId) return null;
-    const str = String(orderId).trim();
-    return str.startsWith("gid://shopify/Order/")
-        ? str
-        : `gid://shopify/Order/${str}`;
-};
-
-/**
- * Normalizes Shopify SellingPlan ID to full GID.
- * Accepts: 3750527074 or gid://shopify/SellingPlan/3750527074
+ * Normalizes a Shopify SellingPlan ID to a full GID.
+ * Accepts: 4925391098 or gid://shopify/SellingPlan/4925391098
+ *
+ * @param {string|number} planId
+ * @returns {string|null}
  */
 const normalizeSellingPlanGid = (planId) => {
     if (!planId) return null;
