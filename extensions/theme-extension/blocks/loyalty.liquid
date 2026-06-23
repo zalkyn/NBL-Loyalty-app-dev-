@@ -47,26 +47,29 @@
     var appUrl = (window.NBL_v1.appConfig && window.NBL_v1.appConfig.appUrl) || '';
     if (!appUrl || document.getElementById('nbl-widget-css')) return;
 
+
     var cssUrl = "{{ 'ui.min.css' | asset_url }}";
     var jsUrl = "{{ 'ui.min.js' | asset_url }}";
+
+    console.log("css url====", cssUrl)
 
     var preloadLink = document.createElement('link');
     preloadLink.rel  = 'preload';
     preloadLink.as   = 'style';
-    {% comment %} preloadLink.href = cssUrl; {% endcomment %}
-    preloadLink.href = appUrl + '/widget/ui.v3.css';
+    preloadLink.href = cssUrl;
+    {% comment %} preloadLink.href = appUrl + '/widget/modules-main/styles/main.css'; {% endcomment %}
     document.head.appendChild(preloadLink);
 
     var styleLink = document.createElement('link');
     styleLink.id   = 'nbl-widget-css';
     styleLink.rel  = 'stylesheet';
-    {% comment %} styleLink.href = cssUrl; {% endcomment %}
-    styleLink.href = appUrl + '/widget/ui.v3.css';
+    styleLink.href = cssUrl;
+    {% comment %} styleLink.href = appUrl + '/widget/modules-main/styles/main.css'; {% endcomment %}
     document.head.appendChild(styleLink);
 
     var scriptTag = document.createElement('script');
-    {% comment %} scriptTag.src   = jsUrl; {% endcomment %}
-    scriptTag.src   = appUrl + '/widget/ui.v3.js';
+    scriptTag.src   = jsUrl;
+    {% comment %} scriptTag.src   = appUrl + '/widget/modules-main/scripts/main.js'; {% endcomment %}
     scriptTag.async = true;
     document.head.appendChild(scriptTag);
   })();

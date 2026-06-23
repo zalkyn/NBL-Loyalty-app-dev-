@@ -72,8 +72,6 @@ export const WIDGET_CONFIG_DEFAULTS = {
     homePrizeRequestsPerPage: 5,
     myPrizesPerPage: 5,
     paginationMode: "pagination",
-    headerEffectEnabled: true,
-    headerEffectOpacity: 0.55,
     labels: { ...LABEL_DEFAULTS },
     prize: {
         showImage: true,
@@ -279,35 +277,7 @@ export const WIDGET_CONFIG_SECTIONS = [
             },
         ],
     },
-    {
-        key: "headerAnimation",
-        label: "Header Effect",
-        icon: "✨",
-        description: "Decorative wave animation displayed in the widget header background.",
-        fields: [
-            {
-                key: "headerEffectEnabled",
-                label: "Wave effect",
-                hint: "Show the animated wave effect in the widget header",
-                type: "toggle",
-                configKey: "headerEffectEnabled",
-                default: true,
-            },
-            {
-                key: "headerEffectOpacity",
-                label: "Effect intensity",
-                hint: "How strong the header effect appears (0 = invisible, 100 = full strength)",
-                type: "range",
-                min: 0,
-                max: 100,
-                unit: "%",
-                configKey: "headerEffectOpacity",
-                default: 55,
-                parseValue: (v) => Number(v) / 100,
-                displayValue: (v) => Math.round(Number(v) * 100),
-            },
-        ],
-    },
+
     {
         key: "labels",
         label: "Labels & Text",
@@ -424,35 +394,7 @@ export const SIMPLE_SECTIONS = [
             },
         ],
     },
-    {
-        key: "headerAnimation",
-        label: "Header Effect",
-        icon: "✨",
-        description: "Decorative wave animation in the widget header.",
-        fields: [
-            {
-                key: "headerEffectEnabled",
-                label: "Wave effect",
-                hint: "Show the animated wave effect in the widget header",
-                type: "toggle",
-                configKey: "headerEffectEnabled",
-                default: true,
-            },
-            {
-                key: "headerEffectOpacity",
-                label: "Effect intensity",
-                hint: "How strong the wave effect appears (0 = invisible, 100 = full strength)",
-                type: "range",
-                min: 0,
-                max: 100,
-                unit: "%",
-                configKey: "headerEffectOpacity",
-                default: 55,
-                parseValue: (v) => Number(v) / 100,
-                displayValue: (v) => Math.round(Number(v) * 100),
-            },
-        ],
-    },
+
 ]
 export const PRESETS = [
     {

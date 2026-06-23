@@ -1,9 +1,10 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "409541047b7c32e629c4c494d6e8f168"
-name = "NB Loyalty & Referral"
-application_url = "https://example.com"
+name = "North Borders Loyalty [DEV]"
+application_url = "https://nbl-dev.app-handler.com"
 embedded = true
+handle = "north-borders-loyalty-dev"
 
 [build]
 automatically_update_urls_on_dev = true
@@ -12,32 +13,28 @@ automatically_update_urls_on_dev = true
 api_version = "2026-04"
 
   [[webhooks.subscriptions]]
-  topics = [ "app/uninstalled" ]
-  uri = "/webhooks/app/uninstalled"
-
-  [[webhooks.subscriptions]]
-  topics = [ "app/scopes_update" ]
-  uri = "/webhooks/app/scopes_update"
-
-  [[webhooks.subscriptions]]
-  topics = [ "customers/create" ]
-  uri = "/webhooks/app/customers_create"
-
-  [[webhooks.subscriptions]]
-  topics = [ "customers/delete" ]
-  uri = "/webhooks/app/customers_delete"
-
-  [[webhooks.subscriptions]]
-  topics = [ "orders/paid" ]
   uri = "/webhooks/app/orders_paid"
+  topics = [ "orders/paid" ]
 
- # [[webhooks.subscriptions]]
- # topics = [ "products/update" ]
- #uri = "/webhooks/app/products_update"
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/customers_create"
+  topics = [ "customers/create" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/customers_delete"
+  topics = [ "customers/delete" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_files,read_customers,read_products,read_orders,read_discounts,write_discounts,write_products,write_customers,customer_read_own_subscription_contracts,read_own_subscription_contracts,write_files"
+scopes = "customer_read_own_subscription_contracts,read_customers,read_discounts,read_files,read_orders,read_own_subscription_contracts,read_products,write_customers,write_discounts,write_files,write_products"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://nbl-dev.app-handler.com/api/auth" ]

@@ -74,6 +74,7 @@ export default defineConfig(({ isSsrBuild }) => ({
       '@graphql': path.resolve(__dirname, './app/graphql'),
       '@routes': path.resolve(__dirname, './app/routes'),
       '@utils': path.resolve(__dirname, './app/utils'),
+      '@shared-utils': path.resolve(__dirname, './app/layout/points-rules/shared-utils'),
     }
   }
 }));
