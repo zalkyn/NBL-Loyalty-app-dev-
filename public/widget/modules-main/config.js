@@ -177,3 +177,42 @@ export function getPoints() {
     var config = _loyaltyApp.customer && _loyaltyApp.customer.config;
     return config && config.points ? Number(config.points) : 0;
 }
+
+
+/**
+ * Runtime config update.
+ * Pass a partial widgetConfig object (same shape as appConfig.styles.widgetConfig).
+ * Merges into the live _config and emits 'config:updated' on the event bus.
+ *
+ * Usage:
+ *   NBL_v1.updateConfig({ labels: { headerLabel: 'hello [name]' } });
+ */
+export function updateConfig(partialWidgetConfig) {
+    if (!_config || !partialWidgetConfig || typeof partialWidgetConfig !== 'object') return;
+
+    var wc = partialWidgetConfig;
+
+    // Behaviour flags
+    if (wc.showHomeRewardsSection !== undefined)      _config.showHomeRewardsSection = !!wc.showHomeRewardsSection;
+    if (wc.showHomeActivitiesSection !== undefined)   _config.showHomeActivitiesSection = !!wc.showHomeActivitiesSection;
+    if (wc.showHomePrizeRequestsSection !== undefined) _config.showHomePrizeRequestsSection = !!wc.showHomePrizeRequestsSection;
+    if (wc.homeRewardsPerPage !== undefined)          _config.homeRewardsPerPage = Math.max(1, Number(wc.homeRewardsPerPage) || 5);
+    if (wc.homeActivitiesPerPage !== undefined)       _config.homeActivitiesPerPage = Math.max(1, Number(wc.homeActivitiesPerPage) || 5);
+    if (wc.homePrizeRequestsPerPage !== undefined)    _config.homePrizeRequestsPerPage = Math.max(1, Number(wc.homePrizeRequestsPerPage) || 5);
+    if (wc.myPrizesPerPage !== undefined)             _config.myPrizesPerPage = Math.max(1, Number(wc.myPrizesPerPage) || 5);
+    if (wc.paginationMode !== undefined)              _config.paginationMode = wc.paginationMode;
+
+    // Prize deep merge
+    if (wc.prize && typeof wc.prize === 'object') {
+        _config.prize = Object.assign({}, _config.prize, wc.prize);
+    }
+
+    // Labels deep merge
+    if (wc.labels && typeof wc.labels === 'object') {
+        _config.labels = Object.assign({}, _config.labels, wc.labels);
+    }
+
+    // Emit so listeners can react
+    var { eventBus } = getStore();
+    eventBus.emit('config:updated', { config: _config });
+}

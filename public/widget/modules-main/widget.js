@@ -7,7 +7,7 @@
 // =============================================================================
 
 import { getStore } from './store.js';
-import { getPoints } from './config.js';
+import { getPoints, lbl } from './config.js';
 import { formatNumber } from './utils.js';
 
 /**
@@ -146,6 +146,60 @@ export function initWidget() {
     eventBus.on('points:update', function (newPoints) {
         loyaltyApp.points = Number(newPoints) || 0;
         loyaltyApp.uiRender.pointsUpdate();
+    });
+
+    // ── SECTION 6b: CONFIG UPDATE ─────────────────────────────────────────────
+
+    /**
+     * @listens config:updated
+     * Refreshes all label-driven DOM elements when config changes at runtime.
+     */
+    eventBus.on('config:updated', function () {
+        var store = getStore();
+        var la = store.loyaltyApp;
+        var customerName = (la && la.customer && la.customer.name) || '';
+
+        // Header title ([name] replacement)
+        var titleEl = document.querySelector('.nbl-wh-title-v1');
+        if (titleEl) {
+            titleEl.textContent = lbl('headerLabel').replace('[name]', customerName);
+        }
+
+        // Launcher button title + subtitle
+        var wobTitle = document.querySelector('.nbl-wob-title-v1');
+        if (wobTitle) wobTitle.textContent = lbl('launcherTitle');
+
+        var wobSub = document.querySelector('.nbl-wob-sub-v1');
+        if (wobSub) {
+            var pts = document.querySelector('.nbl-customer-points-v1');
+            var ptsHTML = pts ? pts.outerHTML : '0';
+            wobSub.innerHTML = lbl('launcherSubtitle').replace('[points]', ptsHTML);
+        }
+
+        // Nav buttons
+        var navMap = {
+            home: 'navHome',
+            points: 'navEarn',
+            rewards: 'navRewards',
+            prizes: 'navPrizes',
+            activities: 'navActivity',
+            'active-rewards': 'navMyRewards',
+            'my-prizes': 'navMyPrizes',
+        };
+        Object.keys(navMap).forEach(function (nav) {
+            var btn = document.querySelector('.nbl-nav-item-v1[data-nav="' + nav + '"]');
+            if (btn) btn.textContent = lbl(navMap[nav]);
+        });
+
+        // Section headings (multiple instances, e.g. home + rewards tab)
+        document.querySelectorAll('.nbl-hsc-title-v1').forEach(function (el) {
+            // Match by current text to decide which label to apply
+            // Better approach: add data-label attr in html.js (see note below)
+            var text = el.textContent.trim();
+            if (text === lbl('sectionActiveRewards') || el.closest('[data-tab="home"]') || el.closest('[data-tab="rewards"]')) {
+                // skip — these re-render on tab:activated anyway
+            }
+        });
     });
 
     // ── SECTION 7: HOME TAB — accordion toggles ───────────────────────────────

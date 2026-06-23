@@ -32,6 +32,9 @@ export default [
         // point events
         route("app/points-events", "./layout/points-events/route.jsx"),
 
+        // widget preview
+        // route("widget/preview", "./widget-routes/preview.jsx"),
+
     ]),
 
     // API Routes

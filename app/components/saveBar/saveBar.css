@@ -220,7 +220,7 @@
 .savebar {
     /* Always fixed — scroll cannot move it */
     position: fixed;
-    z-index: 10000;
+    z-index: 999999999999999999999;
 
     /* Layout */
     display: flex;

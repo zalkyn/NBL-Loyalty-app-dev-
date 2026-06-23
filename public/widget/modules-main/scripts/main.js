@@ -36,6 +36,7 @@ import { initRewardsTab } from '../tabs/rewards.js';
 import { initPrizesTab } from '../tabs/prizes.js';
 import { initActivitiesTab } from '../tabs/activities.js';
 import { initReferralTab } from '../tabs/referral.js';
+import { updateConfig } from '../config.js';
 
 // ── onReady: polls until window.NBL_v1.bus exists ────────────────────────────
 
@@ -112,6 +113,8 @@ function init() {
         var triggerButtonWrapper = document.querySelector('.nbl-wo-wrapper-v1');
         if (triggerButtonWrapper) triggerButtonWrapper.classList.remove('nbl-d-none-v1');
     }
+
+    loyaltyApp.updateConfig = updateConfig;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', fireDomLoaded);

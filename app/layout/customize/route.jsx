@@ -100,6 +100,14 @@ export default function CustomizeNew() {
                 onSave={page.handleSave}
             />
 
+            {/* ══ LIVE PREVIEW — always mounted so portal persists across tabs ══ */}
+            <LivePreviewPanel
+                cssVars={page.deferredCssVars}
+                widgetConfig={page.widgetConfig}
+                hidden={page.pageTab === "config"}
+                previewScene={previewScene}
+            />
+
             {page.pageTab === "customize" && (
                 <CustomizeTab
                     activePreset={page.activePreset}
@@ -139,12 +147,12 @@ export default function CustomizeNew() {
             )}
 
             {/* ══ LIVE PREVIEW — always mounted so portal persists across tabs ══ */}
-            <LivePreviewPanel
+            {/* <LivePreviewPanel
                 cssVars={page.deferredCssVars}
                 widgetConfig={page.widgetConfig}
                 hidden={page.pageTab === "config"}
                 previewScene={previewScene}
-            />
+            /> */}
 
             {/* ══ FLOATING SAVE BAR ══ */}
             <SaveBar
