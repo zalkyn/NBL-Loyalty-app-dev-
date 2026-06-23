@@ -1,5 +1,5 @@
 import prisma from "../../db.server.js";
-import { logger } from "app/utils/logger.js";
+import { logger } from "../../utils/logger.js";
 
 // ─── Default Select ───────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
-import { logger } from "../../utils/logger";
-import prisma from "../../db.server";
+import { logger } from "../../utils/logger.js";
+import prisma from "../../db.server.js";
 
 /**
  * Fetches the active PointsRule for a given event type.

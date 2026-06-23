@@ -341,14 +341,83 @@ model PhysicalPrizeClaim {
   transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
   transactionId Int?         @unique
 
-  isSeenByAdmin Boolean @default(false)
-  viewedByAdmin Boolean   @default(false) 
+  isSeenByAdmin Boolean   @default(false)
+  viewedByAdmin Boolean   @default(false)
   viewedAt      DateTime?
 
-  adminNote     String? @db.Text
-  trackingInfo  String? @db.Text // (license key, download link etc.)
+  adminNote    String? @db.Text
+  trackingInfo String? @db.Text // (license key, download link etc.)
 
   @@index([customerId])
   @@index([physicalPrizeId])
   @@index([status])
+}
+
+model JobLock {
+  id        Int      @id @default(autoincrement())
+  jobName   String   @unique
+  isRunning Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+model Job {
+  id Int @id @default(autoincrement())
+
+  // ── Job identity ──────────────────────────────────────
+  // type: "ORDER_PAID" | "METAFIELD_SYNC" | "REFERRAL_EXPIRE"
+  type String
+
+  // status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED"
+  // PENDING    — waiting in queue, not yet picked up
+  // PROCESSING — currently being executed by the poller
+  // COMPLETED  — finished successfully
+  // FAILED     — exhausted all attempts, no further retries
+  // CANCELLED  — manually cancelled
+  status String @default("PENDING")
+
+  // ── Shop context ──────────────────────────────────────
+  shop String
+
+  // ── Payload ───────────────────────────────────────────
+  // Structure varies by job type:
+  //   ORDER_PAID      → { shop, orderId, customerId, webhookId }
+  //   METAFIELD_SYNC  → { shop, customerId }
+  //   REFERRAL_EXPIRE → { shop, referralId }
+  payload Json
+
+  // ── Idempotency ───────────────────────────────────────
+  // Set to Shopify webhookId or a deterministic key e.g. "ORDER_PAID:{orderId}".
+  // The @unique constraint prevents duplicate jobs from being inserted.
+  idempotencyKey String? @unique
+
+  // ── Retry tracking ────────────────────────────────────
+  attempts    Int @default(0)
+  maxAttempts Int @default(3)
+
+  // ── Scheduling ────────────────────────────────────────
+  // Defaults to now() so the job is picked up immediately.
+  // Set a future DateTime to delay execution (e.g. for referral expiry).
+  runAt DateTime @default(now())
+
+  // ── Stale lock detection ──────────────────────────────
+  // Set to now() when the poller claims the job (status → PROCESSING).
+  // If the job is still PROCESSING after 5 minutes, it is considered stale
+  // (e.g. server crash mid-execution) and the poller will re-queue it.
+  lockedAt DateTime?
+
+  // ── Error tracking ────────────────────────────────────
+  lastError String?   @db.Text
+  failedAt  DateTime?
+
+  // ── Timestamps ────────────────────────────────────────
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  // Primary poller query: WHERE status = 'PENDING' AND runAt <= NOW()
+  @@index([status, runAt])
+  // Stale lock recovery: WHERE status = 'PROCESSING' AND lockedAt < NOW() - 5min
+  @@index([status, lockedAt])
+  @@index([shop])
+  @@index([type, status])
 }

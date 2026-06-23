@@ -1,7 +1,7 @@
-import configMetafieldSyncMutation from "app/graphql/mutation/metafieldsSync/config.js";
+import configMetafieldSyncMutation from "../../graphql/mutation/metafieldsSync/config.js";
 import prisma from "../../db.server.js";
 import { normalizeCustomerGid } from "../customers/normalizeCustomerGid.js";
-import { logger } from "app/utils/logger.js";
+import { logger } from "../../utils/logger.js";
 
 const CUSTOMER_INCLUDE = {
     transactions: {
@@ -49,10 +49,6 @@ const buildMetafield = (customer) => {
         ownerId: customer.shopifyId,
     };
 
-    logger.info("build metafield=========", {
-        ...bm
-    })
-
     return bm;
 };
 
@@ -79,13 +75,15 @@ export const syncCustomersConfig = async (admin, session) => {
 export const syncCustomerConfig = async (admin, customerId) => {
     try {
         let customer = null;
+        let normalizedId = null;
+
         if (customerId?.toString()?.length <= 6) {
             customer = await prisma.customer.findFirst({
                 where: { id: Number(customerId) },
                 include: CUSTOMER_INCLUDE,
             });
         } else {
-            const normalizedId = normalizeCustomerGid(customerId);
+            normalizedId = normalizeCustomerGid(customerId);
 
             if (!normalizedId) {
                 throw new Error("Customer ID is required");
@@ -98,7 +96,7 @@ export const syncCustomerConfig = async (admin, customerId) => {
         }
 
         if (!customer) {
-            throw new Error(`Customer not found: ${normalizedId}`);
+            throw new Error(`Customer not found: ${normalizedId ?? customerId}`);
         }
 
         await configMetafieldSyncMutation(admin, buildMetafield(customer));

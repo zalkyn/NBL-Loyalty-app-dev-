@@ -1,7 +1,7 @@
 
 
-import customers from "../../graphql/query/customers";
-import { storeCustomer } from "./store";
+import customers from "../../graphql/query/customers.js";
+import { storeCustomer } from "./store.js";
 
 const BATCH_SIZE = 10;
 

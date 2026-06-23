@@ -1,5 +1,0 @@
-পুরো system এখন ৪টা phase এ চলে:
-Phase 1 — Page load: loyalty.liquid inline চলে, data set হয়। CSS + JS async load হয়। NBLEventBus তৈরি হয়, buildHTML() + applyTheme() চলে। dom:loaded emit হয় → trigger button visible। theme:applied sticky emit হয় → যে module পরে subscribe করবে সেও data পাবে।
-Phase 2 — First open: User button click করে → event:click → widget:toggle emit → toggleWidget() → widget:opened emit → bus.once listener → widget:first-open emit (একবারই, listener auto-removed)। এরপর ৬টা heavy module একসাথে boot হয়।
-Phase 3 — Tab visit: Nav click → event:click → nav:change emit → setActiveNavigation() → tab:activated + tab:activated:points (বা যেটা) emit। প্রতিটা tab এর bus.once listener first visit এ render করে, তারপর tab:visited:* sticky emit করে।
-Phase 4 — Runtime: points:update, reward:add, activity:add events আসলে hasListeners('tab:visited:*') দিয়ে check করে — visited tab গুলোই re-render হয়। widget:closed → home tab reset।

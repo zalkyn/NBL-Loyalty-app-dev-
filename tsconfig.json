@@ -67,6 +67,9 @@
       ],
       "@utils/*": [
         "./app/utils/*"
+      ],
+      "@shared-utils/*": [
+        "./app/layout/points-rules/shared-utils"
       ]
     }
   }
