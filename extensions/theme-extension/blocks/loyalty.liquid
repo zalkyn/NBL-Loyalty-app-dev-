@@ -1,5 +1,6 @@
 {% liquid
-  assign btn_pos = shop.metafields.app.nbl_config_v1.value.styles.actionButton['Button Position'] | downcase | default: 'left'
+  assign nbl_config = shop.metafields.app.nbl_config_v1.value
+  assign btn_pos = nbl_config.styles.actionButton['Button Position'] | downcase | default: 'left'
   if btn_pos != 'right'
     assign btn_pos = 'left'
   endif
@@ -8,7 +9,7 @@
 <script>
   window.NBL_v1 = window.NBL_v1 || {};
 
-  NBL_v1.appConfig = {{ shop.metafields.app.nbl_config_v1.value | json }};
+  NBL_v1.appConfig = {{ nbl_config | json }};
 
   NBL_v1.customer = {
     id:         {{ customer.id         | json }},
@@ -35,45 +36,18 @@
     customerName:   {{ customer.name | json | default: '""' }},
     shopUrl:        {{ shop.url | json }},
     referralCode:   {{ customer.metafields.app.nbl_customer_v1.value.referralCode | json | default: '""' }},
-    headerLabel:    {{ shop.metafields.app.nbl_config_v1.value.styles.header.Heading.Label | json | default: '"Welcome, [name]"' }},
-    pointsLabel:    {{ shop.metafields.app.nbl_config_v1.value.styles.header.Points.Label  | json | default: '"[points] points"' }},
+    headerLabel:    {{ nbl_config.styles.header.Heading.Label | json | default: '"Welcome, [name]"' }},
+    pointsLabel:    {{ nbl_config.styles.header.Points.Label  | json | default: '"[points] points"' }},
     buttonPosition: {{ btn_pos | json }}
   };
 
   NBL_v1.tab      = NBL_v1.tab      || {};
   NBL_v1.uiRender = NBL_v1.uiRender || {};
-
-  (function loadWidget() {
-    var appUrl = (window.NBL_v1.appConfig && window.NBL_v1.appConfig.appUrl) || '';
-    if (!appUrl || document.getElementById('nbl-widget-css')) return;
-
-
-    var cssUrl = "{{ 'ui.min.css' | asset_url }}";
-    var jsUrl = "{{ 'ui.min.js' | asset_url }}";
-
-    console.log("css url====", cssUrl)
-
-    var preloadLink = document.createElement('link');
-    preloadLink.rel  = 'preload';
-    preloadLink.as   = 'style';
-    preloadLink.href = cssUrl;
-    {% comment %} preloadLink.href = appUrl + '/widget/modules-main/styles/main.css'; {% endcomment %}
-    document.head.appendChild(preloadLink);
-
-    var styleLink = document.createElement('link');
-    styleLink.id   = 'nbl-widget-css';
-    styleLink.rel  = 'stylesheet';
-    styleLink.href = cssUrl;
-    {% comment %} styleLink.href = appUrl + '/widget/modules-main/styles/main.css'; {% endcomment %}
-    document.head.appendChild(styleLink);
-
-    var scriptTag = document.createElement('script');
-    scriptTag.src   = jsUrl;
-    {% comment %} scriptTag.src   = appUrl + '/widget/modules-main/scripts/main.js'; {% endcomment %}
-    scriptTag.async = true;
-    document.head.appendChild(scriptTag);
-  })();
 </script>
+
+<link rel="preload" href="{{ 'ui.min.css' | asset_url }}" as="style">
+{{ 'ui.min.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'ui.min.js' | asset_url }}" defer></script>
 
 {% schema %}
 {
