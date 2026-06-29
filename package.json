@@ -21,7 +21,8 @@
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
     "widget:build": "rollup -c rollup.config.js && npx clean-css-cli public/widget/modules-main/styles/main.css -o extensions/theme-extension/assets/ui.min.css",
-    "widget:build-v2": "rollup -c rollup.config.js && npx clean-css-cli public/widget/modules-main/styles/main-solid-color.css -o extensions/theme-extension/assets/ui.min.css"
+    "widget:build-solid": "rollup -c rollup.config.js && npx clean-css-cli public/widget/modules-main/styles/main-solid-color.css -o extensions/theme-extension/assets/ui.min.css",
+    "widget:build-preact": "rollup -c rollup.config.js && npx clean-css-cli public/widget/module-preact/styles/ui.css -o extensions/theme-extension/assets/ui.min.css"
   },
   "type": "module",
   "engines": {
@@ -43,6 +44,7 @@
     "jotai": "^2.19.0",
     "morgan": "^1.10.1",
     "node-cron": "^4.2.1",
+    "preact": "^10.25.4",
     "prisma": "^6.16.3",
     "react": "^18.3.1",
     "react-apexcharts": "^2.1.0",
@@ -67,6 +69,7 @@
     "@typescript-eslint/eslint-plugin": "^8.61.1",
     "@typescript-eslint/parser": "^8.61.1",
     "cross-env": "^10.1.0",
+    "esbuild": "^0.24.0",
     "eslint": "^8.57.1",
     "eslint-import-resolver-typescript": "^3.10.1",
     "eslint-plugin-import": "^2.32.0",
@@ -75,6 +78,7 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "graphql-config": "^5.1.1",
     "prettier": "^3.6.2",
+    "rollup-plugin-esbuild": "^6.1.0",
     "typescript": "^5.9.3",
     "vite": "^6.3.6"
   },
