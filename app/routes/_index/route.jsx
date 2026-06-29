@@ -5,8 +5,6 @@ import styles from "./styles.module.css";
 export const loader = async ({ request }) => {
   const url = new URL(request.url);
 
-  console.log("############################ index route loaded", JSON.stringify(url, null, 2))
-
   if (url.searchParams.get("shop")) {
     throw redirect(`/app?${url.searchParams.toString()}`);
   }
