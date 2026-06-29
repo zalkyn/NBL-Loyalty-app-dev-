@@ -524,7 +524,9 @@ export const PRESETS = [
         vars: {
             "--nbl-primary": "#7c3aed", "--nbl-header-bg": "#7c3aed",
             "--nbl-nav-active-color": "#7c3aed", "--nbl-nav-active-border": "#7c3aed",
-            "--nbl-loadmore-color": "#7c3aed", "--nbl-accent": "#a78bfa",
+            "--nbl-loadmore-color": "#ffffff",
+            "--nbl-loadmore-bg": "#7c3aed",
+            "--nbl-accent": "#a78bfa",
             "--nbl-btn-bg": "#7c3aed", "--nbl-btn-border": "#7c3aed", "--nbl-btn-color": "#ffffff",
             "--nbl-reward-item-active-border": "#a78bfa", "--nbl-reward-item-active-bg": "#f5f3ff",
             "--nbl-launcher-bg": "#7c3aed",
@@ -650,7 +652,9 @@ export const PRESETS = [
         vars: {
             "--nbl-primary": "#f5a623", "--nbl-header-bg": "#ef633b",
             "--nbl-nav-active-color": "#f5a623", "--nbl-nav-active-border": "#f5a623",
-            "--nbl-loadmore-color": "#f5a623", "--nbl-accent": "#f97316",
+            "--nbl-loadmore-color": "#ffffff",
+            "--nbl-loadmore-bg": "#f5a623",
+            "--nbl-accent": "#f97316",
             "--nbl-btn-bg": "#f5a623", "--nbl-btn-border": "#f5a623", "--nbl-btn-color": "#1a1208",
             "--nbl-reward-item-active-border": "#f97316", "--nbl-reward-item-active-bg": "#1a1208",
             "--nbl-launcher-bg": "#ef633b", "--nbl-launcher-color": "#ffffff",
