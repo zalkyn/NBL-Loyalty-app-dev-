@@ -1,17 +1,22 @@
 <!--
   public/widget/preview.html
 
-  Standalone document that boots the REAL widget bundle
-  (public/widget/modules-main) with mock customer/loyalty data — used only
-  as the `src` of the <iframe> in customize/livePreview/LivePreview.jsx.
+  Standalone document that boots the REAL widget bundle (preview.min.js —
+  the Rollup-built, minified Preact widget) with mock customer/loyalty data.
+  Used only as the `src` of the <iframe> in customize/livePreview/LivePreview.jsx.
 
   IMPORTANT: this is a STATIC file (not a React Router route). It's served
   directly by Vite/the static file server, so it never touches the Shopify
   app's session/auth pipeline — that's what avoids the "admin.shopify.com
-  refused to connect" exit-iframe bounce that happened when this was an
-  SSR route.
+  refused to connect" exit-iframe bounce.
 
   NOT meant to be visited directly by merchants.
+
+  LOAD ORDER (critical):
+    1. preview-moc-config.js  — sets window.NBL_v1 with full mock data
+    2. preview-bridge.js      — mocks fetch() + wires postMessage to __bridge
+    3. preview.min.js         — Rollup/Preact bundle; on mount, App.jsx
+                                 injects functions into window.NBL_v1.__bridge
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -19,8 +24,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="robots" content="noindex" />
-    <!-- <link rel="stylesheet" href="/widget/modules-main/styles/main-solid-color.css" /> -->
-    <link rel="stylesheet" href="./modules-main/styles/main-solid-color.css" />
+    <link rel="stylesheet" href="/widget/preview.min.css" />
     <style>
         html,
         body {
@@ -50,55 +54,22 @@
 </head>
 
 <body>
-    <!-- <script>
-        // ── Mock data the widget needs to render a populated, realistic state ──
-        // api.js / html.js read these shapes — keep in sync if those files change.
-        window.NBL_v1 = window.NBL_v1 || {};
-        window.NBL_v1.appConfig = {
-            appUrl: "",
-            shop: { currencySymbol: "$" },
-            pointRules: [
-                {
-                    event: { type: "REFERRAL" },
-                    conditions: {
-                        referral: {
-                            trigger: "oneTime",
-                            referrer: { points: 200, allowRenewalReward: false, renewalPoints: 0 },
-                            referred: { discountType: "percentage", discountValue: 15, minimumOrderValue: 0 }
-                        }
-                    }
-                }
-            ],
-            styles: { cssVars: {}, widgetConfig: {} }
-        };
-        window.NBL_v1.customer = {
-            id: 999000111,
-            name: "Jordan Avery",
-            points: 1425,
-            config: { id: 1, points: 1425 }
-        };
-        window.NBL_v1.liquidData = {
-            isLoggedIn: true,
-            customerName: "Jordan Avery",
-            shopUrl: "https://preview-store.myshopify.com",
-            referralCode: "NBL_PREVIEW1",
-            buttonPosition: "right"
-        };
-        window.NBL_v1.routes = { login_url: "#", register_url: "#" };
-        window.NBL_v1.__isPreview = true;
-    </script> -->
+    <!-- 1. Mock data — full appConfig + customer + liquidData shape.
+         preview-moc-config.js sets window.NBL_v1 with realistic fixture data
+         so the widget renders a populated, realistic state. -->
+    <script src="/widget/preview-moc-config.js"></script>
 
-    <script src="./preview-moc-config.js"></script>
+    <!-- 2. Bridge — fetch() intercept + postMessage → __bridge wiring.
+         Must load BEFORE preview.min.js so:
+           a) The very first api.js fetch() call is already mocked.
+           b) whenBridgeReady() polling starts before App mounts, so the
+              "ready" postMessage fires immediately after mount. -->
+    <script src="/widget/preview-bridge.js"></script>
 
-    <!-- fetch() intercept + postMessage bridge — must load before main.js so
-         the very first network call from api.js is already mocked -->
-    <!-- <script src="/widget/preview-bridge.js"></script> -->
-    <script src="./preview-bridge.js"></script>
-
-    <!-- the REAL widget — same ES modules the rollup build consumes,
-         loaded natively, no bundling needed for preview -->
-    <script type="module" src="/widget/modules-main/scripts/main.js"></script>
-    <!-- <script type="module" src="./modules-main/scripts/main.js"></script> -->
+    <!-- 3. Widget bundle — Rollup + Preact build.
+         main.preact.jsx boots here; on mount App.jsx populates
+         window.NBL_v1.__bridge with setScene / setCssVars / setWidgetConfig. -->
+    <script type="module" src="/widget/preview.min.js"></script>
 </body>
 
 </html>
