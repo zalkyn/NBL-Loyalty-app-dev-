@@ -3216,6 +3216,28 @@ input:not([type=checkbox], [type=radio]) {
     padding: var(--nbl-card-padding) var(--nbl-card-padding) 0;
 }
 
+/* Flush standalone-tab layout: full tabs that render Item/ActivityRow
+   lists outside any nbl-home-section-card frame (My Rewards, My Prizes,
+   Activity). One semantic modifier instead of one selector per tab —
+   add nbl-tab-content--flush to any future full-list tab to get the
+   same tight side padding and frameless pagination. */
+.nbl-tab-content--flush {
+    padding-left: 4px;
+    padding-right: 4px;
+}
+
+.nbl-tab-content--flush .nbl-home-section-card__body--padded {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.nbl-tab-content--flush .nbl-pagination {
+    background: transparent;
+    border-top: none;
+    padding-left: 0;
+    padding-right: 0;
+}
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    TEXT — shared body-copy primitive.
    Size and color always come from props (size="xs|sm|base|md|lg",

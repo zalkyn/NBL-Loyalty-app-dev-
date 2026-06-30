@@ -8,7 +8,7 @@ import { h, Fragment } from 'preact';
 import { Icon } from '../components/Icon.jsx';
 import { Image } from '../components/Image.jsx';
 import { Text } from '../components/Text.jsx';
-import { formatNumber } from '../../modules-main/utils.js';
+import { formatNumber } from '../utils.js';
 import { Item } from '../components/Item.jsx';
 import { ItemList } from '../components/ItemList.jsx';
 import { Pagination } from '../components/Pagination.jsx';
@@ -90,7 +90,7 @@ export function PrizesTab({ physicalPrizes, points, prizeClaims, perPage, pagina
                     <Icon name="reward-discount" px={16} />
                     <Text as="span" bare extraClass="nbl-section-title">{lbl('sectionPrizeRequests')}</Text>
                 </div>
-                <div class="nbl-item-rows">
+                <div class="nbl-item-rows nbl-home-section-card__body--padded">
                     <ItemList
                         items={pagination.pageItems}
                         emptyText={lbl('emptyMyPrizes')}
