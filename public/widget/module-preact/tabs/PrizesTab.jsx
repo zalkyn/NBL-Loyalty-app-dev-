@@ -8,7 +8,7 @@ import { h, Fragment } from 'preact';
 import { Icon } from '../components/Icon.jsx';
 import { Image } from '../components/Image.jsx';
 import { Text } from '../components/Text.jsx';
-import { formatNumber } from '../../modules-main/utils.js';
+import { formatNumber } from '../utils.js';
 import { Item } from '../components/Item.jsx';
 import { ItemList } from '../components/ItemList.jsx';
 import { Pagination } from '../components/Pagination.jsx';

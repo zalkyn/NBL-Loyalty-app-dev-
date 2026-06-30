@@ -6,7 +6,7 @@
 // =============================================================================
 
 import { h } from 'preact';
-import { formatNumber, formatDate, formatPointsDisplay } from '../../modules-main/utils.js';
+import { formatNumber, formatDate, formatPointsDisplay } from '../utils.js';
 import { Item } from './Item.jsx';
 import { Icon } from './Icon.jsx';
 import { Image } from './Image.jsx';

@@ -6,7 +6,7 @@
 // =============================================================================
 
 import { h, Fragment } from 'preact';
-import { formatNumber } from '../../modules-main/utils.js';
+import { formatNumber } from '../utils.js';
 import { Item } from '../components/Item.jsx';
 import { Icon } from '../components/Icon.jsx';
 import { Text } from '../components/Text.jsx';

@@ -7,8 +7,8 @@
 
 import { h, Fragment } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
-import { icon } from '../modules-main/icons.js';
-import { formatNumber } from '../modules-main/utils.js';
+import { icon } from './icons.js';
+import { formatNumber } from './utils.js';
 import { LauncherButton } from './components/LauncherButton.jsx';
 import { WidgetShell } from './components/WidgetShell.jsx';
 import { GuestPanel } from './components/GuestPanel.jsx';
