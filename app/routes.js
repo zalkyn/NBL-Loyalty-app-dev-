@@ -43,6 +43,7 @@ export default [
     route("api/join-our-program", "./api-routes/join-our-program.jsx"),
     route("api/get-referral-discount", "./api-routes/referral-claim.jsx"),
     route("api/loox-new-review-trigger", "./api-routes/loox-new-review-trigger.jsx"),
+    route("api/provision-customer", "./api-routes/provision-customer.jsx"),
 
     // Webhooks
     route("webhooks/app/orders_paid", "./webhook-routes/order-paid.jsx"),

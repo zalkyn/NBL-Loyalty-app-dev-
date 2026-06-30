@@ -49,10 +49,19 @@ function RewardSummary({ rows }) {
     );
 }
 
-function Message({ msg }) {
+function Message({ msg, onRetry }) {
     if (!msg) return null;
     const prefix = msg.type === 'error' ? '❌' : msg.type === 'success' ? '✅' : 'ℹ️';
-    return <div class={`nbl-refer-modal__message nbl-refer-modal__message--${msg.type}`}>{prefix} {msg.text}</div>;
+    return (
+        <div class={`nbl-refer-modal__message nbl-refer-modal__message--${msg.type}`}>
+            <div>{prefix} {msg.text}</div>
+            {msg.retry && onRetry && (
+                <Button bare extraClass="nbl-refer-modal__btn nbl-refer-modal__btn--retry" onClick={onRetry}>
+                    Try Again
+                </Button>
+            )}
+        </div>
+    );
 }
 
 export function ReferralModal({ refModal, pointRules, currencySymbol }) {
@@ -61,7 +70,7 @@ export function ReferralModal({ refModal, pointRules, currencySymbol }) {
     const {
         step, codeInput, setCodeInput, loading,
         formMessage, successMessage, lockedMessage, discountCode, copied,
-        closeModal, handleLogin, handleFinish, handleCopy, handleSubmit,
+        closeModal, handleLogin, handleFinish, handleCopy, handleSubmit, handleRetry,
     } = refModal;
 
     const rewardRows = buildFriendRewardRows(pointRules, currencySymbol);
@@ -109,7 +118,7 @@ export function ReferralModal({ refModal, pointRules, currencySymbol }) {
                                     Request Discount Code
                                 </Button>
                             )}
-                            <Message msg={formMessage} />
+                            <Message msg={formMessage} onRetry={handleRetry} />
                         </div>
                     )}
 

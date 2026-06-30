@@ -6,6 +6,7 @@
 
 const CACHE_KEY = 'NBL_ReferralCache';
 const PENDING_KEY = 'NBL_PendingReferral';
+const CLAIM_KEY = 'NBL_ReferralClaim';
 
 export function getCacheStore() {
     try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; } catch (e) { return {}; }
@@ -36,6 +37,37 @@ export function sweepExpiredCache() {
     const now = Date.now();
     Object.keys(store).forEach((key) => { if (now > store[key].expiresAt) delete store[key]; });
     setCacheStore(store);
+}
+
+// ── Persistent claim record ───────────────────────────────────────────────
+// Unlike getCache/setCache above (short TTL, used to dedupe in-flight
+// requests), this is a permanent record of "this customer already claimed
+// a referral with this code". It never expires, so revisiting the same
+// referral link later — even after the short-lived cache has expired —
+// still shows the right state without hitting the API again.
+
+export function getClaim() {
+    try { return JSON.parse(localStorage.getItem(CLAIM_KEY)); } catch (e) { return null; }
+}
+export function setClaim({ code, discountCode, used, lockedToOtherCode, message }) {
+    try {
+        localStorage.setItem(CLAIM_KEY, JSON.stringify({
+            code,
+            discountCode: discountCode || null,
+            used: !!used,
+            lockedToOtherCode: !!lockedToOtherCode,
+            message: message || null,
+            savedAt: Date.now(),
+        }));
+    } catch (e) { /* ignore */ }
+}
+export function markClaimUsed() {
+    const claim = getClaim();
+    if (!claim) return;
+    setClaim({ ...claim, used: true });
+}
+export function clearClaim() {
+    try { localStorage.removeItem(CLAIM_KEY); } catch (e) { /* ignore */ }
 }
 
 export function getURLCode() {

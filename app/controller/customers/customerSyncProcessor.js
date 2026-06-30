@@ -19,13 +19,13 @@ export async function requeueStaleCustomerSyncJobs() {
 
     const { count } = await prisma.job.updateMany({
         where: {
-            type:     "CUSTOMER_SYNC",
-            status:   "PROCESSING",
+            type: "CUSTOMER_SYNC",
+            status: "PROCESSING",
             lockedAt: { lte: staleThreshold },
         },
         data: {
-            status:    "PENDING",
-            lockedAt:  null,
+            status: "PENDING",
+            lockedAt: null,
             lastError: "Re-queued after stale lock detected (possible server crash)",
         },
     });
@@ -54,7 +54,7 @@ export async function processCustomerSync(admin, session, jobId) {
     // ── Mark as PROCESSING ────────────────────────────────────────────────────
     await prisma.job.update({
         where: { id: jobId },
-        data:  { status: "PROCESSING", lockedAt: new Date(), attempts: { increment: 1 } },
+        data: { status: "PROCESSING", lockedAt: new Date(), attempts: { increment: 1 } },
     });
 
     logger.info(MODULE, "Customer sync started", { shop: session.shop, jobId });
@@ -65,38 +65,38 @@ export async function processCustomerSync(admin, session, jobId) {
         await prisma.job.update({
             where: { id: jobId },
             data: {
-                status:      "COMPLETED",
+                status: "COMPLETED",
                 completedAt: new Date(),
-                lockedAt:    null,
+                lockedAt: null,
                 payload: {
-                    shop:      session.shop,
+                    shop: session.shop,
                     sessionId: session.id,
-                    result:    { total: result.total, success: result.success, failed: result.failed },
+                    result: { total: result.total, success: result.success, failed: result.failed },
                 },
             },
         });
 
         logger.success(MODULE, "Customer sync completed", {
-            shop:    session.shop,
+            shop: session.shop,
             jobId,
-            total:   result.total,
+            total: result.total,
             success: result.success,
-            failed:  result.failed,
+            failed: result.failed,
         });
 
     } catch (err) {
         await prisma.job.update({
             where: { id: jobId },
             data: {
-                status:    "FAILED",
-                lockedAt:  null,
+                status: "FAILED",
+                lockedAt: null,
                 lastError: err?.message ?? "Unknown error",
-                failedAt:  new Date(),
+                failedAt: new Date(),
             },
         });
 
         logger.error(MODULE, "Customer sync failed", {
-            shop:  session.shop,
+            shop: session.shop,
             jobId,
             error: err?.message,
         });
