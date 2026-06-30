@@ -15,8 +15,8 @@ export function ActivitiesTab({ transactions, perPage, paginationMode, lbl }) {
     const pagination = usePagination(transactions || [], perPage || 10, paginationMode || 'pagination');
 
     return (
-        <div class="nbl-tab-content">
-            <div class="nbl-activity-table">
+        <div class="nbl-tab-content nbl-tab-content--flush">
+            <div class="nbl-activity-table nbl-home-section-card__body--padded">
                 <div class="nbl-activity-table__head">
                     <div class="nbl-activity-table__head-cell">{lbl('activityColDate')}</div>
                     <div class="nbl-activity-table__head-cell">{lbl('activityColActivity')}</div>
@@ -40,12 +40,12 @@ export function ActiveRewardsTab({ customerRewards, perPage, paginationMode, lbl
     const pagination = usePagination(active, perPage || 8, paginationMode || 'pagination');
 
     return (
-        <div class="nbl-tab-content">
-            <div class="nbl-item-list--divided">
+        <div class="nbl-tab-content nbl-tab-content--flush">
+            <div class="nbl-home-section-card__body--padded">
                 <ItemList
                     items={pagination.pageItems}
                     emptyText={lbl('emptyRewards')}
-                    renderItem={(reward) => <ActiveRewardItem reward={reward} onOpenVoucher={onOpenVoucher} />}
+                    renderItem={(reward) => <ActiveRewardItem reward={reward} onOpenVoucher={onOpenVoucher} cardStyle />}
                 />
             </div>
             <Pagination pagination={pagination} lbl={lbl} />
