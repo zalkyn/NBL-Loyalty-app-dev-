@@ -697,6 +697,14 @@ input:not([type=checkbox], [type=radio]) {
     border-bottom: none;
 }
 
+/* Flush wrapper for .nbl-item--row lists. Keeps the row items as a
+   contiguous sibling group so each row's :last-child border rule resolves
+   against the actual last row, not against a trailing sibling like
+   .nbl-pagination rendered after the list. */
+.nbl-item-rows {
+    display: block;
+}
+
 .nbl-item--row.nbl-item--clickable {
     cursor: pointer;
     transition: background var(--nbl-dur-fast) var(--nbl-ease-out);
@@ -2061,6 +2069,7 @@ input:not([type=checkbox], [type=radio]) {
 .nbl-referral__input-group {
     display: flex;
     gap: 8px;
+    align-items: center;
 }
 
 .nbl-referral__input {
@@ -2096,6 +2105,7 @@ input:not([type=checkbox], [type=radio]) {
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
     transition: filter 0.2s, transform 0.15s;
     flex-shrink: 0;
+    height: 37px;
 }
 
 .nbl-referral__copy-btn:hover {
@@ -2164,6 +2174,32 @@ input:not([type=checkbox], [type=radio]) {
     to {
         transform: rotate(360deg);
     }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PROVISION OVERLAY — full-widget cover during silent
+   customer auto-provisioning (controlled separately via
+   appConfig.showProvisionLoadingOverlay)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.nbl-provision-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--nbl-surface);
+    border-radius: var(--nbl-radius);
+    /* Above notification/preview slots — provisioning is a blocking
+       background state, nothing else should be interactive under it. */
+    z-index: 1000000003;
+}
+
+.nbl-spinner--provision {
+    width: 28px;
+    height: 28px;
+    border: 3px solid color-mix(in srgb, var(--nbl-notify-bg-to) 40%, transparent);
+    border-top-color: var(--nbl-modal-input-focus);
+    animation-duration: 0.8s;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2598,6 +2634,9 @@ input:not([type=checkbox], [type=radio]) {
     letter-spacing: 2px;
     border-radius: var(--nbl-radius-md);
     font-family: ui-monospace, monospace;
+    min-width: 0;
+    overflow-wrap: break-word;
+    word-break: break-all;
 }
 
 .nbl-notify-reward__copy-btn {
@@ -3014,6 +3053,19 @@ input:not([type=checkbox], [type=radio]) {
 
 .nbl-refer-modal__btn--finish:hover:not(:disabled) {
     background: var(--nbl-modal-btn-finish-hover);
+}
+
+.nbl-refer-modal__btn--retry {
+    width: auto;
+    margin-top: 10px;
+    padding: 7px 18px;
+    font-size: var(--nbl-text-sm, 13px);
+    background: var(--nbl-modal-btn-primary-bg);
+    color: var(--nbl-modal-btn-primary-color);
+}
+
+.nbl-refer-modal__btn--retry:hover:not(:disabled) {
+    background: var(--nbl-modal-btn-primary-hover);
 }
 
 .nbl-refer-modal__reward-summary {
