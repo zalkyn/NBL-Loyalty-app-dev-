@@ -6,7 +6,7 @@
 // =============================================================================
 
 import { h } from 'preact';
-import { formatNumber, formatDate, formatPointsDisplay } from '../../modules-main/utils.js';
+import { formatNumber, formatDate, formatPointsDisplay } from '../utils.js';
 import { Item } from './Item.jsx';
 import { Icon } from './Icon.jsx';
 import { Image } from './Image.jsx';
@@ -14,10 +14,12 @@ import { Text } from './Text.jsx';
 
 // ── Active reward (voucher) item — Home preview + Rewards tab + Active Rewards tab ──
 
-export function ActiveRewardItem({ reward, onOpenVoucher }) {
+export function ActiveRewardItem({ reward, onOpenVoucher, cardStyle = false }) {
     return (
         <Item
-            variant="voucher-row"
+            variant={cardStyle ? 'card' : 'voucher-row'}
+            selfSpaced={cardStyle}
+            active={cardStyle ? true : undefined}
             onClick={() => onOpenVoucher(reward.code)}
             leading={<Icon name="reward-discount" px={26} />}
             content={
@@ -43,7 +45,7 @@ const PRIZE_STATUS_LABELS = {
     CANCELLED: 'Cancelled',
 };
 
-export function PrizeClaimItem({ claim, physicalPrizes, onOpenClaim, onViewImage, lbl }) {
+export function PrizeClaimItem({ claim, physicalPrizes, onOpenClaim, onViewImage, lbl, cardStyle = false }) {
     const prize = (physicalPrizes || []).find((p) => Number(p.id) === Number(claim.physicalPrizeId));
     const title = prize ? prize.title : `Prize request #${claim.id}`;
     const status = claim.status || 'PENDING';
@@ -61,8 +63,10 @@ export function PrizeClaimItem({ claim, physicalPrizes, onOpenClaim, onViewImage
 
     return (
         <Item
-            variant="row"
-            clickable
+            variant={cardStyle ? 'card' : 'row'}
+            selfSpaced={cardStyle}
+            active={cardStyle ? true : undefined}
+            clickable={!cardStyle}
             onClick={() => onOpenClaim(claim)}
             leading={<Image src={prize && prize.imageUrl} alt={title} size="sm" onView={onViewImage} />}
             content={
