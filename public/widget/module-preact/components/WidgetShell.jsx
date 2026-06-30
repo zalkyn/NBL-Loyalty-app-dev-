@@ -9,7 +9,7 @@ import { useRef } from 'preact/hooks';
 import { Header } from './Header.jsx';
 import { useCompactHeader } from '../hooks/useCompactHeader.js';
 
-export function WidgetShell({ isOpen, isLoggedIn, customerName, points, position, activeTab, onNavChange, onClose, lbl, children, notificationSlot, previewSlot }) {
+export function WidgetShell({ isOpen, isLoggedIn, customerName, points, position, activeTab, onNavChange, onClose, lbl, children, notificationSlot, previewSlot, provisionSlot }) {
     const wrapperRef = useRef(null);
     const compact = useCompactHeader(wrapperRef);
 
@@ -49,6 +49,9 @@ export function WidgetShell({ isOpen, isLoggedIn, customerName, points, position
             {/* image preview-o eki convention follow kore — notification-er moto
                 shei container-er bhitore-i absolute sibling, alada z-index-e stack hoy */}
             {previewSlot}
+            {/* provision overlay — pura widget cover kore rakhe jotokkhon silent
+                customer-provisioning চলে। Highest z-index, sob kichur upore. */}
+            {provisionSlot}
         </div>
     );
 }
