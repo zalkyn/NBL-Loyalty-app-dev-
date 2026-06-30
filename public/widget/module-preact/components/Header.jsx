@@ -11,6 +11,7 @@ import { Heading } from './Heading.jsx';
 import { Button } from './Button.jsx';
 import { Text } from './Text.jsx';
 import { usePointsBump } from '../hooks/usePointsBump.js';
+import { formatNumber } from '../utils.js';
 
 export function Header({ isLoggedIn, customerName, points, compact, activeTab, onNavChange, onClose, lbl }) {
     const bump = usePointsBump(points);
@@ -53,7 +54,7 @@ export function Header({ isLoggedIn, customerName, points, compact, activeTab, o
                             </Heading>
                             <div class={`nbl-header__points${bump ? ' bump' : ''}`}>
                                 {ptsBefore}
-                                <Text as="span" bare extraClass="nbl-customer-points">{points}</Text>
+                                <Text as="span" bare extraClass="nbl-customer-points">{formatNumber(points)}</Text>
                                 {ptsAfter || ''}
                             </div>
                         </>

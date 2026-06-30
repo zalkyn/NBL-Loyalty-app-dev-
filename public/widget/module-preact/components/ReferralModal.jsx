@@ -9,7 +9,7 @@ import { Icon } from './Icon.jsx';
 import { Heading } from './Heading.jsx';
 import { Text } from './Text.jsx';
 import { Button } from './Button.jsx';
-import { formatNumber } from '../../modules-main/utils.js';
+import { formatNumber } from '../utils.js';
 
 function buildFriendRewardRows(pointRules, currencySymbol) {
     const refRule = (pointRules || []).find((r) => r.event && r.event.type === 'REFERRAL');
