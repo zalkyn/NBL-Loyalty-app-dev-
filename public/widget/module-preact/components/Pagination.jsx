@@ -15,8 +15,9 @@ export function Pagination({ pagination, lbl }) {
     const [isLoading, setIsLoading] = useState(false);
 
     if (pagination.mode === 'loadmore') {
-        const { loaded, total, hasMore, loadMore } = pagination;
+        const { loaded, total, hasMore, loadMore, perPage } = pagination;
         if (total <= 0) return null;
+        if (perPage != null && total <= perPage) return null;
 
         function handleLoadMore() {
             setIsLoading(true);

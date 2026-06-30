@@ -90,19 +90,21 @@ export function PrizesTab({ physicalPrizes, points, prizeClaims, perPage, pagina
                     <Icon name="reward-discount" px={16} />
                     <Text as="span" bare extraClass="nbl-section-title">{lbl('sectionPrizeRequests')}</Text>
                 </div>
-                <ItemList
-                    items={pagination.pageItems}
-                    emptyText={lbl('emptyMyPrizes')}
-                    renderItem={(claim) => (
-                        <PrizeClaimItem
-                            claim={claim}
-                            physicalPrizes={physicalPrizes}
-                            onOpenClaim={onOpenClaim}
-                            onViewImage={onViewImage}
-                            lbl={lbl}
-                        />
-                    )}
-                />
+                <div class="nbl-item-rows">
+                    <ItemList
+                        items={pagination.pageItems}
+                        emptyText={lbl('emptyMyPrizes')}
+                        renderItem={(claim) => (
+                            <PrizeClaimItem
+                                claim={claim}
+                                physicalPrizes={physicalPrizes}
+                                onOpenClaim={onOpenClaim}
+                                onViewImage={onViewImage}
+                                lbl={lbl}
+                            />
+                        )}
+                    />
+                </div>
                 <Pagination pagination={pagination} lbl={lbl} />
             </div>
         </>

@@ -1,4 +1,3 @@
-
 // =============================================================================
 // modules/module-preact/App.jsx
 // Root component — sob state ekhane. Purono widget.js + html.js + store.js +
@@ -17,6 +16,7 @@ import { NotificationModal } from './components/NotificationModal.jsx';
 import { ImagePreviewOverlay } from './components/ImagePreviewOverlay.jsx';
 import { ReferralModal } from './components/ReferralModal.jsx';
 import { useReferralModal } from './hooks/useReferralModal.js';
+import { useCustomerProvision } from './hooks/useCustomerProvision.js';
 import { useApplyTheme } from './hooks/useApplyTheme.js';
 import { HomeTab } from './tabs/HomeTab.jsx';
 import { EarnTab } from './tabs/EarnTab.jsx';
@@ -89,7 +89,8 @@ export function App({ initialData, bridgeRef }) {
         return (labels && labels[key]) || '';
     }
 
-    const refModal = useReferralModal({ isLoggedIn, customer, appConfig });
+    const { provisioning, provisionNeeded, inFlight } = useCustomerProvision({ isLoggedIn, customer, appConfig });
+    const refModal = useReferralModal({ isLoggedIn, customer, appConfig, provisioning: inFlight, provisionNeeded });
     useApplyTheme(initialData.cssVars);
 
     // ── Bridge injection — preview only, production-e bridgeRef undefined ─────
@@ -107,7 +108,7 @@ export function App({ initialData, bridgeRef }) {
                 return;
             }
             if (scene === 'modal') {
-                refModal.open();
+                refModal.openModal();
                 return;
             }
             if (scene === 'notification-reward') {
@@ -342,6 +343,13 @@ export function App({ initialData, bridgeRef }) {
                 }
                 previewSlot={
                     <ImagePreviewOverlay preview={previewImage} onClose={closeImagePreview} />
+                }
+                provisionSlot={
+                    provisioning ? (
+                        <div class="nbl-provision-overlay" role="status" aria-live="polite">
+                            <span class="nbl-spinner nbl-spinner--provision" />
+                        </div>
+                    ) : null
                 }
             >
                 {isLoggedIn ? (
