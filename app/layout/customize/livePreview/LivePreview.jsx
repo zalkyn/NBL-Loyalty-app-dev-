@@ -100,11 +100,11 @@ const LivePreviewPanel = memo(function LivePreviewPanel({
                         position: "fixed",
                         bottom: 0,
                         ...(isLeft ? { left: 0 } : { right: 0 }),
-                        width: 460,
-                        height: 660,
+                        width: 390,
+                        height: 620,
                         border: "none",
                         background: "transparent",
-                        zIndex: 9999998,
+                        zIndex: 9999999999998,
                         // iframe stays click-through everywhere except where the
                         // real widget paints something (launcher / popup) — the
                         // widget's own CSS sizes those, so no per-pixel overlay
