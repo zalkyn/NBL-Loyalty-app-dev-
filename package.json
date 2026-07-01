@@ -22,7 +22,7 @@
     "typecheck": "react-router typegen && tsc --noEmit",
     "widget:build": "rollup -c rollup.config.js && npx clean-css-cli public/widget/modules-main/styles/main.css -o extensions/theme-extension/assets/ui.min.css",
     "widget:build-solid": "rollup -c rollup.config.js && npx clean-css-cli public/widget/modules-main/styles/main-solid-color.css -o extensions/theme-extension/assets/ui.min.css",
-    "widget:build-preact": "rollup -c rollup.config.js && npx clean-css-cli public/widget/module-preact/styles/ui.css -o extensions/theme-extension/assets/ui.min.css"
+    "widget:build-preact": "rollup -c rollup.config.js && npx clean-css-cli public/widget/module-preact/styles/ui.css -o extensions/theme-extension/assets/ui.min.css && npx clean-css-cli public/widget/module-preact/styles/ui.css -o public/widget/preview.min.css"
   },
   "type": "module",
   "engines": {
