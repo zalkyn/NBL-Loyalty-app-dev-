@@ -1703,7 +1703,7 @@ input:not([type=checkbox], [type=radio]) {
 
 .nbl-home-nav__item {
     display: grid;
-    grid-template-columns: 36px 1fr 18px;
+    grid-template-columns: auto 1fr 18px;
     align-items: center;
     gap: 12px;
     padding: 14px 16px;
@@ -1734,12 +1734,18 @@ input:not([type=checkbox], [type=radio]) {
 }
 
 .nbl-home-nav__icon {
-    color: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+}
+
+.nbl-home-nav__icon .nbl-icon,
+.nbl-home-nav__chevron .nbl-icon {
+    color: var(--nbl-home-nav-color);
 }
 
 .nbl-home-nav__label {
     color: var(--nbl-home-nav-color);
-    font-size: 13.5px;
+    font-size: 15px;
     font-weight: 500;
 }
 
@@ -2339,7 +2345,7 @@ input:not([type=checkbox], [type=radio]) {
     color: var(--nbl-loadmore-color);
     letter-spacing: 0.1px;
     overflow: hidden;
-    box-shadow: var(--nbl-shadow-sm);
+    /* box-shadow: var(--nbl-shadow-sm); */
     transition: transform 0.24s var(--nbl-ease-spring),
         box-shadow 0.24s ease,
         border-color var(--nbl-dur-normal),
@@ -2362,12 +2368,12 @@ input:not([type=checkbox], [type=radio]) {
 }
 
 .nbl-pagination__loadmore-btn:hover:not(:disabled):not(.done) {
-    background: var(--nbl-primary-light);
+    /* background: var(--nbl-primary-light);
     border-color: var(--nbl-primary);
     color: var(--nbl-primary-hover);
     transform: translateY(-2px) scale(1.01);
     box-shadow: 0 6px 20px color-mix(in srgb, var(--nbl-primary) 25%, transparent),
-        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        inset 0 1px 0 rgba(255, 255, 255, 0.9); */
 }
 
 .nbl-pagination__loadmore-btn:active:not(:disabled) {
@@ -2637,6 +2643,7 @@ input:not([type=checkbox], [type=radio]) {
     min-width: 0;
     overflow-wrap: break-word;
     word-break: break-all;
+    border: 1px solid var(--nbl-notify-reward-btn-bg);
 }
 
 .nbl-notify-reward__copy-btn {
@@ -2747,11 +2754,11 @@ input:not([type=checkbox], [type=radio]) {
 
 .nbl-notify-info__msg {
     margin-top: 12px;
-    padding: 10px 12px;
+    /* padding: 2px 2px; */
     border-radius: var(--nbl-radius-md);
-    font-size: 12.5px;
+    font-size: 13.5px;
     line-height: 1.55;
-    background: rgba(255, 255, 255, 0.1);
+    /* background: rgba(255, 255, 255, 0.1); */
     color: rgba(255, 255, 255, 0.92);
     display: flex;
     align-items: flex-start;
@@ -2810,11 +2817,12 @@ input:not([type=checkbox], [type=radio]) {
     display: none;
     margin-top: 10px;
     padding: 9px 12px;
-    background: color-mix(in srgb, var(--nbl-status-error-color) 8%, transparent);
-    border: 1px solid color-mix(in srgb, var(--nbl-status-error-color) 20%, transparent);
+    background: var(--nbl-status-error-color);
+    border: 1px solid;
+    /* border: 1px solid var(--nbl-status-error-color); */
     border-radius: var(--nbl-radius-sm);
     font-size: 13px;
-    color: color-mix(in srgb, var(--nbl-status-error-color) 60%, #fff);
+    /* color: var(--nbl-status-error-color); */
 }
 
 .nbl-notify-info__error.active {
@@ -2851,9 +2859,9 @@ input:not([type=checkbox], [type=radio]) {
 }
 
 .nbl-notify-info__claim-btn.error {
-    background: var(--nbl-status-error-color, #ef4444);
+    /* background: var(--nbl-status-error-color, #ef4444); */
     border-color: var(--nbl-status-error-color, #ef4444);
-    color: #fff;
+    /* color: #fff; */
 }
 
 .nbl-notify-info__contact-btn {
@@ -3512,13 +3520,21 @@ input:not([type=checkbox], [type=radio]) {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    RESPONSIVE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-@media (max-width: 420px) {
+@media (max-width: 500px) {
     .nbl-widget-container {
-        width: calc(100vw - 20px);
+        width: 94%;
+    }
+
+    .nbl-widget-container.pos-right {
+        right: 3%;
+    }
+
+    .nbl-widget-container.pos-left {
+        left: 3%;
     }
 
     .nbl-notify-panel {
-        width: calc(100vw - 20px);
+        width: 100%;
     }
 
     .nbl-refer-modal {
