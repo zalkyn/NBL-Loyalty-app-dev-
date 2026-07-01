@@ -22,7 +22,7 @@ function HomeNavCard({ navKey, iconName, label, onNavigate }) {
             </div>
             <Text as="span" bare extraClass="nbl-home-nav__label" size="md">{label}</Text>
             <div class="nbl-home-nav__chevron">
-                <Icon name="chevron-right" size="md" />
+                <Icon name="chevron-right" size="sm" />
             </div>
         </div>
     );
