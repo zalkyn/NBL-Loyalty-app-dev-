@@ -18,9 +18,9 @@ function HomeNavCard({ navKey, iconName, label, onNavigate }) {
     return (
         <div data-nav={navKey} class="nbl-home-nav__item" onClick={() => onNavigate(navKey)}>
             <div class="nbl-home-nav__icon">
-                <Icon size='lg' name={iconName} />
+                <Icon size='md' name={iconName} />
             </div>
-            <Text as="span" bare extraClass="nbl-home-nav__label">{label}</Text>
+            <Text as="span" bare extraClass="nbl-home-nav__label" size="md">{label}</Text>
             <div class="nbl-home-nav__chevron">
                 <Icon name="chevron-right" size="md" />
             </div>
