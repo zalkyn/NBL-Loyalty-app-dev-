@@ -41,15 +41,22 @@
         #nbl-loyalty-root,
         #nbl-loyalty-root * {
             font-family: inherit;
+            box-shadow: unset !important;
         }
 
         .nbl-widget-container-v1.active {
-            box-shadow: 0 2px 2px rgba(0, 0, 0, 0.22),
+            /* box-shadow: 0 2px 2px rgba(0, 0, 0, 0.22),
                 0 8px 24px rgba(0, 0, 0, 0.12),
                 0 0 0 1px var(--nbl-widget-glow-primary),
-                0 0 0 4px var(--nbl-widget-glow-halo) !important;
+                0 0 0 4px var(--nbl-widget-glow-halo) !important; */
             animation: nbl-widget-entrance 0.42s var(--nbl-ease-spring) both;
         }
+
+        .nbl-widget-container {
+            position: fixed;
+            bottom: 88px;
+            height: 450px;
+            width: 380px;
     </style>
 </head>
 
