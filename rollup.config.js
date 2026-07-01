@@ -28,11 +28,18 @@ import esbuild from 'rollup-plugin-esbuild';
 
 export default defineConfig({
     input: 'public/widget/module-preact/main.preact.jsx',
-    output: {
-        file: 'extensions/theme-extension/assets/ui.min.js',
-        format: 'iife',
-        name: 'NBLWidget',
-    },
+    output: [
+        {
+            file: 'extensions/theme-extension/assets/ui.min.js',
+            format: 'iife',
+            name: 'NBLWidget',
+        },
+        {
+            file: 'public/widget/preview.min.js',
+            format: 'iife',
+            name: 'NBLWidget',
+        },
+    ],
     plugins: [
         nodeResolve({ extensions: ['.js', '.jsx'] }),
         esbuild({
