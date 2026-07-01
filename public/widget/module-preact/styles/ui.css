@@ -142,6 +142,10 @@ input:not([type=checkbox], [type=radio]) {
     --nbl-btn-font-weight: 600;
     --nbl-btn-padding: 10px 20px;
 
+    --nbl-referral-copy-btn-bg: #4ecba8;
+    --nbl-referral-copy-btn-color: #ffffff;
+    --nbl-referral-copy-btn-border: #4ecba8;
+
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        CARD (shared shell for all card-style containers)
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -1850,7 +1854,7 @@ input:not([type=checkbox], [type=radio]) {
     font-weight: var(--nbl-activity-header-font-weight);
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    color: var(--nbl-text-muted);
+    color: var(--nbl-text);
 }
 
 .nbl-activity-row {
@@ -1915,7 +1919,7 @@ input:not([type=checkbox], [type=radio]) {
 
 .nbl-activity-row__cell {
     font-size: var(--nbl-activity-row-font-size);
-    color: var(--nbl-text-muted);
+    color: var(--nbl-text);
     text-align: center;
     display: flex;
     align-items: center;
@@ -2037,8 +2041,8 @@ input:not([type=checkbox], [type=radio]) {
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: var(--nbl-primary);
-    color: #fff;
+    background: var(--nbl-referral-copy-btn-bg);
+    color: var(--nbl-referral-copy-btn-color);
     font-size: 11px;
     font-weight: 700;
     display: flex;
@@ -2075,12 +2079,13 @@ input:not([type=checkbox], [type=radio]) {
 .nbl-referral__input-group {
     display: flex;
     gap: 8px;
-    align-items: center;
+    align-items: stretch;
 }
 
 .nbl-referral__input {
     flex: 1;
     padding: 10px 12px;
+    margin: unset !important;
     border: var(--nbl-border-width-md) solid var(--nbl-button-outline-border);
     border-radius: var(--nbl-radius-md);
     font-size: var(--nbl-text-sm);
@@ -2099,9 +2104,9 @@ input:not([type=checkbox], [type=radio]) {
 }
 
 .nbl-referral__copy-btn {
-    background: var(--nbl-primary);
+    background: var(--nbl-referral-copy-btn-bg);
     color: var(--nbl-referral-copy-btn-color);
-    border: none;
+    border: 1px solid var(--nbl-referral-copy-btn-border);
     padding: 0 14px;
     border-radius: var(--nbl-radius-md);
     font-weight: var(--nbl-btn-font-weight);
@@ -2111,7 +2116,6 @@ input:not([type=checkbox], [type=radio]) {
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
     transition: filter 0.2s, transform 0.15s;
     flex-shrink: 0;
-    height: 37px;
 }
 
 .nbl-referral__copy-btn:hover {

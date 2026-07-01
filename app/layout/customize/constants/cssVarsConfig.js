@@ -671,7 +671,8 @@ export const PRESETS = [
             "--nbl-notify-reward-code-bg": "#16A34A",
             "--nbl-notify-reward-btn-bg": "#FEC643", "--nbl-notify-reward-btn-color": "#1a1208", "--nbl-notify-reward-btn-border": "#FEC643",
             "--nbl-notify-info-btn-bg": "#FEC643", "--nbl-notify-info-btn-color": "#1a1208", "--nbl-notify-info-btn-border": "#FEC643",
-            "--nbl-hsc-title-color": "#ef633b"
+            "--nbl-hsc-title-color": "#ef633b",
+            "--nbl-referral-copy-btn-color": "#1a1208", "--nbl-referral-copy-btn-bg": "#FEC643", "--nbl-referral-copy-btn-border": "#FEC643",
         },
     },
 ];
@@ -868,6 +869,9 @@ export const CSS_DEFAULTS = {
     "--nbl-pg-btn-radius": "8px",
     "--nbl-widget-glow-primary": "color-mix(in srgb, var(--nbl-primary) 12%, transparent)",
     "--nbl-widget-glow-halo": "color-mix(in srgb, var(--nbl-primary) 5%, transparent)",
+    "--nbl-referral-copy-btn-bg": "#4ecba8",
+    "--nbl-referral-copy-btn-color": "#ffffff",
+    "--nbl-referral-copy-btn-border": "#4ecba8",
 };
 
 export function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
