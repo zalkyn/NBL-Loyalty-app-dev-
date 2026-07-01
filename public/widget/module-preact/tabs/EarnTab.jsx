@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { h } from 'preact';
-import { formatNumber, formatPoints, formatDiscount } from '../../modules-main/utils.js';
+import { formatNumber, formatPoints, formatDiscount } from '../utils.js';
 import { Item } from '../components/Item.jsx';
 import { Icon } from '../components/Icon.jsx';
 import { ItemList } from '../components/ItemList.jsx';

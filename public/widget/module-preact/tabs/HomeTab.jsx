@@ -18,11 +18,11 @@ function HomeNavCard({ navKey, iconName, label, onNavigate }) {
     return (
         <div data-nav={navKey} class="nbl-home-nav__item" onClick={() => onNavigate(navKey)}>
             <div class="nbl-home-nav__icon">
-                <Icon size='lg' name={iconName} />
+                <Icon size='md' name={iconName} />
             </div>
-            <Text as="span" bare extraClass="nbl-home-nav__label">{label}</Text>
+            <Text as="span" bare extraClass="nbl-home-nav__label" size="md">{label}</Text>
             <div class="nbl-home-nav__chevron">
-                <Icon name="chevron-right" size="md" />
+                <Icon name="chevron-right" size="sm" />
             </div>
         </div>
     );
@@ -87,7 +87,7 @@ export function HomeTab({
                 {showPrizeRequestsSection && (
                     <div class="nbl-home-section-card" data-home-section="prize-requests">
                         <SectionHeader iconName="reward-discount" title={lbl('sectionPrizeRequests') || 'Prize Requests'} />
-                        <div class="nbl-home-section-card__body--padded">
+                        <div class="nbl-item-rows nbl-home-section-card__body--padded">
                             <ItemList
                                 items={prizeRequestsPagination.pageItems}
                                 emptyText={lbl('emptyMyPrizes')}
