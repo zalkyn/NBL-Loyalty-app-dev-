@@ -1073,6 +1073,7 @@ input:not([type=checkbox], [type=radio]) {
     display: flex;
     flex-direction: column;
     height: 100%;
+    color: initial;
 }
 
 .nbl-guest__hero {
@@ -1157,7 +1158,7 @@ input:not([type=checkbox], [type=radio]) {
     margin: 0 0 8px;
     font-size: 18px;
     font-weight: 700;
-    color: var(--nbl-header-color);
+    /* color: var(--nbl-header-color); */
     letter-spacing: -0.3px;
     text-shadow: 0 1px 8px rgba(0, 0, 0, 0.15);
 }
@@ -1165,7 +1166,7 @@ input:not([type=checkbox], [type=radio]) {
 .nbl-guest__subtitle {
     margin: 0;
     font-size: 12.5px;
-    color: rgba(255, 255, 255, 0.8);
+    /* color: rgba(255, 255, 255, 0.8); */
     line-height: 1.55;
     max-width: 240px;
     margin-inline: auto;
@@ -1200,7 +1201,7 @@ input:not([type=checkbox], [type=radio]) {
 .nbl-guest-perk__label {
     font-size: 10.5px;
     font-weight: 500;
-    color: var(--nbl-text-muted);
+    color: var(--nbl-text);
     line-height: 1.3;
     /* Forces an even 2-line wrap for longer labels ("Refer & earn more")
        so all three perks read at the same visual height, instead of
@@ -1239,11 +1240,12 @@ input:not([type=checkbox], [type=radio]) {
     position: relative;
     overflow: hidden;
     gap: 2px;
+    color: initial;
 }
 
 .nbl-guest__btn--primary {
     background: var(--nbl-primary);
-    color: #fff;
+    /* color: #fff; */
     box-shadow: 0 4px 16px color-mix(in srgb, var(--nbl-primary) 40%, transparent);
 }
 
@@ -1275,7 +1277,7 @@ input:not([type=checkbox], [type=radio]) {
 }
 
 .nbl-guest__btn--secondary:hover {
-    background: var(--nbl-surface-hover);
+    /* background: var(--nbl-surface-hover); */
     border-color: color-mix(in srgb, var(--nbl-primary) 40%, transparent);
     transform: translateY(-1px);
 }
@@ -1300,7 +1302,7 @@ input:not([type=checkbox], [type=radio]) {
 }
 
 .nbl-guest__btn--primary .nbl-guest__btn-hint {
-    color: rgba(255, 255, 255, 0.85);
+    /* color: rgba(255, 255, 255, 0.85); */
 }
 
 .nbl-guest__btn--secondary .nbl-guest__btn-hint {
