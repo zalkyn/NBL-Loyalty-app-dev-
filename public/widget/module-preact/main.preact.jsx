@@ -2,8 +2,6 @@
 
 // =============================================================================
 // main.preact.jsx — Entry point for the FULLY Preact NBL Loyalty Widget.
-// Purono main.js-er init() boot sequence-er জায়গায় ekta simple mount().
-// Sob state ekhon <App> component-er moddhe — kono bus/store/click-router lagে na.
 // =============================================================================
 
 import { h, render } from 'preact';

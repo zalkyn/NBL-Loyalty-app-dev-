@@ -10,23 +10,23 @@ handle = "northborders-lnr"
 api_version = "2026-04"
 
   [[webhooks.subscriptions]]
-  uri = "https://northborders-lnr.app-handler.com/webhooks/app/scopes_update"
+  uri = "https://nbl-loyalty-and-referral-production.up.railway.app/webhooks/app/scopes_update"
   topics = [ "app/scopes_update" ]
 
   [[webhooks.subscriptions]]
-  uri = "https://northborders-lnr.app-handler.com/webhooks/app/uninstalled"
+  uri = "https://nbl-loyalty-and-referral-production.up.railway.app/webhooks/app/uninstalled"
   topics = [ "app/uninstalled" ]
 
   [[webhooks.subscriptions]]
-  uri = "https://northborders-lnr.app-handler.com/webhooks/app/orders_paid"
+  uri = "https://nbl-loyalty-and-referral-production.up.railway.app/webhooks/app/orders_paid"
   topics = [ "orders/paid" ]
 
   [[webhooks.subscriptions]]
-  uri = "https://northborders-lnr.app-handler.com/webhooks/app/customers_create"
+  uri = "https://nbl-loyalty-and-referral-production.up.railway.app/webhooks/app/customers_create"
   topics = [ "customers/create" ]
 
   [[webhooks.subscriptions]]
-  uri = "https://northborders-lnr.app-handler.com/webhooks/app/customers_delete"
+  uri = "https://nbl-loyalty-and-referral-production.up.railway.app/webhooks/app/customers_delete"
   topics = [ "customers/delete" ]
 
 [access_scopes]

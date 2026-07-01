@@ -13,14 +13,16 @@ export function MyPrizesTab({ prizeClaims, physicalPrizes, perPage, paginationMo
     const pagination = usePagination(prizeClaims || [], perPage || 8, paginationMode || 'pagination');
 
     return (
-        <div class="nbl-my-prizes-wrapper">
-            <ItemList
-                items={pagination.pageItems}
-                emptyText={lbl('emptyMyPrizes')}
-                renderItem={(claim) => (
-                    <PrizeClaimItem claim={claim} physicalPrizes={physicalPrizes} onOpenClaim={onOpenClaim} onViewImage={onViewImage} lbl={lbl} />
-                )}
-            />
+        <div class="nbl-my-prizes-wrapper nbl-tab-content--flush">
+            <div class="nbl-home-section-card__body--padded">
+                <ItemList
+                    items={pagination.pageItems}
+                    emptyText={lbl('emptyMyPrizes')}
+                    renderItem={(claim) => (
+                        <PrizeClaimItem claim={claim} physicalPrizes={physicalPrizes} onOpenClaim={onOpenClaim} onViewImage={onViewImage} lbl={lbl} cardStyle />
+                    )}
+                />
+            </div>
             <Pagination pagination={pagination} lbl={lbl} />
         </div>
     );

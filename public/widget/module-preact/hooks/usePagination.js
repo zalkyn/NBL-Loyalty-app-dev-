@@ -28,6 +28,7 @@ export function usePagination(items, perPage = 5, mode = 'pagination') {
             loadMore,
             loaded: visibleCount,
             total: items.length,
+            perPage,
         };
     }
 

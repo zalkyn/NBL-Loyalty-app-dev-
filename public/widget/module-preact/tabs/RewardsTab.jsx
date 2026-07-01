@@ -6,7 +6,7 @@
 // =============================================================================
 
 import { h, Fragment } from 'preact';
-import { formatNumber } from '../../modules-main/utils.js';
+import { formatNumber } from '../utils.js';
 import { Item } from '../components/Item.jsx';
 import { Icon } from '../components/Icon.jsx';
 import { Text } from '../components/Text.jsx';
@@ -80,11 +80,13 @@ export function RewardsTab({ rewardRules, points, customerRewards, perPage, pagi
                     <Icon name="reward-discount" px={16} />
                     <Text as="span" bare extraClass="nbl-section-title">{lbl('sectionActiveRewards') || 'Active Rewards'}</Text>
                 </div>
-                <ItemList
-                    items={pagination.pageItems}
-                    emptyText={lbl('emptyRewards')}
-                    renderItem={(reward) => <ActiveRewardItem reward={reward} onOpenVoucher={onOpenVoucher} />}
-                />
+                <div class="nbl-item-list--divided nbl-home-section-card__body--padded">
+                    <ItemList
+                        items={pagination.pageItems}
+                        emptyText={lbl('emptyRewards')}
+                        renderItem={(reward) => <ActiveRewardItem reward={reward} onOpenVoucher={onOpenVoucher} />}
+                    />
+                </div>
                 <Pagination pagination={pagination} lbl={lbl} />
             </div>
         </>
