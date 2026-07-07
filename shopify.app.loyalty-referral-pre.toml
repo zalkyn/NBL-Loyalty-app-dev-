@@ -47,3 +47,8 @@ use_legacy_install_flow = false
 redirect_urls = [
   "https://nbl-loyalty-and-referral-production.up.railway.app/api/auth"
 ]
+
+[app_proxy]
+url = "/widget-data"
+prefix = "apps"
+subpath = "widget"
