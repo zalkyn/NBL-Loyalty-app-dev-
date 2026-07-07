@@ -51,12 +51,22 @@
             animation: nbl-widget-entrance 0.42s var(--nbl-ease-spring) both;
         }
 
-        .nbl-widget-container,
-        .nbl-widget-container.active {
-            position: fixed;
-            bottom: 88px;
-            height: 450px;
-            width: 380px;
+        /* Intentionally no .nbl-widget-container width/height override here
+           anymore. This used to hardcode 380×450 (a stale, non-uniform copy
+           that drifted from ui.css's real 390×520 and had a different
+           aspect ratio besides — the likely source of the "sometimes looks
+           off" sizing glitches). The widget's own open/close entrance
+           animation already uses `transform: scale(...)` with `!important`
+           on `.active` (see ui.css), so any size override attempted here at
+           the widget level would fight that transform. The panel now
+           renders at its true ui.css size, and the "slightly smaller than
+           the real storefront" shrink is applied to the <iframe> element
+           itself from the parent (LivePreview.jsx) via a CSS transform —
+           that's a compositing-level scale, so it never touches or
+           conflicts with anything inside this document. */
+        .nbl-widget-container {
+            /* Kept from the old override — makes the panel's edge visible
+               against the transparent iframe in the admin preview area. */
             box-shadow: 0px 0px 11px 3px gray !important;
         }
     </style>

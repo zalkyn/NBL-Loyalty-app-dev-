@@ -1,7 +1,7 @@
-import prisma from "db-server";
 import { authenticate } from "shopify-server";
 import { logger } from "app/utils/logger.js";
 import { isDuplicateEvent } from "app/controller/webhook/handleDuplicateWebhook";
+import { enqueueJob } from "app/controller/webhook/enqueueJob";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "webhooks.app.orders.paid";
@@ -49,20 +49,17 @@ export const action = async ({ request }) => {
         }
 
         // ── 2. Enqueue job ────────────────────────────────────────────────────
-        // upsert so a second delivery before the poller runs is silently ignored
-        await prisma.job.upsert({
-            where: { idempotencyKey: eventKey },
-            create: {
-                type: "ORDER_PAID",
-                shop,
-                idempotencyKey: eventKey,
-                payload: {
-                    orderId: order.admin_graphql_api_id,
-                    customerId: order?.customer?.admin_graphql_api_id,
-                    webhookId,
-                },
+        // Retried internally on transient DB failure — see enqueueJob.js for
+        // why this write can't be allowed to fail silently.
+        await enqueueJob({
+            shop,
+            type: "ORDER_PAID",
+            idempotencyKey: eventKey,
+            payload: {
+                orderId: order.admin_graphql_api_id,
+                customerId: order?.customer?.admin_graphql_api_id,
+                webhookId,
             },
-            update: {}, // already queued — do nothing
         });
 
         logger.info(MODULE, "ORDER_PAID job enqueued", {

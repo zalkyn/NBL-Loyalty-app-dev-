@@ -17,6 +17,14 @@ api_version = "2026-04"
   topics = [ "orders/paid" ]
 
   [[webhooks.subscriptions]]
+  uri = "/webhooks/app/orders_cancelled"
+  topics = [ "orders/cancelled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/refunds_create"
+  topics = [ "refunds/create" ]
+
+  [[webhooks.subscriptions]]
   uri = "/webhooks/app/scopes_update"
   topics = [ "app/scopes_update" ]
 
@@ -34,7 +42,12 @@ api_version = "2026-04"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "customer_read_own_subscription_contracts,read_customers,read_discounts,read_files,read_orders,read_own_subscription_contracts,read_products,write_customers,write_discounts,write_files,write_products"
+scopes = "customer_read_own_subscription_contracts,read_customers,read_discounts,read_files,read_orders,read_own_subscription_contracts,read_products,write_customers,write_discounts,write_files,write_products,write_app_proxy"
 
 [auth]
 redirect_urls = [ "https://nbl-dev.app-handler.com/api/auth" ]
+
+[app_proxy]
+url = "/widget-data"
+prefix = "apps"
+subpath = "widget"

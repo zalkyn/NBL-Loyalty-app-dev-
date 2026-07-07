@@ -1,5 +1,9 @@
 import prisma from "db-server";
 import { processCustomerSync } from "@controller/customers/customerSyncProcessor";
+import { logger } from "app/utils/logger.js";
+
+/** @constant {string} Module identifier for structured logging */
+const MODULE = "layout/customers/index/_action.server.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sync Customers
@@ -19,53 +23,64 @@ import { processCustomerSync } from "@controller/customers/customerSyncProcessor
 export async function handleSyncCustomers({ admin, session }) {
     const submitType = "sync-customers";
 
-    // ── Guard: already running ────────────────────────────────────────────────
-    const existing = await prisma.job.findFirst({
-        where: {
-            type:   "CUSTOMER_SYNC",
-            shop:   session.shop,
-            status: { in: ["PENDING", "PROCESSING"] },
-        },
-        select: { id: true, status: true },
-    });
+    try {
+        // ── Guard: already running ────────────────────────────────────────────
+        const existing = await prisma.job.findFirst({
+            where: {
+                type:   "CUSTOMER_SYNC",
+                shop:   session.shop,
+                status: { in: ["PENDING", "PROCESSING"] },
+            },
+            select: { id: true, status: true },
+        });
 
-    if (existing) {
+        if (existing) {
+            return Response.json({
+                message:    "Sync is already in progress.",
+                isError:    false,
+                submitType,
+                syncJobId:  existing.id,
+                syncStatus: existing.status,
+            });
+        }
+
+        // ── Create job ────────────────────────────────────────────────────────
+        const job = await prisma.job.create({
+            data: {
+                type:            "CUSTOMER_SYNC",
+                shop:            session.shop,
+                status:          "PENDING",
+                idempotencyKey:  `CUSTOMER_SYNC:${session.shop}:${Date.now()}`,
+                payload:         { shop: session.shop, sessionId: session.id },
+            },
+        });
+
+        // ── Immediate trigger — fire and forget ───────────────────────────────
+        // setImmediate defers execution until after the current event loop tick,
+        // so the HTTP response returns to the client before sync begins.
+        // The Node.js process stays alive (Express server), so the async work
+        // continues safely in the background.
+        setImmediate(() => {
+            processCustomerSync(admin, session, job.id).catch((err) => {
+                logger.error("Background customer sync error", {
+                    module: MODULE, jobId: job.id, shop: session.shop, error: err?.message,
+                });
+            });
+        });
+
         return Response.json({
-            message:    "Sync is already in progress.",
+            message:    "Sync started.",
             isError:    false,
             submitType,
-            syncJobId:  existing.id,
-            syncStatus: existing.status,
+            syncJobId:  job.id,
+            syncStatus: "PROCESSING",
+        });
+    } catch (err) {
+        logger.error("Failed to start customer sync", { module: MODULE, shop: session.shop, error: err?.message });
+        return Response.json({
+            message: "Failed to start sync. Please try again.",
+            isError: true,
+            submitType,
         });
     }
-
-    // ── Create job ────────────────────────────────────────────────────────────
-    const job = await prisma.job.create({
-        data: {
-            type:            "CUSTOMER_SYNC",
-            shop:            session.shop,
-            status:          "PENDING",
-            idempotencyKey:  `CUSTOMER_SYNC:${session.shop}:${Date.now()}`,
-            payload:         { shop: session.shop, sessionId: session.id },
-        },
-    });
-
-    // ── Immediate trigger — fire and forget ───────────────────────────────────
-    // setImmediate defers execution until after the current event loop tick,
-    // so the HTTP response returns to the client before sync begins.
-    // The Node.js process stays alive (Express server), so the async work
-    // continues safely in the background.
-    setImmediate(() => {
-        processCustomerSync(admin, session, job.id).catch((err) => {
-            console.error(`[customerSync] Background error for job #${job.id}:`, err?.message);
-        });
-    });
-
-    return Response.json({
-        message:    "Sync started.",
-        isError:    false,
-        submitType,
-        syncJobId:  job.id,
-        syncStatus: "PROCESSING",
-    });
 }

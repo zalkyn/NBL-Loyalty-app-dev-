@@ -2,6 +2,7 @@ import { authenticate } from "shopify-server";
 import prisma from "db-server";
 import { isDuplicateEvent } from "@app/controller/webhook/handleDuplicateWebhook";
 import { logger } from "@app/utils/logger.js";
+import { dbRetry } from "@app/utils/retry/dbRetry.js";
 
 const ENABLE_IDEMPOTENCY = true;
 
@@ -50,11 +51,10 @@ export const action = async ({ request }) => {
         // ============================================================
 
         // HARD DELETE - Customer + related data (Cascade)
-        await prisma.customer.delete({
-            where: {
-                shopifyId: shopifyGid
-            },
-        });
+        await dbRetry(
+            () => prisma.customer.delete({ where: { shopifyId: shopifyGid } }),
+            { shop, customerGid: shopifyGid }
+        );
 
         logger.success("Customer permanently deleted (Hard Delete)", {
             shop,

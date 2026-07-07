@@ -7,6 +7,7 @@ import { normalizeCustomerGid } from "@controller/customers/normalizeCustomerGid
 import { customer as fetchShopifyCustomer } from "@graphql/query/customers";
 import generateReferralCode from "app/utils/generateReferralCode.js";
 import { withRetry } from "app/utils/retry/withRetry.js";
+import { dbRetry } from "app/utils/retry/dbRetry.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "api.provision-customer";
@@ -109,10 +110,10 @@ export async function action({ request }) {
         // no Shopify API call — keeps repeat calls effectively instant and
         // makes the endpoint naturally loop-proof (a new record can only ever
         // trigger shouldReload once, on the call that actually creates it).
-        const existing = await prisma.customer.findUnique({
-            where: { shopifyId },
-            select: { id: true },
-        });
+        const existing = await dbRetry(
+            () => prisma.customer.findUnique({ where: { shopifyId }, select: { id: true } }),
+            { module: MODULE, shop, shopifyId }
+        );
 
         if (existing) {
             return jsonResponse({ success: true, shouldReload: false }, 200, corsHeaders);
@@ -147,30 +148,35 @@ export async function action({ request }) {
         let created = true;
         let customerRecord;
         try {
-            customerRecord = await prisma.customer.create({
-                data: {
-                    shopifyId,
-                    name: name || null,
-                    firstName: shopifyCustomer.firstName || null,
-                    lastName: shopifyCustomer.lastName || null,
-                    email,
-                    referralCode,
-                    sessionId: session.id,
-                    metadata: shopifyCustomer,
-                },
-                select: { id: true },
-            });
+            customerRecord = await dbRetry(
+                () =>
+                    prisma.customer.create({
+                        data: {
+                            shopifyId,
+                            name: name || null,
+                            firstName: shopifyCustomer.firstName || null,
+                            lastName: shopifyCustomer.lastName || null,
+                            email,
+                            referralCode,
+                            sessionId: session.id,
+                            metadata: shopifyCustomer,
+                        },
+                        select: { id: true },
+                    }),
+                { module: MODULE, shop, shopifyId }
+            );
         } catch (err) {
             // P2002 = unique constraint violation — another concurrent request
             // (or the webhook) created this customer a moment ago. Not an
             // error from the customer's point of view — just means someone
-            // else already finished the job.
+            // else already finished the job. (dbRetry doesn't retry P2002, so
+            // this still fires immediately as before.)
             if (err.code === "P2002") {
                 created = false;
-                customerRecord = await prisma.customer.findUnique({
-                    where: { shopifyId },
-                    select: { id: true },
-                });
+                customerRecord = await dbRetry(
+                    () => prisma.customer.findUnique({ where: { shopifyId }, select: { id: true } }),
+                    { module: MODULE, shop, shopifyId }
+                );
             } else {
                 throw err;
             }
@@ -187,7 +193,14 @@ export async function action({ request }) {
         // about to reload for. If this fails, reloading would just show the
         // same empty state again — so we surface the failure instead of
         // silently telling the frontend to reload into nothing.
-        await syncCustomerConfig(admin, shopifyId);
+        //
+        // syncCustomerConfig never throws (it retries internally and catches
+        // its own errors), so a failure must be checked via its return value
+        // instead of a try/catch.
+        const synced = await syncCustomerConfig(admin, shopifyId);
+        if (!synced) {
+            throw createError("Failed to sync customer metafield.", ERROR_CODES.INTERNAL_ERROR);
+        }
 
         if (created) {
             logger.success("Customer auto-provisioned from storefront", {

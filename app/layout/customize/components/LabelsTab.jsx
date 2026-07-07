@@ -17,23 +17,34 @@ export function LabelsTab({ widgetConfig, onConfigChange, isNetworkSubmitting })
     const secondHalf = LABELS_SECTION.fields.slice(midpoint);
 
     return (
-        <s-grid gridTemplateColumns="1fr 1fr" gap="base">
-            {/* Column 1 — first half of fields */}
-            <s-section>
-                <div style={{ display: "flex", flexDirection: "column", gap: DS.sp10 }}>
-                    {firstHalf.map((field) => (
-                        <ConfigLabelField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onConfigChange} disabled={isNetworkSubmitting} />
-                    ))}
-                </div>
-            </s-section>
-            {/* Column 2 — second half of fields */}
-            <s-section>
-                <div style={{ display: "flex", flexDirection: "column", gap: DS.sp10 }}>
-                    {secondHalf.map((field) => (
-                        <ConfigLabelField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onConfigChange} disabled={isNetworkSubmitting} />
-                    ))}
-                </div>
-            </s-section>
-        </s-grid>
+        <>
+            <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+
+                <s-section>
+                    <div style={{ display: "flex", flexDirection: "column", gap: DS.sp10 }}>
+                        {LABELS_SECTION.fields.map((field) => (
+                            <ConfigLabelField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onConfigChange} disabled={isNetworkSubmitting} />
+                        ))}
+                    </div>
+                </s-section>
+
+                {/* Column 1 — first half of fields */}
+                {/* <s-section>
+                    <div style={{ display: "flex", flexDirection: "column", gap: DS.sp10 }}>
+                        {firstHalf.map((field) => (
+                            <ConfigLabelField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onConfigChange} disabled={isNetworkSubmitting} />
+                        ))}
+                    </div>
+                </s-section> */}
+                {/* Column 2 — second half of fields */}
+                {/* <s-section>
+                    <div style={{ display: "flex", flexDirection: "column", gap: DS.sp10 }}>
+                        {secondHalf.map((field) => (
+                            <ConfigLabelField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onConfigChange} disabled={isNetworkSubmitting} />
+                        ))}
+                    </div>
+                </s-section> */}
+            </s-grid>
+        </>
     );
 }

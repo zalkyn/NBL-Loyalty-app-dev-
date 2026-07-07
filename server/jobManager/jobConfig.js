@@ -1,5 +1,8 @@
 import { runOrderPaidJob } from "../jobs/orderPaidJob.js";
+import { runOrderReversalJob } from "../jobs/orderReversalJob.js";
 import { runCustomerSyncJob } from "../jobs/customerSyncJob.js";
+import { runJobCleanupJob } from "../jobs/jobCleanupJob.js";
+import { runJobAutoRetryJob } from "../jobs/jobAutoRetryJob.js";
 import { logger } from "../../app/utils/logger.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,11 +66,11 @@ export const JOB_CONFIGS = [
     // in the action which fires immediately on button click.
     // This cron only handles stale/missed jobs — e.g. server crash mid-sync.
     {
-        name:        "customer_sync",
-        cron:        "*/5 * * * *",
+        name: "customer_sync",
+        cron: "*/5 * * * *",
         lockTimeout: 35 * 60 * 1000,
-        immediate:   false,
-        jobTimeout:  30 * 60 * 1000,
+        immediate: false,
+        jobTimeout: 30 * 60 * 1000,
         preHooks: [
             async () => logger.info("customer_sync", "Pre-hook: customer sync cycle starting"),
         ],
@@ -85,8 +88,6 @@ export const JOB_CONFIGS = [
     // quickly and the next cycle can re-process any unfinished jobs.
     {
         name: "order_paid",
-        // cron: "*/2 * * * *",           // every 2 minutes
-        // cron: "* * * * *",             // every 1 minute
         cron: "*/30 * * * * *",  // every 30 seconds
         lockTimeout: 5 * 60 * 1000,           // 5 minute stale-lock threshold
         immediate: true,                     // run once on server startup
@@ -98,27 +99,67 @@ export const JOB_CONFIGS = [
             async () => runOrderPaidJob(),
         ],
         retry: { maxAttempts: 3 },
-    }
-];
+    },
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Example — copy and fill in to register a new job
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// {
-//     name:        "daily_cleanup",
-//     cron:        "0 2 * * *",              // every day at 02:00
-//     lockTimeout: 2 * 60 * 60 * 1000,       // 2 hour stale-lock threshold
-//     immediate:   false,
-//     jobTimeout:  30 * 60 * 1000,           // 30 minutes
-//     preHooks: [
-//         async () => logger.info("daily_cleanup", "Pre-hook: cleanup starting"),
-//     ],
-//     handlers: [
-//         async () => runCleanupJob(),
-//     ],
-//     postHooks: [
-//         async () => logger.info("daily_cleanup", "Post-hook: cleanup finished"),
-//     ],
-//     retry: { maxAttempts: 3 },
-// },
+    // ── Order Reversal (Cancel / Refund) ────────────────────────────────────
+    // Processes pending ORDER_REVERSED jobs enqueued by the orders/cancelled
+    // and refunds/create webhooks. Reverses (partially or fully) the points
+    // earned on the original order. Same cadence/shape as order_paid.
+    {
+        name: "order_reversal",
+        cron: "*/30 * * * * *",  // every 30 seconds
+        lockTimeout: 5 * 60 * 1000,           // 5 minute stale-lock threshold
+        immediate: true,                     // run once on server startup
+        jobTimeout: 4 * 60 * 1000,           // 4 minutes hard timeout per cycle
+        preHooks: [
+            async () => logger.info("order_reversal", "Pre-hook: order reversal job cycle starting"),
+        ],
+        handlers: [
+            async () => runOrderReversalJob(),
+        ],
+        retry: { maxAttempts: 3 },
+    },
+
+    // ── Job Cleanup ──────────────────────────────────────────────────────────
+    // Deletes old COMPLETED jobs to keep the Job table from growing
+    // unbounded. See jobCleanupJob.js for the retention-window reasoning
+    // (must stay well clear of Shopify's webhook re-delivery window since
+    // idempotencyKey protection depends on the row still existing).
+    // Runs once a day at 03:00 — this is bulk housekeeping, not
+    // time-sensitive, so a low-traffic hour keeps it off the DB during
+    // peak order-processing.
+    {
+        name: "job_cleanup",
+        cron: "0 3 * * *",                    // every day at 03:00
+        lockTimeout: 30 * 60 * 1000,          // 30 minute stale-lock threshold
+        immediate: false,
+        jobTimeout: 10 * 60 * 1000,           // 10 minutes hard timeout
+        preHooks: [
+            async () => logger.info("job_cleanup", "Pre-hook: job cleanup cycle starting"),
+        ],
+        handlers: [
+            async () => runJobCleanupJob(),
+        ],
+        retry: { maxAttempts: 2 },
+    },
+
+    // ── Job Auto-Retry ───────────────────────────────────────────────────────
+    // Revives FAILED jobs whose last error looks transient/network-related
+    // (see TRANSIENT_ERROR_PATTERNS in jobAutoRetryJob.js), capped at
+    // AUTO_RETRY_CAP revivals per job. Everything else stays FAILED for
+    // manual review/retry in the admin Jobs UI.
+    {
+        name: "job_auto_retry",
+        cron: "*/15 * * * *",                 // every 15 minutes
+        lockTimeout: 15 * 60 * 1000,          // 15 minute stale-lock threshold
+        immediate: false,
+        jobTimeout: 5 * 60 * 1000,            // 5 minutes hard timeout
+        preHooks: [
+            async () => logger.info("job_auto_retry", "Pre-hook: job auto-retry cycle starting"),
+        ],
+        handlers: [
+            async () => runJobAutoRetryJob(),
+        ],
+        retry: { maxAttempts: 2 },
+    },
+];

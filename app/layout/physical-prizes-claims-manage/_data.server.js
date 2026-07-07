@@ -1,6 +1,10 @@
 import prisma from "db-server";
 import createTransaction from "app/controller/transaction/createTransaction";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig.js";
+import { logger } from "app/utils/logger.js";
+
+/** @constant {string} Module identifier for structured logging */
+const MODULE = "layout/physical-prizes-claims-manage/_data.server.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Server-only action logic, split out of route.jsx so the action stays a
@@ -54,7 +58,7 @@ export async function handleMarkClaimSeen({ formData, session }) {
             viewedAt: isFirstView ? now.toISOString() : (claim.viewedAt?.toISOString() ?? null),
         };
     } catch (err) {
-        console.error("[markClaimSeen]", err);
+        logger.error("Mark claim seen failed", { module: MODULE, error: err?.message, claimId });
         return { message: err.message || "Failed to mark seen.", status: "error", submitType };
     }
 }
@@ -182,7 +186,7 @@ export async function handleUpdateClaimStatus({ formData, session, admin }) {
         }
 
     } catch (err) {
-        console.error("[updateClaimStatus]", err);
+        logger.error("Update claim status failed", { module: MODULE, error: err?.message, claimId, newStatus });
         return { message: err.message || "Failed to update claim.", status: "error", submitType };
     }
 }
@@ -200,8 +204,17 @@ export async function handleRevertClaim({ formData, session, admin }) {
 
         if (!claim) return { message: "Claim not found or access denied.", status: "error", submitType };
 
-        const logRevert = async (tx, reason, activity) => {
-            const customer = await tx.customer.findUnique({
+        // Logs a zero-point ADJUST transaction + syncs metafields for a revert.
+        // Called AFTER the status-changing DB write below (not from inside
+        // its prisma.$transaction) — createTransaction() opens its own
+        // internal $transaction, and nesting that inside another
+        // prisma.$transaction callback can starve the connection pool and
+        // (if this outer write ever rolled back) would leave an
+        // already-committed audit log for a status change that never
+        // actually happened. Points don't change on any of these reverts,
+        // so there's no atomicity requirement tying the two writes together.
+        const logRevert = async (reason, activity) => {
+            const customer = await prisma.customer.findUnique({
                 where: { id: claim.customer.id }, select: { points: true },
             });
             await createTransaction({
@@ -214,33 +227,27 @@ export async function handleRevertClaim({ formData, session, admin }) {
 
         // COMPLETED → FULFILLED
         if (claim.status === "COMPLETED") {
-            await prisma.$transaction(async (tx) => {
-                await tx.physicalPrizeClaim.update({
-                    where: { id: claimIdInt },
-                    data: { status: "FULFILLED", completedAt: null },
-                });
-                await logRevert(
-                    tx,
-                    `Prize claim reverted to fulfilled: ${claim.prize.title}`,
-                    `Prize "${claim.prize.title}" reverted from completed → fulfilled — no points changed`,
-                );
+            await prisma.physicalPrizeClaim.update({
+                where: { id: claimIdInt },
+                data: { status: "FULFILLED", completedAt: null },
             });
+            await logRevert(
+                `Prize claim reverted to fulfilled: ${claim.prize.title}`,
+                `Prize "${claim.prize.title}" reverted from completed → fulfilled — no points changed`,
+            );
             return { message: "Claim reverted to fulfilled.", status: "success", submitType, claimId: claimIdInt, newStatus: "FULFILLED" };
         }
 
         // FULFILLED → PENDING
         if (claim.status === "FULFILLED") {
-            await prisma.$transaction(async (tx) => {
-                await tx.physicalPrizeClaim.update({
-                    where: { id: claimIdInt },
-                    data: { status: "PENDING", fulfilledAt: null, trackingInfo: null },
-                });
-                await logRevert(
-                    tx,
-                    `Prize claim reverted to pending: ${claim.prize.title}`,
-                    `Prize "${claim.prize.title}" reverted from fulfilled → pending — no points changed`,
-                );
+            await prisma.physicalPrizeClaim.update({
+                where: { id: claimIdInt },
+                data: { status: "PENDING", fulfilledAt: null, trackingInfo: null },
             });
+            await logRevert(
+                `Prize claim reverted to pending: ${claim.prize.title}`,
+                `Prize "${claim.prize.title}" reverted from fulfilled → pending — no points changed`,
+            );
             return { message: "Claim reverted to pending.", status: "success", submitType, claimId: claimIdInt, newStatus: "PENDING" };
         }
 
@@ -288,7 +295,7 @@ export async function handleRevertClaim({ formData, session, admin }) {
         return { message: "Cannot revert this claim.", status: "error", submitType };
 
     } catch (err) {
-        console.error("[revertClaim]", err);
+        logger.error("Revert claim failed", { module: MODULE, error: err?.message, claimId });
         return { message: err.message || "Failed to revert claim.", status: "error", submitType };
     }
 }
@@ -320,7 +327,7 @@ export async function handleSaveAdminNote({ formData, session }) {
         };
 
     } catch (err) {
-        console.error("[saveAdminNote]", err);
+        logger.error("Save admin note failed", { module: MODULE, error: err?.message, claimId });
         return { message: err.message || "Failed to save note.", status: "error", submitType };
     }
 }
@@ -436,7 +443,7 @@ export async function handleBulkAction({ formData, session, admin }) {
         };
 
     } catch (err) {
-        console.error("[bulkAction]", err);
+        logger.error("Bulk claim action failed", { module: MODULE, error: err?.message, bulkAction });
         return { message: err.message || "Bulk action failed.", status: "error", submitType };
     }
 }

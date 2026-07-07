@@ -1,5 +1,6 @@
 import prisma from "../../db.server.js";
-import { logger } from "../../utils/logger.js"
+import { logger } from "../../utils/logger.js";
+import { dbRetry } from "../../utils/retry/dbRetry.js";
 
 /**
  * Updates an existing customer reward by ID.
@@ -26,25 +27,29 @@ export const updateCustomerReward = async (rewardId, input) => {
     try {
         const id = Number(rewardId);
 
-        const updatedReward = await prisma.reward.update({
-            where: { id },
-            data: {
-                ...(input.event !== undefined && { event: input.event }),
-                ...(input.type !== undefined && { type: input.type }),
-                ...(input.status !== undefined && { status: input.status }),
-                ...(input.title !== undefined && { title: input.title }),
-                ...(input.description !== undefined && { description: input.description }),
-                ...(input.code !== undefined && { code: input.code }),
-                ...(input.orderId !== undefined && { orderId: input.orderId }),
-                ...(input.referralId !== undefined && { referralId: input.referralId }),
-                ...(input.expiresAt !== undefined && { expiresAt: input.expiresAt }),
-                ...(input.usedAt !== undefined && { usedAt: input.usedAt }),
-                ...(input.rewardRuleId !== undefined && { rewardRuleId: Number(input.rewardRuleId) }),
-                ...(input.pointsCost !== undefined && { pointsCost: Number(input.pointsCost) }),
-                ...(input.metadata !== undefined && { metadata: input.metadata }),
-                ...(input.discountUsed !== undefined && { discountUsed: input.discountUsed }),
-            },
-        });
+        const updatedReward = await dbRetry(
+            () =>
+                prisma.reward.update({
+                    where: { id },
+                    data: {
+                        ...(input.event !== undefined && { event: input.event }),
+                        ...(input.type !== undefined && { type: input.type }),
+                        ...(input.status !== undefined && { status: input.status }),
+                        ...(input.title !== undefined && { title: input.title }),
+                        ...(input.description !== undefined && { description: input.description }),
+                        ...(input.code !== undefined && { code: input.code }),
+                        ...(input.orderId !== undefined && { orderId: input.orderId }),
+                        ...(input.referralId !== undefined && { referralId: input.referralId }),
+                        ...(input.expiresAt !== undefined && { expiresAt: input.expiresAt }),
+                        ...(input.usedAt !== undefined && { usedAt: input.usedAt }),
+                        ...(input.rewardRuleId !== undefined && { rewardRuleId: Number(input.rewardRuleId) }),
+                        ...(input.pointsCost !== undefined && { pointsCost: Number(input.pointsCost) }),
+                        ...(input.metadata !== undefined && { metadata: input.metadata }),
+                        ...(input.discountUsed !== undefined && { discountUsed: input.discountUsed }),
+                    },
+                }),
+            { rewardId: id }
+        );
 
         logger.info("Customer reward updated", {
             rewardId: updatedReward.id,

@@ -84,15 +84,19 @@ const getOrderLabel = (order) => {
 export async function runOrderPaidJob() {
     await requeueStaleJobs();
 
-    const jobs = await prisma.job.findMany({
-        where: {
-            type: "ORDER_PAID",
-            status: "PENDING",
-            runAt: { lte: new Date() },
-        },
-        orderBy: { runAt: "asc" },
-        take: BATCH_SIZE,
-    });
+    const jobs = await dbRetry(
+        () =>
+            prisma.job.findMany({
+                where: {
+                    type: "ORDER_PAID",
+                    status: "PENDING",
+                    runAt: { lte: new Date() },
+                },
+                orderBy: { runAt: "asc" },
+                take: BATCH_SIZE,
+            }),
+        { module: MODULE }
+    );
 
     if (!jobs.length) {
         logger.info(MODULE, "No pending ORDER_PAID jobs — skipping cycle");
@@ -102,7 +106,17 @@ export async function runOrderPaidJob() {
     logger.info(MODULE, `Processing ${jobs.length} ORDER_PAID job(s)`);
 
     for (const job of jobs) {
-        await processJob(job);
+        // Wrapped so one job's unexpected failure (including the claim-update
+        // step below, which runs before processJob's own try/catch) can't
+        // throw out of this loop and abort the rest of the batch.
+        try {
+            await processJob(job);
+        } catch (err) {
+            logger.error(MODULE, `Job #${job.id} threw outside its own error handling — skipping`, {
+                shop: job.shop,
+                error: err?.message,
+            });
+        }
     }
 }
 
@@ -119,18 +133,22 @@ export async function runOrderPaidJob() {
 async function requeueStaleJobs() {
     const staleThreshold = new Date(Date.now() - STALE_LOCK_TIMEOUT_MS);
 
-    const { count } = await prisma.job.updateMany({
-        where: {
-            type: "ORDER_PAID",
-            status: "PROCESSING",
-            lockedAt: { lte: staleThreshold },
-        },
-        data: {
-            status: "PENDING",
-            lockedAt: null,
-            lastError: "Re-queued after stale lock detected (possible server crash)",
-        },
-    });
+    const { count } = await dbRetry(
+        () =>
+            prisma.job.updateMany({
+                where: {
+                    type: "ORDER_PAID",
+                    status: "PROCESSING",
+                    lockedAt: { lte: staleThreshold },
+                },
+                data: {
+                    status: "PENDING",
+                    lockedAt: null,
+                    lastError: "Re-queued after stale lock detected (possible server crash)",
+                },
+            }),
+        { module: MODULE }
+    );
 
     if (count > 0) {
         logger.warn(MODULE, `Re-queued ${count} stale ORDER_PAID job(s)`);
@@ -158,10 +176,10 @@ async function processJob(job) {
     const { orderId, customerId } = payload;
 
     // ── 1. Claim ──────────────────────────────────────────────────────────────
-    await prisma.job.update({
-        where: { id },
-        data: { status: "PROCESSING", lockedAt: new Date() },
-    });
+    await dbRetry(
+        () => prisma.job.update({ where: { id }, data: { status: "PROCESSING", lockedAt: new Date() } }),
+        { module: MODULE, jobId: id }
+    );
 
     logger.info(MODULE, `Processing job #${id}`, { shop, orderId, attempt: attempts + 1, maxAttempts });
 
@@ -174,15 +192,19 @@ async function processJob(job) {
         await mainHandler({ admin, session, shop, orderId, customerId });
 
         // ── 3a. Success ───────────────────────────────────────────────────────
-        await prisma.job.update({
-            where: { id },
-            data: {
-                status: "COMPLETED",
-                lockedAt: null,
-                completedAt: new Date(),
-                attempts: attempts + 1,
-            },
-        });
+        await dbRetry(
+            () =>
+                prisma.job.update({
+                    where: { id },
+                    data: {
+                        status: "COMPLETED",
+                        lockedAt: null,
+                        completedAt: new Date(),
+                        attempts: attempts + 1,
+                    },
+                }),
+            { module: MODULE, jobId: id }
+        );
 
         logger.success(MODULE, `Job #${id} completed`, { shop, orderId });
     } catch (err) {
@@ -194,16 +216,24 @@ async function processJob(job) {
             ? 0
             : Math.min(2 ** nextAttempt * 60 * 1000, 30 * 60 * 1000);
 
-        await prisma.job.update({
-            where: { id },
-            data: {
-                status: exhausted ? "FAILED" : "PENDING",
-                lockedAt: null,
-                attempts: nextAttempt,
-                lastError: err?.message,
-                failedAt: exhausted ? new Date() : null,
-                runAt: exhausted ? undefined : new Date(Date.now() + backoffMs),
-            },
+        await dbRetry(
+            () =>
+                prisma.job.update({
+                    where: { id },
+                    data: {
+                        status: exhausted ? "FAILED" : "PENDING",
+                        lockedAt: null,
+                        attempts: nextAttempt,
+                        lastError: err?.message,
+                        failedAt: exhausted ? new Date() : null,
+                        runAt: exhausted ? undefined : new Date(Date.now() + backoffMs),
+                    },
+                }),
+            { module: MODULE, jobId: id }
+        ).catch((updateErr) => {
+            // Best-effort — if even the failure-status write fails, log it
+            // separately so the job isn't left silently stuck in PROCESSING.
+            logger.error(MODULE, `Failed to record failure for job #${id}`, { error: updateErr?.message });
         });
 
         if (exhausted) {
@@ -221,26 +251,6 @@ async function processJob(job) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Fetches the full order from Shopify Admin API.
- *
- * Returns only the fields needed for points and referral processing:
- *   - name / order_number   → human-readable order label
- *   - line_items            → for per-product points resolution (P1→P4)
- *   - discount_codes        → for referral FIRST detection + voucher update
- *
- * Returns null if the order is not found or the query fails — the caller
- * should skip processing gracefully rather than throw.
- *
- * @param {Object} admin   - Shopify Admin GraphQL client
- * @param {string} orderId - Full order GID e.g. gid://shopify/Order/123
- * @returns {Promise<{
- *   name:           string,
- *   order_number:   number,
- *   line_items:     Array<{ product_id: string, price: string, quantity: number }>,
- *   discount_codes: Array<{ code: string }>,
- * }|null>}
- */
-/**
  * Fetches the full order from Shopify Admin API including the Appstle
  * subscription metafield — in a single GraphQL query.
  *
@@ -251,6 +261,9 @@ async function processJob(job) {
  *
  * Both run simultaneously, reducing total latency from 3 sequential calls
  * to 2 parallel calls.
+ *
+ * Returns null if the order is not found or the query fails — the caller
+ * should skip processing gracefully rather than throw.
  *
  * @param {Object} admin   - Shopify Admin GraphQL client
  * @param {string} orderId - Full order GID
@@ -276,6 +289,10 @@ async function fetchFullOrder(admin, orderId) {
                         }
                     }
                 }
+                currentTotalPriceSet {
+                    shopMoney { amount }
+                }
+                cancelledAt
                 appstle_subscription: metafield(
                     key: "details"
                     namespace: "appstle_subscription"
@@ -305,6 +322,16 @@ async function fetchFullOrder(admin, orderId) {
         })),
         // discount_codes: Shopify returns string[] on GraphQL, normalize to [{ code }]
         discount_codes: (raw.discountCodes ?? []).map((code) => ({ code })),
+        // total_price: stored on the EARN transaction's metadata so a later
+        // orders/cancelled or refunds/create webhook can compute what
+        // proportion of the order (and therefore of the earned points) was
+        // reversed, without an extra Shopify API call.
+        total_price: raw.currentTotalPriceSet?.shopMoney?.amount ?? "0",
+        // cancelled_at: checked in mainHandler right before awarding points —
+        // closes the race where an order is cancelled before this job runs
+        // (webhook order isn't guaranteed: ORDER_REVERSED could be enqueued
+        // and even attempt to run before ORDER_PAID is processed).
+        cancelled_at: raw.cancelledAt ?? null,
     };
 
     // Raw Appstle metafield value — passed directly to getAppstleMetafield
@@ -353,10 +380,14 @@ async function mainHandler({ admin, session, shop, orderId, customerId }) {
     // Wrapped in withRetry + withTimeout to guard against transient Shopify
     // API failures that would silently skip the entire order.
     const [customer, fullOrderRes] = await Promise.all([
-        prisma.customer.findFirst({
-            where: { shopifyId: customerId },
-            include: { referralsUsed: true },
-        }),
+        dbRetry(
+            () =>
+                prisma.customer.findFirst({
+                    where: { shopifyId: customerId },
+                    include: { referralsUsed: true },
+                }),
+            { module: MODULE, shop, customerId }
+        ),
         withRetry(
             () => withTimeout(fetchFullOrder(admin, orderId), 8000),
             {
@@ -379,6 +410,20 @@ async function mainHandler({ admin, session, shop, orderId, customerId }) {
     }
 
     const { order: orderFields, appstle: appstleData } = fullOrderRes;
+
+    // ── Cancelled-order guard ────────────────────────────────────────────────
+    // Closes the race where a customer cancels an order before this job gets
+    // to run (e.g. ORDER_REVERSED processed first, found nothing to reverse
+    // yet, then this job would otherwise still award points for an order
+    // that's already cancelled). Re-checks live Shopify state right before
+    // awarding, using data already fetched in the same GraphQL call above —
+    // no extra API cost.
+    if (orderFields.cancelled_at) {
+        logger.warn(MODULE, "Order already cancelled — skipping points award", {
+            shop, orderId, cancelledAt: orderFields.cancelled_at,
+        });
+        return;
+    }
 
     // Resolve subscription interval — uses the pre-fetched appstle metafield
     // so getAppstleMetafield only needs one API call (product.sellingPlanGroups)
@@ -643,12 +688,8 @@ const resolveReferralPoints = (conditions, lineItems, interval, isRenewal) => {
  * @returns {Promise<void>}
  */
 const handleNormalOrder = async ({ admin, order, customer, session, shop, subscriptionInterval, isSubscription }) => {
-    // dbRetry handles transient DB errors — without retry, a flap here would
-    // silently skip point awarding for the entire order.
-    const rule = await dbRetry(
-        () => getPointRuleByEvent("ORDER"),
-        { shop, module: MODULE }
-    );
+    // getPointRuleByEvent retries transient DB errors internally.
+    const rule = await getPointRuleByEvent("ORDER");
 
     if (!rule?.isActive) {
         logger.warn(MODULE, "ORDER rule inactive — skipping", { shop });
@@ -677,24 +718,19 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop, subscr
             activity: `+${points} points for order ${orderLabel}`,
             points,
             status: "COMPLETED",
+            // orderId + orderTotal let orderReversalJob find and proportionally
+            // reverse these points on orders/cancelled or refunds/create.
+            metadata: {
+                orderId: order.admin_graphql_api_id,
+                orderTotal: order.total_price,
+            },
         },
         session
     );
 
-    // Non-critical — points already saved. Swallowed on failure.
-    await withRetry(
-        () => syncCustomerConfig(admin, customer.shopifyId),
-        {
-            maxAttempts: 2,
-            baseDelayMs: 800,
-            retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
-            context: { shop, customerId: customer.id, module: MODULE },
-        }
-    ).catch((err) => {
-        logger.error(MODULE, "Metafield sync failed — order points are still saved", {
-            shop, customerId: customer.id, error: err?.message,
-        });
-    });
+    // Non-critical — points already saved. syncCustomerConfig retries transient
+    // network failures internally and never throws, so no outer retry/catch needed.
+    await syncCustomerConfig(admin, customer.shopifyId);
 
     logger.success(MODULE, "Normal order handled", { shop, points, orderLabel, customerId: customer.id });
 };
@@ -718,10 +754,8 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop, subscr
  * @returns {Promise<void>}
  */
 const handleReferral = async ({ admin, referralContext, order, subscriptionContract, subscriptionInterval, isSubscription, session, shop }) => {
-    const rule = await dbRetry(
-        () => getPointRuleByEvent("REFERRAL"),
-        { shop, module: MODULE }
-    );
+    // getPointRuleByEvent retries transient DB errors internally.
+    const rule = await getPointRuleByEvent("REFERRAL");
 
     if (!rule?.isActive) {
         logger.warn(MODULE, "REFERRAL rule inactive — skipping", { shop });
@@ -754,16 +788,20 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
         const { referrerPoints, referredPoints } = resolveReferralPoints(conditions, lineItems, subscriptionInterval, false);
 
         await Promise.all([
-            prisma.referral.update({
-                where: { id: referral.id },
-                data: {
-                    status: "USED",
-                    discountUsed: true,
-                    orderId: order.admin_graphql_api_id,
-                    subscriptionContractId: subscriptionContract?.id?.toString() ?? null,
-                    metadata: subscriptionContract ?? {},
-                },
-            }),
+            dbRetry(
+                () =>
+                    prisma.referral.update({
+                        where: { id: referral.id },
+                        data: {
+                            status: "USED",
+                            discountUsed: true,
+                            orderId: order.admin_graphql_api_id,
+                            subscriptionContractId: subscriptionContract?.id?.toString() ?? null,
+                            metadata: subscriptionContract ?? {},
+                        },
+                    }),
+                { module: MODULE, shop, referralId: referral.id }
+            ),
             createTransaction(
                 {
                     customerId: referral.referrerId,
@@ -774,6 +812,7 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
                     activity: `+${referrerPoints} points for successful referral`,
                     points: referrerPoints,
                     status: "COMPLETED",
+                    metadata: { orderId: order.admin_graphql_api_id, orderTotal: order.total_price },
                 },
                 session
             ),
@@ -789,6 +828,7 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
                         : `Referral discount code applied on order ${orderLabel}`,
                     points: referredPoints,
                     status: "COMPLETED",
+                    metadata: { orderId: order.admin_graphql_api_id, orderTotal: order.total_price },
                 },
                 session
             ),
@@ -805,22 +845,11 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
             });
         }
 
-        // Non-critical — referral and transactions already committed. Swallowed on failure.
+        // Non-critical — referral and transactions already committed.
+        // syncCustomerConfig retries transient failures internally and never throws.
         await Promise.all([
-            withRetry(() => syncCustomerConfig(admin, referral.referrerId), {
-                maxAttempts: 2, baseDelayMs: 800,
-                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
-                context: { shop, customerId: referral.referrerId, module: MODULE },
-            }).catch((err) => logger.error(MODULE, "Metafield sync failed for referrer", {
-                shop, customerId: referral.referrerId, error: err?.message,
-            })),
-            withRetry(() => syncCustomerConfig(admin, referral.referredId), {
-                maxAttempts: 2, baseDelayMs: 800,
-                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
-                context: { shop, customerId: referral.referredId, module: MODULE },
-            }).catch((err) => logger.error(MODULE, "Metafield sync failed for referred", {
-                shop, customerId: referral.referredId, error: err?.message,
-            })),
+            syncCustomerConfig(admin, referral.referrerId),
+            syncCustomerConfig(admin, referral.referredId),
         ]);
 
         logger.success(MODULE, "Referral FIRST order handled", { shop, referralId: referral.id, referrerPoints, referredPoints, orderLabel });
@@ -830,10 +859,14 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
     // ── RECURRING referral (subscription renewal) ─────────────────────────────
     if (type === "RECURRING") {
         // Duplicate guard — Shopify at-least-once delivery can fire this twice
-        const alreadyRewarded = await prisma.reward.findFirst({
-            where: { referralId: referral.id, orderId: order.admin_graphql_api_id, type: "RECURRING" },
-            select: { id: true },
-        });
+        const alreadyRewarded = await dbRetry(
+            () =>
+                prisma.reward.findFirst({
+                    where: { referralId: referral.id, orderId: order.admin_graphql_api_id, type: "RECURRING" },
+                    select: { id: true },
+                }),
+            { module: MODULE, shop, referralId: referral.id }
+        );
 
         if (alreadyRewarded) {
             logger.warn(MODULE, "RECURRING reward already issued for this order — skipping", {
@@ -858,6 +891,7 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
                         activity: `+${referrerPoints} points for referral renewal`,
                         points: referrerPoints,
                         status: "COMPLETED",
+                        metadata: { orderId: order.admin_graphql_api_id, orderTotal: order.total_price },
                     },
                     session
                 ),
@@ -886,6 +920,7 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
                         activity: `+${referredPoints} points for subscription renewal`,
                         points: referredPoints,
                         status: "COMPLETED",
+                        metadata: { orderId: order.admin_graphql_api_id, orderTotal: order.total_price },
                     },
                     session
                 ),
@@ -904,28 +939,16 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
 
         await Promise.all([
             ...rewardTasks,
-            prisma.referral.update({
-                where: { id: referral.id },
-                data: { metadata: subscriptionContract ?? {} },
-            }),
+            dbRetry(
+                () => prisma.referral.update({ where: { id: referral.id }, data: { metadata: subscriptionContract ?? {} } }),
+                { module: MODULE, shop, referralId: referral.id }
+            ),
         ]);
 
-        // Non-critical — swallowed on failure
+        // Non-critical — syncCustomerConfig retries transient failures internally and never throws.
         await Promise.all([
-            withRetry(() => syncCustomerConfig(admin, referral.referrerId), {
-                maxAttempts: 2, baseDelayMs: 800,
-                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
-                context: { shop, customerId: referral.referrerId, module: MODULE },
-            }).catch((err) => logger.error(MODULE, "Metafield sync failed for referrer", {
-                shop, customerId: referral.referrerId, error: err?.message,
-            })),
-            withRetry(() => syncCustomerConfig(admin, referral.referredId), {
-                maxAttempts: 2, baseDelayMs: 800,
-                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
-                context: { shop, customerId: referral.referredId, module: MODULE },
-            }).catch((err) => logger.error(MODULE, "Metafield sync failed for referred", {
-                shop, customerId: referral.referredId, error: err?.message,
-            })),
+            syncCustomerConfig(admin, referral.referrerId),
+            syncCustomerConfig(admin, referral.referredId),
         ]);
 
         logger.success(MODULE, "Referral RECURRING order handled", { shop, referralId: referral.id, referrerPoints, referredPoints, orderLabel });
@@ -960,14 +983,18 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
         );
         if (!discountCodeSet.size) return;
 
-        const rewards = await prisma.reward.findMany({
-            where: {
-                customerId: customer.id,
-                code: { in: [...discountCodeSet] },
-                status: { notIn: ["USED", "EXPIRED", "CANCELLED", "REDEEMED"] },
-            },
-            select: { id: true, code: true, title: true },
-        });
+        const rewards = await dbRetry(
+            () =>
+                prisma.reward.findMany({
+                    where: {
+                        customerId: customer.id,
+                        code: { in: [...discountCodeSet] },
+                        status: { notIn: ["USED", "EXPIRED", "CANCELLED", "REDEEMED"] },
+                    },
+                    select: { id: true, code: true, title: true },
+                }),
+            { module: MODULE, shop, customerId: customer.id }
+        );
 
         if (!rewards.length) return;
 
@@ -998,20 +1025,9 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
             )
         );
 
-        // Non-critical — voucher status already updated. Swallowed on failure.
-        await withRetry(
-            () => syncCustomerConfig(admin, customer.shopifyId),
-            {
-                maxAttempts: 2,
-                baseDelayMs: 800,
-                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
-                context: { shop, customerId: customer.id, module: MODULE },
-            }
-        ).catch((err) => {
-            logger.error(MODULE, "Metafield sync failed — voucher status is still updated", {
-                shop, customerId: customer.id, error: err?.message,
-            });
-        });
+        // Non-critical — voucher status already updated. syncCustomerConfig
+        // retries transient network failures internally and never throws.
+        await syncCustomerConfig(admin, customer.shopifyId);
 
         logger.success(MODULE, "Voucher rewards marked as used", {
             shop,
