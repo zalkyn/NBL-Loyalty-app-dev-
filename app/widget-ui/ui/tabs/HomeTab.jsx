@@ -87,7 +87,7 @@ export function HomeTab({
                 {showPrizeRequestsSection && (
                     <div class="nbl-home-section-card" data-home-section="prize-requests">
                         <SectionHeader iconName="reward-discount" title={lbl('sectionPrizeRequests') || 'Prize Requests'} />
-                        <div class="nbl-item-rows nbl-home-section-card__body--padded">
+                        <div class="nbl-item-rows">
                             <ItemList
                                 items={prizeRequestsPagination.pageItems}
                                 emptyText={lbl('emptyMyPrizes')}
@@ -103,7 +103,7 @@ export function HomeTab({
                 {showActivitiesSection && (
                     <div class="nbl-home-section-card" data-home-section="activities">
                         <SectionHeader iconName="lightning" title={lbl('sectionRecentActivity') || 'Recent Activity'} />
-                        <div class="nbl-activity-table nbl-home-section-card__body--padded">
+                        <div class="nbl-activity-table">
                             <div class="nbl-activity-table__head">
                                 <div class="nbl-activity-table__head-cell">{lbl('activityColDate')}</div>
                                 <div class="nbl-activity-table__head-cell">{lbl('activityColActivity')}</div>
