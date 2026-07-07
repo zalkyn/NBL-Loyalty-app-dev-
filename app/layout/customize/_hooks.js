@@ -3,8 +3,8 @@ import { useSubmit, useNavigation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import {
-    SIMPLE_SECTIONS, WIDGET_CONFIG_SECTIONS, CSS_DEFAULTS,
-    deepClone, isEqual, buildInitialVars, buildInitialWidgetConfig,
+    SIMPLE_SECTIONS, WIDGET_CONFIG_SECTIONS, CSS_DEFAULTS, PRESETS,
+    deepClone, isEqual, matchesPreset, buildInitialVars, buildInitialWidgetConfig,
 } from "./constants/cssVarsConfig";
 
 /**
@@ -18,7 +18,7 @@ import {
  * the save/reset/clear toast feedback. Fixed here.
  */
 export function useCustomizePage(loaderData, actionData) {
-    const { savedCssVars, savedPresetKey, savedWidgetConfig } = loaderData;
+    const { savedCssVars, savedWidgetConfig } = loaderData;
     const submit = useSubmit();
     const navigation = useNavigation();
     const shopify = useAppBridge();
@@ -35,17 +35,29 @@ export function useCustomizePage(loaderData, actionData) {
     const [persistedWidgetConfig, setPersistedWidgetConfig] = useState(() => buildInitialWidgetConfig(savedWidgetConfig));
 
     // ── Other persisted state ─────────────────────────────────────────────────
-    // persistedPresetKey tracks what was last saved — needed for correct Discard
-    const [persistedPresetKey, setPersistedPresetKey] = useState(savedPresetKey ?? null);
     const [hasSavedCustomStyles, setHasSavedCustomStyles] = useState(savedCssVars !== null);
 
     // ── UI-only state (never sent to server, never dirty-tracked) ────────────
     const [activeSimpleSection, setActiveSimpleSection] = useState(SIMPLE_SECTIONS[0].key);
     const [activeConfigSection, setActiveConfigSection] = useState(WIDGET_CONFIG_SECTIONS[0].key);
     const [pageTab, setPageTab] = useState("customize");
-    const [activePreset, setActivePreset] = useState(savedPresetKey ?? null);
     const [activeIntent, setActiveIntent] = useState(null);
     const [notificationPreviewType, setNotificationPreviewType] = useState("reward");
+
+    // ── Active "Quick Theme" — DERIVED, not tracked state ─────────────────────
+    // Previously this was a separate useState that got explicitly cleared to
+    // null on every manual field edit (see the old handleSimpleChange). That
+    // meant tweaking one field away from an applied preset — or even editing
+    // it and landing back on the exact same value — permanently deselected
+    // every "Quick Theme" card until a preset button was clicked again, since
+    // nothing ever recomputed the selection from what was actually on screen.
+    // Deriving it straight from cssVars removes that whole class of bug: the
+    // highlighted theme (if any) always reflects the values currently shown,
+    // full stop.
+    const activePreset = useMemo(
+        () => PRESETS.find((p) => matchesPreset(p, cssVars))?.key ?? null,
+        [cssVars]
+    );
 
     // ── Post-action sync ──────────────────────────────────────────────────────
     //
@@ -71,15 +83,13 @@ export function useCustomizePage(loaderData, actionData) {
 
         if (["update", "resetAll"].includes(actionData.intent)) {
             const freshVars = buildInitialVars(actionData.savedCssVars);
-            const freshPreset = actionData.savedPresetKey ?? null;
             const freshWc = buildInitialWidgetConfig(actionData.savedWidgetConfig ?? null);
-            // Sync both live + persisted state to the fresh server values
+            // Sync both live + persisted state to the fresh server values.
+            // activePreset re-derives itself from cssVars — nothing to set here.
             setCssVars(freshVars);
             setPersistedVars(freshVars);
             setWidgetConfig(freshWc);
             setPersistedWidgetConfig(freshWc);
-            setActivePreset(freshPreset);
-            setPersistedPresetKey(freshPreset);
             setHasSavedCustomStyles(true);
         }
 
@@ -90,8 +100,6 @@ export function useCustomizePage(loaderData, actionData) {
             setPersistedVars(freshVars);
             setWidgetConfig(freshWc);
             setPersistedWidgetConfig(freshWc);
-            setActivePreset(null);
-            setPersistedPresetKey(null);
             setHasSavedCustomStyles(false);
         }
         // shopify is intentionally omitted — it's stable across this effect's
@@ -147,8 +155,10 @@ export function useCustomizePage(loaderData, actionData) {
 
     // ── Handlers ─────────────────────────────────────────────────────────────
     const handleSimpleChange = useCallback((updates) => {
+        // No explicit setActivePreset(null) needed anymore — if `updates`
+        // moves cssVars away from a preset's exact values, the derived
+        // activePreset memo simply stops matching on its own next render.
         setCssVars((prev) => ({ ...prev, ...updates }));
-        setActivePreset(null);
     }, []);
 
     const handleConfigChange = useCallback((key, value) => {
@@ -165,17 +175,14 @@ export function useCustomizePage(loaderData, actionData) {
 
     const handlePresetApply = useCallback((preset) => {
         setCssVars((prev) => ({ ...prev, ...preset.vars }));
-        setActivePreset(preset.key);
     }, []);
 
     const handleDiscard = useCallback(() => {
-        // BUG FIX (preserved from original): was using stale `savedPresetKey`
-        // from loader closure. Now uses persistedPresetKey which tracks the
-        // last-saved value.
         setCssVars(deepClone(persistedVars));
         setWidgetConfig(deepClone(persistedWidgetConfig));
-        setActivePreset(persistedPresetKey);
-    }, [persistedVars, persistedWidgetConfig, persistedPresetKey]);
+        // activePreset re-derives from cssVars, which now matches whatever
+        // preset (if any) persistedVars itself matches.
+    }, [persistedVars, persistedWidgetConfig]);
 
     const handleSave = useCallback(() => {
         setActiveIntent("update");

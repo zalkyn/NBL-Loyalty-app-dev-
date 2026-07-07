@@ -1,25 +1,7 @@
 import prisma from "db-server";
 import { logger } from "@app/utils/logger";
-
-/**
- * Default fields selected for all referral queries.
- * Override by passing a custom `select` object.
- */
-const DEFAULT_REFERRAL_SELECT = {
-    id: true,
-    referrerId: true,
-    referredId: true,
-    orderId: true,
-    status: true,
-    discountCode: true,
-    discountInfo: true,
-    discountUsed: true,
-    rewardGiven: true,
-    metadata: true,
-    createdAt: true,
-    updatedAt: true,
-    subscriptionContractId: true,
-};
+import { dbRetry } from "@app/utils/retry/dbRetry.js";
+import { DEFAULT_REFERRAL_SELECT } from "./referralSelect.js";
 
 /**
  * Updates an existing referral by ID.
@@ -51,20 +33,24 @@ const DEFAULT_REFERRAL_SELECT = {
  */
 export const updateReferral = async (referralId, input, select = DEFAULT_REFERRAL_SELECT) => {
     try {
-        const referral = await prisma.referral.update({
-            where: { id: Number(referralId) },
-            data: {
-                ...(input.orderId !== undefined && { orderId: input.orderId }),
-                ...(input.status !== undefined && { status: input.status }),
-                ...(input.discountCode !== undefined && { discountCode: input.discountCode }),
-                ...(input.discountInfo !== undefined && { discountInfo: input.discountInfo }),
-                ...(input.discountUsed !== undefined && { discountUsed: input.discountUsed }),
-                ...(input.rewardGiven !== undefined && { rewardGiven: input.rewardGiven }),
-                ...(input.subscriptionContractId !== undefined && { subscriptionContractId: input.subscriptionContractId }),
-                ...(input.metadata !== undefined && { metadata: input.metadata }),
-            },
-            select,
-        });
+        const referral = await dbRetry(
+            () =>
+                prisma.referral.update({
+                    where: { id: Number(referralId) },
+                    data: {
+                        ...(input.orderId !== undefined && { orderId: input.orderId }),
+                        ...(input.status !== undefined && { status: input.status }),
+                        ...(input.discountCode !== undefined && { discountCode: input.discountCode }),
+                        ...(input.discountInfo !== undefined && { discountInfo: input.discountInfo }),
+                        ...(input.discountUsed !== undefined && { discountUsed: input.discountUsed }),
+                        ...(input.rewardGiven !== undefined && { rewardGiven: input.rewardGiven }),
+                        ...(input.subscriptionContractId !== undefined && { subscriptionContractId: input.subscriptionContractId }),
+                        ...(input.metadata !== undefined && { metadata: input.metadata }),
+                    },
+                    select,
+                }),
+            { referralId }
+        );
 
         logger.info("Referral updated", {
             referralId: referral.id,

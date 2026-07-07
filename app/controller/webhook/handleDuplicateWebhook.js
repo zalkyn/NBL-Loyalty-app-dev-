@@ -1,5 +1,6 @@
 import prisma from "db-server";
 import { logger } from "app/utils/logger.js";
+import { dbRetry } from "app/utils/retry/dbRetry.js";
 
 /**
  * Prevents duplicate webhook or event processing using a unique eventKey.
@@ -19,9 +20,10 @@ import { logger } from "app/utils/logger.js";
  */
 export async function isDuplicateEvent({ shop, eventKey }) {
     try {
-        await prisma.webhookEvent.create({
-            data: { shop: shop ?? "unknown", eventKey },
-        });
+        await dbRetry(
+            () => prisma.webhookEvent.create({ data: { shop: shop ?? "unknown", eventKey } }),
+            { shop, eventKey }
+        );
         return false;
     } catch (err) {
         if (err?.code === "P2002") {

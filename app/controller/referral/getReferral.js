@@ -1,29 +1,7 @@
 import prisma from "db-server";
 import { logger } from "@app/utils/logger";
-
-// ─── Default Select ───────────────────────────────────────────────────────────
-
-/**
- * Default fields selected for all referral queries.
- * Override by passing a custom `select` object.
- */
-const DEFAULT_REFERRAL_SELECT = {
-    id: true,
-    referrerId: true,
-    referredId: true,
-    orderId: true,
-    status: true,
-    discountCode: true,
-    discountInfo: true,
-    discountUsed: true,
-    rewardGiven: true,
-    metadata: true,
-    createdAt: true,
-    updatedAt: true,
-    subscriptionContractId: true,
-};
-
-// ─── Get by ID ────────────────────────────────────────────────────────────────
+import { dbRetry } from "@app/utils/retry/dbRetry.js";
+import { DEFAULT_REFERRAL_SELECT } from "./referralSelect.js";
 
 /**
  * Fetches a single referral by ID.
@@ -38,10 +16,10 @@ const DEFAULT_REFERRAL_SELECT = {
  */
 export const getReferral = async (referralId, select = DEFAULT_REFERRAL_SELECT) => {
     try {
-        const referral = await prisma.referral.findUnique({
-            where: { id: Number(referralId) },
-            select,
-        });
+        const referral = await dbRetry(
+            () => prisma.referral.findUnique({ where: { id: Number(referralId) }, select }),
+            { referralId }
+        );
 
         if (!referral) {
             logger.warn("Referral not found", { referralId });
@@ -59,8 +37,6 @@ export const getReferral = async (referralId, select = DEFAULT_REFERRAL_SELECT) 
     }
 };
 
-// ─── Get by Referred Customer ─────────────────────────────────────────────────
-
 /**
  * Fetches the referral record for a referred customer.
  * Since @@unique([referredId]), a customer can only be referred once.
@@ -74,10 +50,10 @@ export const getReferral = async (referralId, select = DEFAULT_REFERRAL_SELECT) 
  */
 export const getReferralByReferredId = async (referredId, select = DEFAULT_REFERRAL_SELECT) => {
     try {
-        const referral = await prisma.referral.findUnique({
-            where: { referredId: Number(referredId) },
-            select,
-        });
+        const referral = await dbRetry(
+            () => prisma.referral.findUnique({ where: { referredId: Number(referredId) }, select }),
+            { referredId }
+        );
 
         if (!referral) {
             logger.warn("Referral not found for referred customer", { referredId });
@@ -94,8 +70,6 @@ export const getReferralByReferredId = async (referredId, select = DEFAULT_REFER
         return null;
     }
 };
-
-// ─── Get All by Referrer ──────────────────────────────────────────────────────
 
 /**
  * Fetches all referrals made by a specific referrer customer.
@@ -123,16 +97,20 @@ export const getReferralsByReferrerId = async (referrerId, filters = {}, select 
     try {
         const { status, rewardGiven, discountUsed } = filters;
 
-        const referrals = await prisma.referral.findMany({
-            where: {
-                referrerId: Number(referrerId),
-                ...(status !== undefined && { status }),
-                ...(rewardGiven !== undefined && { rewardGiven }),
-                ...(discountUsed !== undefined && { discountUsed }),
-            },
-            select,
-            orderBy: { createdAt: "desc" },
-        });
+        const referrals = await dbRetry(
+            () =>
+                prisma.referral.findMany({
+                    where: {
+                        referrerId: Number(referrerId),
+                        ...(status !== undefined && { status }),
+                        ...(rewardGiven !== undefined && { rewardGiven }),
+                        ...(discountUsed !== undefined && { discountUsed }),
+                    },
+                    select,
+                    orderBy: { createdAt: "desc" },
+                }),
+            { referrerId }
+        );
 
         return referrals;
     } catch (error) {
@@ -146,11 +124,12 @@ export const getReferralsByReferrerId = async (referrerId, filters = {}, select 
     }
 };
 
-// ─── Get by Discount Code ─────────────────────────────────────────────────────
-
 /**
  * Fetches a referral by its discount code.
  * Useful for validating and redeeming referral discounts at checkout.
+ *
+ * Retried on transient DB failure — this backs checkout-time validation,
+ * where a dropped connection should not surface as a false "not found".
  *
  * @param {string} discountCode
  * @param {Object} [select] - Prisma select object to control returned fields.
@@ -169,10 +148,10 @@ export const getReferralsByReferrerId = async (referrerId, filters = {}, select 
  */
 export const getReferralByDiscountCode = async (discountCode, select = DEFAULT_REFERRAL_SELECT) => {
     try {
-        const referral = await prisma.referral.findFirst({
-            where: { discountCode },
-            select,
-        });
+        const referral = await dbRetry(
+            () => prisma.referral.findFirst({ where: { discountCode }, select }),
+            { discountCode }
+        );
 
         if (!referral) {
             logger.warn("Referral not found by discount code", { discountCode });

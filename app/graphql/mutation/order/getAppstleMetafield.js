@@ -1,4 +1,5 @@
 import { logger } from "../../../utils/logger.js";
+import { withRetry } from "../../../utils/retry/withRetry.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "graphql/order/getAppstleMetafield.js";
@@ -72,21 +73,29 @@ export const getAppstleMetafield = async (admin, appstle, orderId) => {
 
         // ── Fetch product.sellingPlanGroups and match by planGid ──────────────
         // This is the only Shopify-supported way to get a plan's billingPolicy by ID.
-        const planRes = await admin.graphql(
-            `#graphql
-            query GetSellingPlanInterval($productId: ID!) {
-                product(id: $productId) {
-                    sellingPlanGroups(first: 10) {
-                        edges {
-                            node {
-                                sellingPlans(first: 20) {
-                                    edges {
-                                        node {
-                                            id
-                                            billingPolicy {
-                                                ... on SellingPlanRecurringBillingPolicy {
-                                                    interval
-                                                    intervalCount
+        // Retried on transient network failure — without this, a single dropped
+        // request permanently misclassifies the order as non-subscription
+        // (the outer catch swallows the error and returns `fallback`), since
+        // this is a one-shot call during order-webhook processing, not re-run later.
+        const planJson = await withRetry(
+            async () => {
+                const planRes = await admin.graphql(
+                    `#graphql
+                    query GetSellingPlanInterval($productId: ID!) {
+                        product(id: $productId) {
+                            sellingPlanGroups(first: 10) {
+                                edges {
+                                    node {
+                                        sellingPlans(first: 20) {
+                                            edges {
+                                                node {
+                                                    id
+                                                    billingPolicy {
+                                                        ... on SellingPlanRecurringBillingPolicy {
+                                                            interval
+                                                            intervalCount
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -94,13 +103,18 @@ export const getAppstleMetafield = async (admin, appstle, orderId) => {
                                 }
                             }
                         }
-                    }
-                }
-            }`,
-            { variables: { productId: productGid } }
+                    }`,
+                    { variables: { productId: productGid } }
+                );
+                return planRes.json();
+            },
+            {
+                maxAttempts: 3,
+                baseDelayMs: 800,
+                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
+                context: { module: MODULE, orderId, productGid },
+            }
         );
-
-        const planJson = await planRes.json();
 
         // Flatten all plans across all groups, then match by GID
         const allPlans = (planJson?.data?.product?.sellingPlanGroups?.edges ?? [])

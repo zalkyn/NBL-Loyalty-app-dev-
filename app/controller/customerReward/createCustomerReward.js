@@ -1,32 +1,7 @@
 import prisma from "../../db.server.js";
-import { logger } from "../../utils/logger.js"
-
-// ─── Default Select ───────────────────────────────────────────────────────────
-
-/**
- * Default fields selected for all reward queries.
- * Override by passing a custom `select` object.
- */
-const DEFAULT_REWARD_SELECT = {
-    id: true,
-    title: true,
-    event: true,
-    type: true,
-    code: true,
-    rewardKey: true,
-    orderId: true,
-    pointsCost: true,
-    status: true,
-    discountUsed: true,
-    usedAt: true,
-    expiresAt: true,
-    metadata: true,
-    description: true,
-    createdAt: true,
-    updatedAt: true,
-    rewardRuleId: true,
-    customerId: true,
-};
+import { logger } from "../../utils/logger.js";
+import { dbRetry } from "../../utils/retry/dbRetry.js";
+import { DEFAULT_REWARD_SELECT } from "./rewardSelect.js";
 
 // ─── Create ───────────────────────────────────────────────────────────────────
 
@@ -74,25 +49,29 @@ export const createCustomerReward = async (input, select = DEFAULT_REWARD_SELECT
         const rewardKey = input.rewardKey
             ?? `${input.event || "EVENT"}:${input.type || "DEFAULT"}:${customerId}:${entityId}:${input.code ?? ""}:${input.title ?? ""}`;
 
-        const reward = await prisma.reward.create({
-            data: {
-                customerId,
-                rewardKey,
-                event: input.event ?? null,
-                type: input.type ?? "DEFAULT",
-                status: input.status ?? "PENDING",
-                title: input.title ?? null,
-                description: input.description ?? null,
-                code: input.code ?? null,
-                orderId: input.orderId ?? null,
-                rewardRuleId: input.rewardRuleId ? Number(input.rewardRuleId) : null,
-                pointsCost: input.pointsCost !== undefined ? Number(input.pointsCost) : null,
-                expiresAt: input.expiresAt ?? null,
-                metadata: input.metadata ?? {},
-                // usedAt intentionally omitted — set only when reward is actually used
-            },
-            select,
-        });
+        const reward = await dbRetry(
+            () =>
+                prisma.reward.create({
+                    data: {
+                        customerId,
+                        rewardKey,
+                        event: input.event ?? null,
+                        type: input.type ?? "DEFAULT",
+                        status: input.status ?? "PENDING",
+                        title: input.title ?? null,
+                        description: input.description ?? null,
+                        code: input.code ?? null,
+                        orderId: input.orderId ?? null,
+                        rewardRuleId: input.rewardRuleId ? Number(input.rewardRuleId) : null,
+                        pointsCost: input.pointsCost !== undefined ? Number(input.pointsCost) : null,
+                        expiresAt: input.expiresAt ?? null,
+                        metadata: input.metadata ?? {},
+                        // usedAt intentionally omitted — set only when reward is actually used
+                    },
+                    select,
+                }),
+            { customerId, rewardKey }
+        );
 
         logger.info("Customer reward created", {
             rewardId: reward.id,

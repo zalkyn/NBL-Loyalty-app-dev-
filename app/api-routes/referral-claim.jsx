@@ -9,6 +9,7 @@ import { customerOrderCount } from "@graphql/query/customers";
 import createTransaction from "@controller/transaction/createTransaction.js";
 import { createCustomerReward } from "@controller/customerReward/createCustomerReward.js";
 import { withRetry } from "app/utils/retry/withRetry.js";
+import { dbRetry } from "app/utils/retry/dbRetry.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "api.get-referral-discount";
@@ -113,17 +114,10 @@ export async function action({ request }) {
 
         // ── 3. Eligibility: referred customer must have 0 prior orders ────────
         //
-        // Wrapped in withRetry to handle transient Shopify Admin API / network
-        // failures. No DB writes have occurred yet, so retrying is safe.
-        const referredOrderCount = await withRetry(
-            () => customerOrderCount(admin, customerId),
-            {
-                maxAttempts: 3,
-                baseDelayMs: 800,
-                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
-                context: { shop, customerId, module: MODULE },
-            }
-        );
+        // customerOrderCount retries transient failures internally and throws
+        // (rather than defaulting to 0) if it can't get a real count — a
+        // Shopify outage must not silently look like "0 orders, eligible".
+        const referredOrderCount = await customerOrderCount(admin, customerId);
 
         logger.info("Checking referral eligibility", {
             shop,
@@ -140,12 +134,32 @@ export async function action({ request }) {
         }
 
         // ── 4. Fetch referrer and referred customer in parallel ───────────────
+        //
+        // referralCode is globally unique (checked at generation time across
+        // the whole DB), so getReferrer intentionally does NOT filter by
+        // session — that's fine for finding the row. getReferred IS scoped
+        // to session.id since shopifyId lookups should only ever resolve
+        // within the currently authenticated shop.
         const [referrer, referred] = await Promise.all([
             getReferrer(referralCode),
-            getReferred(customerId),
+            getReferred(customerId, session.id),
         ]);
 
         validateCustomers(referrer, referred);
+
+        // ── 4.1 Enforce same-shop referral ─────────────────────────────────────
+        //
+        // Customer and Session rows are shared across all shops in this
+        // database. Without this check, a referral code generated on Shop A
+        // could be redeemed by a customer on Shop B, creating a cross-shop
+        // Referral record and a Shopify discount code issued on the wrong
+        // shop for a referrer who has no relationship to it.
+        if (referrer.sessionId !== session.id) {
+            throw createError(
+                "Invalid referral code. Please check the code and try again.",
+                ERROR_CODES.INVALID_REFERRAL_CODE
+            );
+        }
 
         // ── 5. Prevent self-referral ──────────────────────────────────────────
         if (referrer.id === referred.id) {
@@ -227,6 +241,10 @@ export async function action({ request }) {
                     discountCode,
                     referrerId: referrer.id,
                 },
+                // The referred customer is live in the widget right now,
+                // applying the code themselves, and sees this confirmation
+                // on screen immediately — never surface it as a toast later.
+                notifiedAt: new Date(),
             },
             session
         );
@@ -252,25 +270,16 @@ export async function action({ request }) {
         // ── 10. Sync customer metafields ──────────────────────────────────────
         //
         // Non-critical — the referral record and discount code are already saved.
-        // Retried up to 3 times on transient network errors. If all retries fail,
-        // the error is swallowed and null is returned so the success response is
-        // still sent to the customer. Metafields will resync on the next request.
-        await withRetry(
-            () => syncCustomerConfig(admin, customerId),
-            {
-                maxAttempts: 3,
-                baseDelayMs: 800,
-                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
-                context: { shop, customerId, module: MODULE },
-            }
-        ).catch((err) => {
+        // syncCustomerConfig retries transient network failures internally; if all
+        // retries fail it returns null and the success response is still sent to
+        // the customer. Metafields will resync on the next request.
+        const synced = await syncCustomerConfig(admin, customerId);
+        if (!synced) {
             logger.error("Metafield sync failed after all retries — referral is still valid", {
                 module: MODULE,
                 customerId,
-                error: err?.message,
             });
-            return null;
-        });
+        }
 
         logger.success("Referral discount generated", {
             referrerId: referrer.id,
@@ -405,28 +414,32 @@ function validateInput({ shop, customerId, referralCode }) {
 
 /**
  * Finds the referrer customer by their unique referral code.
+ * sessionId is selected (not filtered on) so the caller can verify the
+ * referrer belongs to the currently authenticated shop before proceeding.
  *
  * @param {string} referralCode
- * @returns {Promise<{ id: number, referralCode: string }|null>}
+ * @returns {Promise<{ id: number, referralCode: string, sessionId: string }|null>}
  */
 function getReferrer(referralCode) {
-    return prisma.customer.findFirst({
-        where: { referralCode },
-        select: { id: true, referralCode: true },
-    });
+    return dbRetry(
+        () => prisma.customer.findFirst({ where: { referralCode }, select: { id: true, referralCode: true, sessionId: true } }),
+        { module: MODULE, referralCode }
+    );
 }
 
 /**
- * Finds the referred customer by their Shopify GID.
+ * Finds the referred customer by their Shopify GID, scoped to the
+ * authenticated shop's session.
  *
  * @param {string} customerId - Shopify customer GID or numeric ID
+ * @param {string} sessionId - The authenticated shop's session id
  * @returns {Promise<{ id: number }|null>}
  */
-function getReferred(customerId) {
-    return prisma.customer.findFirst({
-        where: { shopifyId: normalizeCustomerGid(customerId) },
-        select: { id: true },
-    });
+function getReferred(customerId, sessionId) {
+    return dbRetry(
+        () => prisma.customer.findFirst({ where: { shopifyId: normalizeCustomerGid(customerId), sessionId }, select: { id: true } }),
+        { module: MODULE, customerId, sessionId }
+    );
 }
 
 /**
@@ -460,15 +473,14 @@ function validateCustomers(referrer, referred) {
  * @returns {Promise<{ id: number, referrerId: number, discountCode: string, discountUsed: boolean }|null>}
  */
 function findExistingReferral(referredId) {
-    return prisma.referral.findUnique({
-        where: { referredId },
-        select: {
-            id: true,
-            referrerId: true,
-            discountCode: true,
-            discountUsed: true,
-        },
-    });
+    return dbRetry(
+        () =>
+            prisma.referral.findUnique({
+                where: { referredId },
+                select: { id: true, referrerId: true, discountCode: true, discountUsed: true },
+            }),
+        { module: MODULE, referredId }
+    );
 }
 
 // =====================================================
@@ -542,18 +554,23 @@ function handleExistingReferral({ existingReferral, currentReferrerId, referralC
  */
 async function createReferral(referrerId, referredId, discountCode) {
     try {
-        return await prisma.referral.create({
-            data: {
-                status: REFERRAL_STATUS.ACTIVE,
-                discountCode,
-                discountInfo: "Referral discount code generated",
-                referrerId,
-                referredId,
-            },
-            select: { id: true },
-        });
+        return await dbRetry(
+            () =>
+                prisma.referral.create({
+                    data: {
+                        status: REFERRAL_STATUS.ACTIVE,
+                        discountCode,
+                        discountInfo: "Referral discount code generated",
+                        referrerId,
+                        referredId,
+                    },
+                    select: { id: true },
+                }),
+            { module: MODULE, referrerId, referredId }
+        );
     } catch (err) {
         // P2002 = unique constraint violation — concurrent request already created this referral
+        // (dbRetry doesn't retry P2002, so this still fires immediately as before.)
         if (err.code === "P2002") {
             throw createError(
                 "A referral discount has already been generated for your account.",
