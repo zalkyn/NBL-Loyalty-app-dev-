@@ -1,22 +1,41 @@
 import { authenticate } from "shopify-server";
 import db from "db-server";
+import { logger } from "app/utils/logger.js";
+import { dbRetry } from "app/utils/retry/dbRetry.js";
 
+/** @constant {string} Module identifier for structured logging */
+const MODULE = "webhook-routes/app-uninstalled.jsx";
+
+/**
+ * POST /webhooks/app/uninstalled
+ *
+ * Invalidates the shop's session on uninstall by clearing its access token.
+ * Rows are kept (not deleted) so shop history/config isn't lost if the
+ * merchant reinstalls later — a fresh OAuth simply repopulates accessToken.
+ *
+ * Shopify may redeliver this webhook, including after the session has
+ * already been cleared — handled as a no-op via updateMany's `where: { shop }`.
+ *
+ * @param {{ request: Request }} args - Remix action arguments
+ * @returns {Promise<Response>}
+ */
 export const action = async ({ request }) => {
-  const { shop, session, topic } = await authenticate.webhook(request);
+    const { shop, session, topic } = await authenticate.webhook(request);
 
-  console.log(`Received ${topic} webhook for ${shop}`);
+    logger.info(MODULE, `Received ${topic} webhook`, { shop });
 
-  // Webhook requests can trigger multiple times and after an app has already been uninstalled.
-  // If this webhook already ran, the session may have been deleted previously.
-  if (session) {
-    // await db.session.deleteMany({ where: { shop } });
-    await db.session.updateMany({
-      where: { shop },
-      data: {
-        accessToken: "",
-      }
-    })
-  }
+    if (!session) {
+        return new Response();
+    }
 
-  return new Response();
+    try {
+        await dbRetry(
+            () => db.session.updateMany({ where: { shop }, data: { accessToken: "" } }),
+            { module: MODULE, shop }
+        );
+    } catch (error) {
+        logger.error(MODULE, "Failed to clear session on uninstall", { shop, error: error?.message });
+    }
+
+    return new Response();
 };

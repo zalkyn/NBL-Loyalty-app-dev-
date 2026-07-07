@@ -176,6 +176,11 @@ model Transaction {
   status       String    @default("APPROVED")
   activity     String?
 
+  // When this transaction's toast notification was shown/acknowledged to
+  // the customer on the storefront. null = not yet shown. Set by
+  // POST /apps/widget/notifications/mark-seen.
+  notifiedAt   DateTime?
+
   customer     Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
   event        Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
   pointsRule   PointsRule? @relation(fields: [pointsRuleId], references: [id], onDelete: SetNull)
@@ -190,6 +195,7 @@ model Transaction {
   @@index([customerId])
   @@index([customerId, createdAt])
   @@index([customerId, type])
+  @@index([customerId, notifiedAt])
   @@index([eventId])
   @@index([rewardId])
   @@index([referralId])
@@ -393,6 +399,13 @@ model Job {
   // ── Retry tracking ────────────────────────────────────
   attempts    Int @default(0)
   maxAttempts Int @default(3)
+
+  // How many times the auto-retry maintenance job (jobAutoRetryJob) has
+  // revived this job after it reached FAILED — separate from `attempts`,
+  // which tracks normal in-cycle retries within a single processing pass.
+  // Capped by AUTO_RETRY_CAP in jobAutoRetryJob.js so a genuinely broken
+  // job doesn't get silently re-attempted forever.
+  autoRetryCount Int @default(0)
 
   // ── Scheduling ────────────────────────────────────────
   // Defaults to now() so the job is picked up immediately.

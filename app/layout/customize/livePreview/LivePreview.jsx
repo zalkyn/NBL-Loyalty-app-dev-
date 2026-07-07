@@ -84,11 +84,21 @@ const LivePreviewPanel = memo(function LivePreviewPanel({
 
     const isLeft = (cssVars?.["--nbl-launcher-position"] || "right") === "left";
 
+    // The admin preview is intentionally shown a bit smaller than the real
+    // storefront widget — purely so it sits comfortably inside the
+    // customize page without dominating the screen. Scaling the <iframe>
+    // element itself (rather than anything inside preview.html) means this
+    // is a compositing-level transform: it can never conflict with the
+    // widget's own open/close `transform: scale(...)` animation, and it
+    // automatically tracks ui.css's real dimensions — no hardcoded pixel
+    // values to keep in sync by hand.
+    const PREVIEW_SCALE = 0.92;
+
     return (
         <>
-            <div style={{ marginTop: 8, fontSize: 11, color: DS.textHint, textAlign: "center" }}>
+            {/* <div style={{ marginTop: 8, fontSize: 11, color: DS.textHint, textAlign: "center" }}>
                 Launcher (bottom-{isLeft ? "left" : "right"}) · click to open/close
-            </div>
+            </div> */}
 
             {isMounted && createPortal(
                 <iframe
@@ -100,8 +110,13 @@ const LivePreviewPanel = memo(function LivePreviewPanel({
                         position: "fixed",
                         bottom: 0,
                         ...(isLeft ? { left: 0 } : { right: 0 }),
+                        // True widget footprint from ui.css: 390px wide ×
+                        // (88px bottom offset + 520px panel) tall, plus a
+                        // little headroom for shadow/glow so nothing clips.
                         width: 390,
-                        height: 620,
+                        height: 630,
+                        transform: `scale(${PREVIEW_SCALE})`,
+                        transformOrigin: isLeft ? "bottom left" : "bottom right",
                         border: "none",
                         background: "transparent",
                         zIndex: 9999999999998,

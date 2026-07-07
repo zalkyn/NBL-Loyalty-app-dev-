@@ -1,4 +1,3 @@
-
 import { route, layout } from "@react-router/dev/routes";
 import { flatRoutes } from "@react-router/fs-routes";
 
@@ -32,6 +31,9 @@ export default [
         // point events
         route("app/points-events", "./layout/points-events/route.jsx"),
 
+        // background jobs (retry/monitor)
+        route("app/jobs", "./layout/jobs/route.jsx"),
+
         // widget preview
         // route("widget/preview", "./widget-routes/preview.jsx"),
 
@@ -45,8 +47,16 @@ export default [
     route("api/loox-new-review-trigger", "./api-routes/loox-new-review-trigger.jsx"),
     route("api/provision-customer", "./api-routes/provision-customer.jsx"),
 
+    // Widget App Proxy — storefront calls /apps/widget, Shopify proxies it here.
+    // Backend code lives in app/widget-ui/ (not app/routes/), kept grouped
+    // with the rest of the widget-related code.
+    route("widget-data", "./widget-ui/route.jsx"),
+    route("widget-data/notifications/mark-seen", "./widget-ui/notifications-mark-seen.jsx"),
+
     // Webhooks
     route("webhooks/app/orders_paid", "./webhook-routes/order-paid.jsx"),
+    route("webhooks/app/orders_cancelled", "./webhook-routes/order-cancelled.jsx"),
+    route("webhooks/app/refunds_create", "./webhook-routes/refund-created.jsx"),
     route("webhooks/app/customers_create", "./webhook-routes/customer-create.jsx"),
     route("webhooks/app/customers_delete", "./webhook-routes/customer-delete.jsx"),
     route("webhooks/app/uninstalled", "./webhook-routes/app-uninstalled.jsx"),

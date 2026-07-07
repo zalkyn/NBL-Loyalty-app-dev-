@@ -26,7 +26,7 @@ export function CustomizeTab({
     onClearAll,
 }) {
     return (
-        <s-grid gridTemplateColumns="280px 1fr" gap="base">
+        <s-grid gridTemplateColumns="280px 1fr 1fr" gap="base">
             {/* LEFT SIDEBAR */}
             <div>
                 <div style={{ position: "sticky", top: 16 }}>

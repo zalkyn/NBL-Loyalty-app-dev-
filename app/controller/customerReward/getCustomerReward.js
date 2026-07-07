@@ -1,30 +1,7 @@
 import prisma from "../../db.server.js";
-import { logger } from "../../utils/logger.js"
-
-/**
- * Default fields selected for all reward queries.
- * Override by passing a custom `select` object.
- */
-const DEFAULT_REWARD_SELECT = {
-    id: true,
-    title: true,
-    event: true,
-    type: true,
-    code: true,
-    rewardKey: true,
-    orderId: true,
-    pointsCost: true,
-    status: true,
-    discountUsed: true,
-    usedAt: true,
-    expiresAt: true,
-    metadata: true,
-    description: true,
-    createdAt: true,
-    updatedAt: true,
-    rewardRuleId: true,
-    customerId: true,
-};
+import { logger } from "../../utils/logger.js";
+import { dbRetry } from "../../utils/retry/dbRetry.js";
+import { DEFAULT_REWARD_SELECT } from "./rewardSelect.js";
 
 /**
  * Fetches a single customer reward by ID.
@@ -42,10 +19,10 @@ const DEFAULT_REWARD_SELECT = {
  */
 export const getCustomerReward = async (rewardId, select = DEFAULT_REWARD_SELECT) => {
     try {
-        const reward = await prisma.reward.findUnique({
-            where: { id: Number(rewardId) },
-            select,
-        });
+        const reward = await dbRetry(
+            () => prisma.reward.findUnique({ where: { id: Number(rewardId) }, select }),
+            { rewardId }
+        );
 
         if (!reward) {
             logger.warn("Reward not found", { rewardId });
@@ -91,22 +68,26 @@ export const getCustomerRewards = async (customerId, filters = {}, select = DEFA
     try {
         const { status, event, type, excludeExpired = false } = filters;
 
-        const rewards = await prisma.reward.findMany({
-            where: {
-                customerId: Number(customerId),
-                ...(status && { status }),
-                ...(event && { event }),
-                ...(type && { type }),
-                ...(excludeExpired && {
-                    OR: [
-                        { expiresAt: null },
-                        { expiresAt: { gt: new Date() } },
-                    ],
+        const rewards = await dbRetry(
+            () =>
+                prisma.reward.findMany({
+                    where: {
+                        customerId: Number(customerId),
+                        ...(status && { status }),
+                        ...(event && { event }),
+                        ...(type && { type }),
+                        ...(excludeExpired && {
+                            OR: [
+                                { expiresAt: null },
+                                { expiresAt: { gt: new Date() } },
+                            ],
+                        }),
+                    },
+                    select,
+                    orderBy: { createdAt: "desc" },
                 }),
-            },
-            select,
-            orderBy: { createdAt: "desc" },
-        });
+            { customerId }
+        );
 
         return rewards;
     } catch (error) {
@@ -133,10 +114,10 @@ export const getCustomerRewards = async (customerId, filters = {}, select = DEFA
  */
 export const getCustomerRewardByKey = async (rewardKey, select = DEFAULT_REWARD_SELECT) => {
     try {
-        const reward = await prisma.reward.findUnique({
-            where: { rewardKey },
-            select,
-        });
+        const reward = await dbRetry(
+            () => prisma.reward.findUnique({ where: { rewardKey }, select }),
+            { rewardKey }
+        );
 
         if (!reward) {
             logger.warn("Reward not found by key", { rewardKey });
@@ -157,6 +138,10 @@ export const getCustomerRewardByKey = async (rewardKey, select = DEFAULT_REWARD_
 /**
  * Fetches a reward by its discount code.
  *
+ * Retried on transient DB failure — this backs the redemption/validation
+ * flow, where a dropped connection should not surface as a false
+ * "reward not found" to the customer.
+ *
  * @param {string} code
  * @param {Object} [select] - Prisma select object to control returned fields.
  * @returns {Promise<Object|null>} Reward or null if not found.
@@ -172,10 +157,10 @@ export const getCustomerRewardByKey = async (rewardKey, select = DEFAULT_REWARD_
  */
 export const getCustomerRewardByCode = async (code, select = DEFAULT_REWARD_SELECT) => {
     try {
-        const reward = await prisma.reward.findFirst({
-            where: { code },
-            select,
-        });
+        const reward = await dbRetry(
+            () => prisma.reward.findFirst({ where: { code }, select }),
+            { code }
+        );
 
         if (!reward) {
             logger.warn("Reward not found by code", { code });

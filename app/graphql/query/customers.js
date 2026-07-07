@@ -1,8 +1,12 @@
 import { normalizeCustomerGid } from "../../controller/customers/normalizeCustomerGid.js";
 import { logger } from "../../utils/logger.js";
+import { withRetry } from "../../utils/retry/withRetry.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "graphql/query/customers";
+
+/** @constant {Array<string>} Transient errors safe to retry on any Shopify GraphQL call in this file */
+const TRANSIENT_ERRORS = ["fetch failed", "ECONNRESET", "ETIMEDOUT"];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared Fields
@@ -52,26 +56,39 @@ export default async function customers(admin) {
 
     try {
         while (hasNextPage) {
-            const response = await admin.graphql(
-                `#graphql
-                query CustomerList($cursor: String) {
-                    customers(first: 250, after: $cursor) {
-                        nodes {
-                            ${CUSTOMER_FIELDS}
-                        }
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                    }
-                }`,
-                { variables: { cursor } }
+            // Each page is retried independently on transient network failure.
+            // Without this, a single blip late in a 100k+ customer sync would
+            // discard every page already fetched and fail the whole sync.
+            const data = await withRetry(
+                async () => {
+                    const response = await admin.graphql(
+                        `#graphql
+                        query CustomerList($cursor: String) {
+                            customers(first: 250, after: $cursor) {
+                                nodes {
+                                    ${CUSTOMER_FIELDS}
+                                }
+                                pageInfo {
+                                    hasNextPage
+                                    endCursor
+                                }
+                            }
+                        }`,
+                        { variables: { cursor } }
+                    );
+
+                    const json = await response.json();
+                    const page = json.data?.customers;
+                    if (!page) throw new Error("Invalid response from Shopify API");
+                    return page;
+                },
+                {
+                    maxAttempts: 3,
+                    baseDelayMs: 800,
+                    retryableErrors: TRANSIENT_ERRORS,
+                    context: { module: MODULE, fetchedSoFar: allCustomers.length },
+                }
             );
-
-            const json = await response.json();
-            const data = json.data?.customers;
-
-            if (!data) throw new Error("Invalid response from Shopify API");
 
             allCustomers.push(...data.nodes);
             hasNextPage = data.pageInfo.hasNextPage;
@@ -80,7 +97,10 @@ export default async function customers(admin) {
 
         return { customers: { nodes: allCustomers } };
     } catch (error) {
-        logger.error(MODULE, "Failed to fetch customers", { error: error?.message });
+        logger.error(MODULE, "Failed to fetch customers", {
+            error: error?.message,
+            fetchedBeforeFailure: allCustomers.length,
+        });
         return null;
     }
 }
@@ -101,17 +121,27 @@ export const customer = async (admin, id) => {
         if (!id) throw new Error("Valid customer ID required");
 
         const gid = normalizeCustomerGid(id);
-        const response = await admin.graphql(
-            `#graphql
-            query CustomerById($id: ID!) {
-                customer(id: $id) {
-                    ${CUSTOMER_FIELDS}
-                }
-            }`,
-            { variables: { id: gid } }
+        const json = await withRetry(
+            async () => {
+                const response = await admin.graphql(
+                    `#graphql
+                    query CustomerById($id: ID!) {
+                        customer(id: $id) {
+                            ${CUSTOMER_FIELDS}
+                        }
+                    }`,
+                    { variables: { id: gid } }
+                );
+                return response.json();
+            },
+            {
+                maxAttempts: 3,
+                baseDelayMs: 800,
+                retryableErrors: TRANSIENT_ERRORS,
+                context: { module: MODULE, id },
+            }
         );
 
-        const json = await response.json();
         return json.data?.customer ?? null;
     } catch (error) {
         logger.error(MODULE, "Failed to fetch customer", { error: error?.message, id });
@@ -153,49 +183,66 @@ export const customer = async (admin, id) => {
  * const count = await customerOrderCount(admin, "gid://shopify/Customer/123");
  * if (count > 0) // customer has placed at least one order
  */
+/**
+ * Fetches the order count for a Shopify customer.
+ *
+ * Throws on failure rather than defaulting to 0 — a returned `0` here
+ * carries real business meaning (e.g. referral-claim.jsx treats it as
+ * "no prior orders, eligible for referral reward"). Silently returning 0
+ * on a Shopify API failure would incorrectly grant eligibility to a
+ * customer whose real order count is unknown, not zero. Callers that only
+ * need this for display (e.g. the customer dashboard) should catch and
+ * default to null/"unknown" themselves.
+ *
+ * @param {Object}        admin - Shopify Admin GraphQL client
+ * @param {string|number} id    - Shopify customer ID or GID
+ * @returns {Promise<number>} Order count
+ * @throws {Error} If `id` is missing, or the Shopify API call fails after retries
+ */
 export const customerOrderCount = async (admin, id) => {
     if (!id) {
-        logger.error(MODULE, "customerOrderCount: missing required id");
-        return 0;
+        throw new Error("customerOrderCount: missing required id");
     }
 
-    try {
-        // Extract the numeric ID from GID if needed:
-        // "gid://shopify/Customer/9441305526522" → "9441305526522"
-        // ordersCount query filter requires numeric customer_id, not GID format
-        const numericId = String(id).includes("gid://")
-            ? String(id).split("/").pop()
-            : String(id);
+    // Extract the numeric ID from GID if needed:
+    // "gid://shopify/Customer/9441305526522" → "9441305526522"
+    // ordersCount query filter requires numeric customer_id, not GID format
+    const numericId = String(id).includes("gid://")
+        ? String(id).split("/").pop()
+        : String(id);
 
-        const response = await admin.graphql(
-            `#graphql
-            query CustomerOrderCount($query: String!) {
-                ordersCount(query: $query) {
-                    count
-                    precision
-                }
-            }`,
-            { variables: { query: `customer_id:${numericId}` } }
-        );
-
-        const json = await response.json();
-        const result = json?.data?.ordersCount;
-
-        if (!result) {
-            logger.warn(MODULE, "customerOrderCount: no result from ordersCount query", { id, numericId });
-            return 0;
+    const json = await withRetry(
+        async () => {
+            const response = await admin.graphql(
+                `#graphql
+                query CustomerOrderCount($query: String!) {
+                    ordersCount(query: $query) {
+                        count
+                        precision
+                    }
+                }`,
+                { variables: { query: `customer_id:${numericId}` } }
+            );
+            return response.json();
+        },
+        {
+            maxAttempts: 3,
+            baseDelayMs: 800,
+            retryableErrors: TRANSIENT_ERRORS,
+            context: { module: MODULE, id },
         }
+    );
+    const result = json?.data?.ordersCount;
 
-        logger.info(MODULE, "customerOrderCount resolved", {
-            id,
-            count: result.count,
-            precision: result.precision,
-        });
-
-        return result.count ?? 0;
-
-    } catch (error) {
-        logger.error(MODULE, "customerOrderCount: failed", { error: error?.message, id });
-        return 0;
+    if (!result) {
+        throw new Error("customerOrderCount: no result from ordersCount query");
     }
+
+    logger.info(MODULE, "customerOrderCount resolved", {
+        id,
+        count: result.count,
+        precision: result.precision,
+    });
+
+    return result.count ?? 0;
 };

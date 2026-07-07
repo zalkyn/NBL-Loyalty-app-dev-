@@ -43,10 +43,12 @@
 
   NBL_v1.tab      = NBL_v1.tab      || {};
   NBL_v1.uiRender = NBL_v1.uiRender || {};
+
+  // App Proxy path for live/fresh data (e.g. re-checking points after an
+  // action). shopify.app.toml: [app_proxy] prefix="apps" subpath="widget".
+  NBL_v1.proxyPath = "/apps/widget";
 </script>
 
-<link rel="preload" href="{{ 'ui.min.css' | asset_url }}" as="style">
-{{ 'ui.min.css' | asset_url | stylesheet_tag }}
 <script src="{{ 'ui.min.js' | asset_url }}" defer></script>
 
 {% schema %}

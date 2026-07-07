@@ -1,10 +1,20 @@
 import prisma from "db-server";
+import { logger } from "app/utils/logger.js";
+
+/** @constant {string} Module identifier for structured logging */
+const MODULE = "layout/points-events/_data.server.js";
 
 // ── CREATE ───────────────────────────────────────────────────────────────────
 
 export async function handleAddEvent({ formData, session }) {
     const submitType = "addEvent";
-    const newEvent = JSON.parse(formData.get("event") || "{}");
+
+    let newEvent;
+    try {
+        newEvent = JSON.parse(formData.get("event") || "{}");
+    } catch {
+        return { message: "Invalid event data.", status: "error", submitType };
+    }
 
     if (!newEvent.name?.trim() || !newEvent.type?.trim())
         return { message: "Name and Type are required.", status: "error", submitType };
@@ -22,7 +32,7 @@ export async function handleAddEvent({ formData, session }) {
 
         return { message: "Event created successfully.", event: created, status: "success", submitType };
     } catch (err) {
-        console.error("Create Event Error:", err);
+        logger.error("Create event failed", { module: MODULE, error: err?.message, shop: session.shop });
         const msg = err.code === "P2002"
             ? "An event with this name or type already exists."
             : "Failed to create event. Please try again.";
@@ -34,7 +44,13 @@ export async function handleAddEvent({ formData, session }) {
 
 export async function handleUpdateEvent({ formData, session }) {
     const submitType = "updateEvent";
-    const updatedEvent = JSON.parse(formData.get("event") || "{}");
+
+    let updatedEvent;
+    try {
+        updatedEvent = JSON.parse(formData.get("event") || "{}");
+    } catch {
+        return { message: "Invalid event data.", status: "error", submitType };
+    }
 
     if (!updatedEvent.id || !updatedEvent.name?.trim() || !updatedEvent.type?.trim())
         return { message: "ID, Name, and Type are required.", status: "error", submitType };
@@ -52,7 +68,7 @@ export async function handleUpdateEvent({ formData, session }) {
 
         return { message: "Event updated successfully.", event, status: "success", submitType };
     } catch (err) {
-        console.error("Update Event Error:", err);
+        logger.error("Update event failed", { module: MODULE, error: err?.message, shop: session.shop, eventId: updatedEvent.id });
         const msg = err.code === "P2002"
             ? "An event with this name or type already exists."
             : "Failed to update event. Please try again.";
@@ -74,7 +90,7 @@ export async function handleDeleteEvent({ formData, session }) {
         });
         return { message: "Event deleted successfully.", status: "success", submitType };
     } catch (err) {
-        console.error("Delete Event Error:", err);
+        logger.error("Delete event failed", { module: MODULE, error: err?.message, shop: session.shop, eventId });
         return { message: "Failed to delete event. Please try again.", status: "error", submitType };
     }
 }
