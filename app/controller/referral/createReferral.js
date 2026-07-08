@@ -1,25 +1,7 @@
 import prisma from "db-server";
 import { logger } from "@app/utils/logger";
-
-/**
- * Default fields selected for all referral queries.
- * Override by passing a custom `select` object.
- */
-const DEFAULT_REFERRAL_SELECT = {
-    id: true,
-    referrerId: true,
-    referredId: true,
-    orderId: true,
-    status: true,
-    discountCode: true,
-    discountInfo: true,
-    discountUsed: true,
-    rewardGiven: true,
-    metadata: true,
-    createdAt: true,
-    updatedAt: true,
-    subscriptionContractId: true,
-};
+import { dbRetry } from "@app/utils/retry/dbRetry.js";
+import { DEFAULT_REFERRAL_SELECT } from "./referralSelect.js";
 
 /**
  * Creates a new referral record.
@@ -49,21 +31,25 @@ const DEFAULT_REFERRAL_SELECT = {
  */
 export const createReferral = async (input, select = DEFAULT_REFERRAL_SELECT) => {
     try {
-        const referral = await prisma.referral.create({
-            data: {
-                referrerId: Number(input.referrerId),
-                referredId: Number(input.referredId),
-                orderId: input.orderId ?? null,
-                status: input.status ?? "PENDING",
-                discountCode: input.discountCode ?? null,
-                discountInfo: input.discountInfo ?? null,
-                discountUsed: input.discountUsed ?? false,
-                rewardGiven: input.rewardGiven ?? false,
-                subscriptionContractId: input.subscriptionContractId ?? null,
-                metadata: input.metadata ?? {},
-            },
-            select,
-        });
+        const referral = await dbRetry(
+            () =>
+                prisma.referral.create({
+                    data: {
+                        referrerId: Number(input.referrerId),
+                        referredId: Number(input.referredId),
+                        orderId: input.orderId ?? null,
+                        status: input.status ?? "PENDING",
+                        discountCode: input.discountCode ?? null,
+                        discountInfo: input.discountInfo ?? null,
+                        discountUsed: input.discountUsed ?? false,
+                        rewardGiven: input.rewardGiven ?? false,
+                        subscriptionContractId: input.subscriptionContractId ?? null,
+                        metadata: input.metadata ?? {},
+                    },
+                    select,
+                }),
+            { referrerId: input.referrerId, referredId: input.referredId }
+        );
 
         logger.info("Referral created", {
             referralId: referral.id,

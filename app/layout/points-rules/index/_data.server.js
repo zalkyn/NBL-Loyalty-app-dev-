@@ -1,4 +1,9 @@
 import prisma from "db-server";
+import syncAppConfig from "@controller/metafieldsSync/syncAppConfig";
+import { logger } from "app/utils/logger.js";
+
+/** @constant {string} Module identifier for structured logging */
+const MODULE = "layout/points-rules/index/_data.server.js";
 
 export async function handleDeleteRule({ formData, session, admin }) {
     const submitType = "deleteRule";
@@ -14,12 +19,11 @@ export async function handleDeleteRule({ formData, session, admin }) {
         await prisma.pointsRule.delete({ where: { id: ruleId } });
 
         // sync app config after delete
-        const { default: syncAppConfig } = await import("@controller/metafieldsSync/syncAppConfig");
         await syncAppConfig(admin, session);
 
         return { message: "Points rule deleted successfully.", status: "success", submitType };
     } catch (err) {
-        console.error("Delete Rule Error:", err);
+        logger.error("Delete points rule failed", { module: MODULE, error: err?.message, shop: session.shop, ruleId });
         return { message: err.message || "Failed to delete rule.", status: "error", submitType };
     }
 }

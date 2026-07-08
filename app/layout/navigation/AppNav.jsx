@@ -7,5 +7,6 @@ export default function AppNav() {
         <s-link href="/app/physical-prizes-rules">Physical Prize Rules</s-link>
         <s-link href="/app/physical-prizes-claims-manage">Physical Prize Claims</s-link>
         <s-link href="/app/customize">Widget Customize</s-link>
+        <s-link href="/app/jobs">Background Jobs</s-link>
     </s-app-nav>
 }

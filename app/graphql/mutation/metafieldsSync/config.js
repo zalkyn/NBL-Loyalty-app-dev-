@@ -1,82 +1,107 @@
 import { logger } from "../../../utils/logger.js";
 
-// js doc and return for metafield sync mutation config function
-/**
- * Configures the metafield sync mutation for a given admin client and metafield data.
- * @param {object} admin - The admin client to perform the GraphQL mutation.
- * @param {object} metafield - The metafield data to be synced, including ownerId, key, namespace, and value.
- * @returns {Promise<void>} - A promise that resolves when the mutation is complete.
- * @throws {Error} - Throws an error if the mutation fails or if required parameters are missing.
- * @example
- * const admin = ...; // Obtain the admin client
- * const metafield = {
- *   ownerId: "gid://shopify/Shop/123456789",
- *   key: "config",
- *   namespace: "shield_insurance_app_new",
- *   value: JSON.stringify({ some: "data" }),
- * };
- * await configMetafieldSyncMutation(admin, metafield); 
- */
+const MODULE = "graphql/mutation/metafieldsSync/config.js";
 
+/**
+ * Syncs a single metafield to Shopify via the `metafieldsSet` mutation.
+ *
+ * Throws on every real failure (transport, GraphQL, userErrors, or invalid
+ * input) so the caller's retry layer (utils/retry/withRetry.js) can decide
+ * what to do. Error messages are preserved verbatim so `withRetry`'s
+ * `retryableErrors` string matching keeps working. All callers already wrap
+ * this in `.catch()`, so throwing never crashes a job.
+ *
+ * @param {object} admin - Authenticated Admin GraphQL client.
+ * @param {object} metafield - Metafield input.
+ * @param {string} metafield.ownerId - GID of the resource that owns the metafield.
+ * @param {string} metafield.namespace - Metafield namespace.
+ * @param {string} metafield.key - Metafield key.
+ * @param {string} metafield.type - Metafield type (e.g. "json").
+ * @param {string} metafield.value - Serialized value. MUST be a string.
+ * @returns {Promise<object|null>} The synced metafield node, or null if none returned.
+ * @throws {Error} On invalid input, transport failure, GraphQL errors, or userErrors.
+ */
 export default async function configMetafieldSyncMutation(admin, metafield) {
     metafield = metafield || {};
+
+    // Guard bad input early — these are caller bugs, not runtime faults.
     if (!admin) {
-        logger.error("Admin client is required for metafield sync mutation");
-        return;
+        throw new Error("configMetafieldSyncMutation: admin client is required");
     }
     if (!metafield.ownerId || !metafield.key || !metafield.namespace) {
-        logger.error("Metafield ownerId, key and namespace are required for metafield sync mutation");
-        return;
+        throw new Error("configMetafieldSyncMutation: ownerId, key and namespace are required");
     }
     if (typeof metafield.value !== "string") {
-        logger.error("Metafield value must be a string for metafield sync mutation");
-        return;
+        throw new Error("configMetafieldSyncMutation: metafield value must be a string");
     }
+
+    let payload;
     try {
         const response = await admin.graphql(
             `#graphql
             mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
                 metafieldsSet(metafields: $metafields) {
-                metafields {
-                    key
-                    namespace
-                    value
-                    createdAt
-                    updatedAt
+                    metafields {
+                        id
+                        key
+                        namespace
+                        createdAt
+                        updatedAt
+                    }
+                    userErrors {
+                        field
+                        message
+                        code
+                    }
                 }
-                userErrors {
-                    field
-                    message
-                    code
-                }
-            }
-        }`,
-            {
-                variables: {
-                    metafields: [
-                        { ...metafield }
-                        // {
-                        //     namespace: "shield_insurance_app_new",
-                        //     key: "config",
-                        //     value: JSON.stringify(data),
-                        //     type: "json",
-                        //     ownerId: shopId,
-                        // },
-                    ],
-                },
-            },
+            }`,
+            { variables: { metafields: [{ ...metafield }] } },
         );
 
-        if (response.errors) {
-            throw new Error("Something went wrong! please try again later.")
-        } else {
-            logger.success("Metafield successfully synced");
-        }
+        payload = await response.json();
     } catch (err) {
-        logger.error("Metafield sync mutation error", {
-            module: "graphql/mutation/metafieldSync.js",
+        // No HTTP response came back (fetch failed / ECONNRESET / ETIMEDOUT).
+        // Re-throw so withRetry can retry it.
+        logger.error(MODULE, "Metafield sync transport error", {
+            ownerId: metafield.ownerId,
+            key: metafield.key,
             error: err?.message,
-            stack: err?.stack
-        })
+        });
+        throw err;
     }
+
+    // GraphQL-level errors (bad query, throttling, etc.).
+    const topLevelErrors = payload?.errors;
+    if (topLevelErrors?.length) {
+        const message = topLevelErrors.map((e) => e?.message).filter(Boolean).join("; ") || "GraphQL error";
+        logger.error(MODULE, "Metafield sync GraphQL error", {
+            ownerId: metafield.ownerId,
+            key: metafield.key,
+            error: message,
+        });
+        throw new Error(`metafieldsSet GraphQL error: ${message}`);
+    }
+
+    // Per-metafield validation errors (invalid value, wrong type, ownership).
+    // Not transport errors, so withRetry treats these as non-retryable.
+    const result = payload?.data?.metafieldsSet;
+    const userErrors = result?.userErrors;
+    if (userErrors?.length) {
+        const message = userErrors
+            .map((e) => `${e.field?.join(".") ?? "?"}: ${e.message}${e.code ? ` (${e.code})` : ""}`)
+            .join("; ");
+        logger.error(MODULE, "Metafield sync userErrors", {
+            ownerId: metafield.ownerId,
+            key: metafield.key,
+            error: message,
+        });
+        throw new Error(`metafieldsSet userErrors: ${message}`);
+    }
+
+    logger.success(MODULE, "Metafield successfully synced", {
+        ownerId: metafield.ownerId,
+        key: metafield.key,
+    });
+
+    return result?.metafields?.[0] ?? null;
 }

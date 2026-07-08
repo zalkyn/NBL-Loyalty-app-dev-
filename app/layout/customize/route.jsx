@@ -39,6 +39,7 @@ import { PageHeader } from "./components/PageHeader";
 import { CustomizeTab } from "./components/CustomizeTab";
 import { ConfigTab } from "./components/ConfigTab";
 import { LabelsTab } from "./components/LabelsTab";
+import { AdvancedTab } from "./components/AdvancedTab";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -146,13 +147,13 @@ export default function CustomizeNew() {
                 />
             )}
 
-            {/* ══ LIVE PREVIEW — always mounted so portal persists across tabs ══ */}
-            {/* <LivePreviewPanel
-                cssVars={page.deferredCssVars}
-                widgetConfig={page.widgetConfig}
-                hidden={page.pageTab === "config"}
-                previewScene={previewScene}
-            /> */}
+            {page.pageTab === "advanced" && (
+                <AdvancedTab
+                    cssVars={page.cssVars}
+                    onSimpleChange={page.handleSimpleChange}
+                    isNetworkSubmitting={page.isNetworkSubmitting}
+                />
+            )}
 
             {/* ══ FLOATING SAVE BAR ══ */}
             <SaveBar
