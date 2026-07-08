@@ -98,9 +98,7 @@ function PointRuleItem({ rule, currencySymbol, onOpenInfo }) {
 
     return (
         <Item
-            lift
             active={true}
-            accentHover
             onClick={() => onOpenInfo({ text: label })}
             leading={<Icon name={ICON_MAP[type] || 'earn-points'} size="lg" />}
             content={
