@@ -25,7 +25,8 @@ import { EarnTab } from './tabs/EarnTab.jsx';
 import { RewardsTab } from './tabs/RewardsTab.jsx';
 import { PrizesTab } from './tabs/PrizesTab.jsx';
 import { ReferralTab } from './tabs/ReferralTab.jsx';
-import { ActivitiesTab, ActiveRewardsTab } from './tabs/ActivitiesTab.jsx';
+import { ActivitiesTab } from './tabs/ActivitiesTab.jsx';
+import { ActiveRewardsTab } from './tabs/ActiveRewardsTab.jsx';
 import { MyPrizesTab } from './tabs/MyPrizesTab.jsx';
 import { requestRewardVoucher, requestClaimPrize } from './api.js';
 

@@ -13,7 +13,47 @@ import { Item } from '../components/Item.jsx';
 import { ItemList } from '../components/ItemList.jsx';
 import { Pagination } from '../components/Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
-import { PrizeClaimItem } from '../components/items.jsx';
+
+const PRIZE_STATUS_LABELS = {
+    PENDING: 'Pending',
+    FULFILLED: 'Fulfilled',
+    COMPLETED: 'Completed',
+    CANCELLED: 'Cancelled',
+};
+
+function PrizeClaimRow({ claim, physicalPrizes, onOpenClaim, onViewImage, lbl }) {
+    const prize = (physicalPrizes || []).find((p) => Number(p.id) === Number(claim.physicalPrizeId));
+    const title = prize ? prize.title : `Prize request #${claim.id}`;
+    const status = claim.status || 'PENDING';
+    const statusKey = status.toLowerCase();
+
+    const statusLabelKeys = {
+        PENDING: 'prizeStatusPending',
+        FULFILLED: 'prizeStatusFulfilled',
+        COMPLETED: 'prizeStatusCompleted',
+        CANCELLED: 'prizeStatusCancelled',
+    };
+    const statusLabel = (lbl && lbl(statusLabelKeys[status])) || PRIZE_STATUS_LABELS[status] || status;
+    const statusModifierClass = (statusKey === 'fulfilled' || statusKey === 'completed') ? ' nbl-prize-status--fulfilled'
+        : statusKey === 'cancelled' ? ' nbl-prize-status--cancelled' : '';
+
+    return (
+        <Item
+            variant="row"
+            onClick={() => onOpenClaim(claim)}
+            leading={<Image src={prize && prize.imageUrl} alt={title} size="sm" onView={onViewImage} />}
+            content={
+                <div class="nbl-item__content">
+                    <Text as="span" bare extraClass="nbl-item__title">{title}</Text>
+                    {claim.pointsCost ? <Text as="span" bare extraClass="nbl-item__meta">{formatNumber(claim.pointsCost)} pts</Text> : null}
+                </div>
+            }
+            trailing={
+                <Text as="span" bare extraClass={`nbl-item__status${statusModifierClass}`}>{statusLabel}</Text>
+            }
+        />
+    );
+}
 
 function PrizeItem({ prize, customerPoints, onClaim, onViewImage }) {
     const cost = Number(prize.pointsCost) || 0;
@@ -26,10 +66,9 @@ function PrizeItem({ prize, customerPoints, onClaim, onViewImage }) {
 
     return (
         <Item
-            selfSpaced
             active={canClaim}
             onClick={handleClick}
-            leading={<Image src={prize.imageUrl} alt={prize.title} onView={onViewImage} />}
+            leading={<Image src={prize.imageUrl} alt={prize.title} size="sm" onView={onViewImage} />}
             content={
                 <div class="nbl-item__content">
                     <div class="nbl-item__title">{prize.title}</div>
@@ -74,7 +113,7 @@ export function PrizesTab({ physicalPrizes, points, prizeClaims, perPage, pagina
 
     return (
         <>
-            <div class="nbl-prize-list">
+            <div class="nbl-item-list">
                 <ItemList
                     items={activePrizes}
                     emptyText={lbl('emptyPrizes') || 'No prizes available'}
@@ -94,7 +133,7 @@ export function PrizesTab({ physicalPrizes, points, prizeClaims, perPage, pagina
                         items={pagination.pageItems}
                         emptyText={lbl('emptyMyPrizes')}
                         renderItem={(claim) => (
-                            <PrizeClaimItem
+                            <PrizeClaimRow
                                 claim={claim}
                                 physicalPrizes={physicalPrizes}
                                 onOpenClaim={onOpenClaim}
