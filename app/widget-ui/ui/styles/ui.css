@@ -667,68 +667,56 @@ input:not([type=checkbox], [type=radio]) {
    explicit icon color in the original design) */
 .nbl-item--card>.nbl-icon,
 .nbl-item--voucher-row>.nbl-icon,
-.nbl-item__trailing>.nbl-icon {
+.nbl-item__trailing>.nbl-icon,
+.nbl-item__action>.nbl-icon {
     color: var(--nbl-accent);
 }
 
-/* ── Row variant A: prize-claim / my-prize row — divided list with
-   bottom-border separators, used standalone or inside a section card ── */
-.nbl-item--row {
-    padding: 10px 4px;
-    border-bottom: var(--nbl-border-width) solid var(--nbl-item-row-border-color);
-    font-size: var(--nbl-text-sm);
-    border-radius: 0;
-    background: transparent;
-}
-
-.nbl-item--row:last-child {
-    border-bottom: none;
-}
-
-/* Flush wrapper for .nbl-item--row lists. Keeps the row items as a
-   contiguous sibling group so each row's :last-child border rule resolves
-   against the actual last row, not against a trailing sibling like
-   .nbl-pagination rendered after the list. */
-.nbl-item-rows {
-    display: block;
-}
-
-.nbl-item--row.nbl-item--clickable {
-    cursor: pointer;
-    transition: background var(--nbl-dur-fast) var(--nbl-ease-out);
-}
-
-.nbl-item--row.nbl-item--clickable:hover {
-    background: var(--nbl-item-active-bg);
-}
-
-/* ── Row variant B: active-reward (voucher) row — surface background,
-   card padding, hover tint. Lives inside a list wrapper that supplies
-   the 1px divider lines via gap + background (see .nbl-item-list--divided) ── */
+/* ── Row variant: shared style for every "row inside a divided list" item —
+   prize-claim / my-prize row AND active-reward (voucher) row. These used to
+   carry two separate rule-sets (different bg / hover / divider), even though
+   they render in the exact same context (inside .nbl-home-section-card /
+   .nbl-item-rows). Content differences (image leading vs icon leading,
+   chevron trailing vs status text) are handled entirely via props on
+   <Item>/<PrizeClaimItem>/<ActiveRewardItem> — the CSS below is intentionally
+   identical for both variants so a content-only difference never becomes a
+   style difference. ── */
+.nbl-item--row,
 .nbl-item--voucher-row {
     background: var(--nbl-surface);
     padding: var(--nbl-card-padding);
+    border-radius: 0;
     cursor: pointer;
     transition: background 0.15s;
 }
 
+.nbl-item--row:hover,
 .nbl-item--voucher-row:hover {
     background: var(--nbl-surface-2);
 }
 
-/* Nested in a section card: dividers become a top border per row
-   instead of the list wrapper's gap-line trick */
+/* Divider: top border per row, first row skips it.
+   - .nbl-item--row (.nbl-item-rows wrapper) always gets it unconditionally —
+     that wrapper is only ever used nested inside a .nbl-home-section-card.
+   - .nbl-item--voucher-row only gets it when nested in a section card too;
+     standalone (outside a section card) it instead relies on
+     .nbl-item-list--divided's gap-line trick, so this stays scoped to avoid
+     doubling up dividers in that context. */
+.nbl-item--row,
 .nbl-home-section-card .nbl-item--voucher-row {
-    background: var(--nbl-surface) !important;
     border-top: var(--nbl-border-width) solid var(--nbl-border);
 }
 
+.nbl-item--row:first-child,
 .nbl-home-section-card .nbl-item--voucher-row:first-child {
     border-top: none;
 }
 
-.nbl-home-section-card .nbl-item--voucher-row:hover {
-    background: var(--nbl-surface-2) !important;
+/* Flush wrapper for .nbl-item--row lists. Keeps the row items as a
+   contiguous sibling group so each row's :first-child border rule resolves
+   against the actual first row, not against a preceding sibling. */
+.nbl-item-rows {
+    display: block;
 }
 
 /* ── Content slot: title + meta ── */

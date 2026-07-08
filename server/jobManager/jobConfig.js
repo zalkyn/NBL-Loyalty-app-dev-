@@ -72,7 +72,7 @@ export const JOB_CONFIGS = [
         immediate: false,
         jobTimeout: 30 * 60 * 1000,
         preHooks: [
-            async () => logger.info("customer_sync", "Pre-hook: customer sync cycle starting"),
+            // async () => logger.info("customer_sync", "Pre-hook: customer sync cycle starting"),
         ],
         handlers: [
             async () => runCustomerSyncJob(),
@@ -93,7 +93,7 @@ export const JOB_CONFIGS = [
         immediate: true,                     // run once on server startup
         jobTimeout: 4 * 60 * 1000,           // 4 minutes hard timeout per cycle
         preHooks: [
-            async () => logger.info("order_paid", "Pre-hook: order paid job cycle starting"),
+            // async () => logger.info("order_paid", "Pre-hook: order paid job cycle starting"),
         ],
         handlers: [
             async () => runOrderPaidJob(),
@@ -112,7 +112,7 @@ export const JOB_CONFIGS = [
         immediate: true,                     // run once on server startup
         jobTimeout: 4 * 60 * 1000,           // 4 minutes hard timeout per cycle
         preHooks: [
-            async () => logger.info("order_reversal", "Pre-hook: order reversal job cycle starting"),
+            // async () => logger.info("order_reversal", "Pre-hook: order reversal job cycle starting"),
         ],
         handlers: [
             async () => runOrderReversalJob(),
@@ -135,7 +135,7 @@ export const JOB_CONFIGS = [
         immediate: false,
         jobTimeout: 10 * 60 * 1000,           // 10 minutes hard timeout
         preHooks: [
-            async () => logger.info("job_cleanup", "Pre-hook: job cleanup cycle starting"),
+            // async () => logger.info("job_cleanup", "Pre-hook: job cleanup cycle starting"),
         ],
         handlers: [
             async () => runJobCleanupJob(),
@@ -155,7 +155,7 @@ export const JOB_CONFIGS = [
         immediate: false,
         jobTimeout: 5 * 60 * 1000,            // 5 minutes hard timeout
         preHooks: [
-            async () => logger.info("job_auto_retry", "Pre-hook: job auto-retry cycle starting"),
+            // async () => logger.info("job_auto_retry", "Pre-hook: job auto-retry cycle starting"),
         ],
         handlers: [
             async () => runJobAutoRetryJob(),
