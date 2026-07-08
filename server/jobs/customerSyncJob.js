@@ -1,6 +1,7 @@
 import prisma from "../../app/db.server.js";
 import { unauthenticated } from "../../app/shopify.server.js";
 import { logger } from "../../app/utils/logger.js";
+import { dbRetry } from "../../app/utils/retry/dbRetry.js";
 import {
     processCustomerSync,
     requeueStaleCustomerSyncJobs,
@@ -26,15 +27,19 @@ export async function runCustomerSyncJob() {
     await requeueStaleCustomerSyncJobs();
 
     // ── 2. Find pending jobs ──────────────────────────────────────────────────
-    const jobs = await prisma.job.findMany({
-        where: {
-            type:   "CUSTOMER_SYNC",
-            status: "PENDING",
-            runAt:  { lte: new Date() },
-        },
-        orderBy: { runAt: "asc" },
-        take: 1, // only one sync per shop at a time
-    });
+    const jobs = await dbRetry(
+        () =>
+            prisma.job.findMany({
+                where: {
+                    type:   "CUSTOMER_SYNC",
+                    status: "PENDING",
+                    runAt:  { lte: new Date() },
+                },
+                orderBy: { runAt: "asc" },
+                take: 1, // only one sync per shop at a time
+            }),
+        { module: MODULE }
+    );
 
     if (!jobs.length) {
         logger.info(MODULE, "No pending CUSTOMER_SYNC jobs — skipping cycle");

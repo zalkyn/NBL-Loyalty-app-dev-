@@ -1,5 +1,6 @@
 import { logger } from "../../utils/logger.js";
 import prisma from "../../db.server.js";
+import { dbRetry } from "../../utils/retry/dbRetry.js";
 
 /**
  * Fetches the active PointsRule for a given event type.
@@ -15,16 +16,20 @@ export const getPointRuleByEvent = async (event = null) => {
     }
 
     try {
-        const rule = await prisma.pointsRule.findFirst({
-            where: {
-                isActive: true,
-                event: {
-                    type: { equals: event, mode: "insensitive" },
-                    isActive: true,
-                },
-            },
-            include: { event: true },
-        });
+        const rule = await dbRetry(
+            () =>
+                prisma.pointsRule.findFirst({
+                    where: {
+                        isActive: true,
+                        event: {
+                            type: { equals: event, mode: "insensitive" },
+                            isActive: true,
+                        },
+                    },
+                    include: { event: true },
+                }),
+            { event }
+        );
 
         return rule ?? null;
     } catch (error) {

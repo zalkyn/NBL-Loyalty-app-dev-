@@ -5,6 +5,7 @@ import prisma from "db-server";
 import createTransaction from "app/controller/transaction/createTransaction";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig.js";
 import { withRetry } from "app/utils/retry/withRetry.js";
+import { dbRetry } from "app/utils/retry/dbRetry.js";
 
 const MODULE = "api.claim-prize.jsx";
 
@@ -30,15 +31,19 @@ export async function action({ request }) {
 
         const { shop, customerId, customerIndex, prizeId } = body;
 
-        const [customer, { admin, session }] = await Promise.all([
-            getValidCustomer(customerIndex),
-            unauthenticated.admin(shop),
+        // Authenticate the shop FIRST — customer/prize lookups below are
+        // scoped to this session's id so a customerIndex/prizeId belonging
+        // to a *different* shop (same shared DB, sequential integer ids)
+        // can never be fetched here.
+        const { admin, session } = await unauthenticated.admin(shop);
+        if (!session) throw new AppError("Valid shop session required", 401);
+
+        const [customer, prize] = await Promise.all([
+            getValidCustomer(customerIndex, session.id),
+            getValidPrize(prizeId, session.id),
         ]);
 
-        if (!session) throw new AppError("Valid shop session required", 401);
         if (!customer) throw new AppError("Customer not found", 404);
-
-        const prize = await getValidPrize(prizeId);
         if (!prize) throw new AppError("Prize not found", 404);
         if (!prize.isActive) throw new AppError("This prize is no longer available", 422);
 
@@ -52,30 +57,17 @@ export async function action({ request }) {
 
         const { claim, pointsCost } = await claimPrize({ session, customer, prize });
 
-        // Sync metafields — non-critical, but retried up to 3 times on network failure.
-        // If all retries fail, the claim and points deduction are still committed in DB.
-        // The metafield will reflect the correct state on next successful sync.
-        const updatedCustomer = await withRetry(
-            () => syncCustomerConfig(admin, customerId),
-            {
-                maxAttempts: 3,
-                baseDelayMs: 800,
-                retryableErrors: [
-                    "fetch failed",
-                    "ECONNRESET",
-                    "ETIMEDOUT",
-                    "Something went wrong. Please try again later.",
-                ],
-                context: { module: MODULE, claimId: claim.id, shop },
-            }
-        ).catch((err) => {
+        // Sync metafields — non-critical. syncCustomerConfig retries transient
+        // network failures internally; if all retries fail, the claim and
+        // points deduction above are still committed in DB and the metafield
+        // will reflect the correct state on the next successful sync.
+        const updatedCustomer = await syncCustomerConfig(admin, customerId);
+        if (!updatedCustomer) {
             logger.error("Metafield sync failed after all retries — claim is still valid", {
                 module: MODULE,
                 claimId: claim.id,
-                error: err?.message,
             });
-            return null;
-        });
+        }
 
         logger.info("Prize claimed successfully", {
             module: MODULE,
@@ -130,14 +122,18 @@ async function claimPrize({ session, customer, prize }) {
     const pointsCost = Math.abs(Number(prize.pointsCost) || 0);
 
     // 1. Create the claim record
-    const claim = await prisma.physicalPrizeClaim.create({
-        data: {
-            status: "PENDING",
-            pointsCost,
-            customer: { connect: { id: customer.id } },
-            prize: { connect: { id: prize.id } },
-        },
-    });
+    const claim = await dbRetry(
+        () =>
+            prisma.physicalPrizeClaim.create({
+                data: {
+                    status: "PENDING",
+                    pointsCost,
+                    customer: { connect: { id: customer.id } },
+                    prize: { connect: { id: prize.id } },
+                },
+            }),
+        { module: MODULE, customerId: customer.id, prizeId: prize.id }
+    );
 
     // 2. Deduct points + record transaction atomically via createTransaction.
     // If this fails, cancel the claim so the customer does not get a free prize.
@@ -149,6 +145,10 @@ async function claimPrize({ session, customer, prize }) {
             activity: `-${pointsCost} points redeemed for prize: ${prize.title}`,
             points: pointsCost,
             status: "COMPLETED",
+            // Customer is live in the widget right now and sees the claim
+            // confirmation on screen immediately — never surface this as a
+            // toast on a later visit.
+            notifiedAt: new Date(),
         },
         session
     );
@@ -161,19 +161,21 @@ async function claimPrize({ session, customer, prize }) {
             prizeId: prize.id,
         });
 
-        await prisma.physicalPrizeClaim.update({
-            where: { id: claim.id },
-            data: { status: "CANCELLED" },
-        });
+        await dbRetry(
+            () => prisma.physicalPrizeClaim.update({ where: { id: claim.id }, data: { status: "CANCELLED" } }),
+            { module: MODULE, claimId: claim.id }
+        );
 
         throw new AppError("Points deduction failed. Please try again.", 500);
     }
 
-    // 3. Link transaction to claim
-    await prisma.physicalPrizeClaim.update({
-        where: { id: claim.id },
-        data: { transactionId: transaction.id },
-    });
+    // 3. Link transaction to claim — retried since points are already
+    // deducted at this point; a transient failure here must not surface as
+    // a customer-facing error with no compensating action.
+    await dbRetry(
+        () => prisma.physicalPrizeClaim.update({ where: { id: claim.id }, data: { transactionId: transaction.id } }),
+        { module: MODULE, claimId: claim.id, transactionId: transaction.id }
+    );
 
     return { claim, pointsCost };
 }
@@ -192,20 +194,30 @@ function validateRequestBody({ shop, customerId, customerIndex, prizeId }) {
 // DB Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function getValidPrize(id) {
+// `id` is a raw auto-increment primary key shared across ALL shops in this
+// database, so both lookups below MUST filter by sessionId — otherwise a
+// request could read (and claim/redeem against) another shop's prize or
+// customer.
+async function getValidPrize(id, sessionId) {
     try {
-        return await prisma.physicalPrize.findFirst({ where: { id: Number(id) } });
+        return await dbRetry(
+            () => prisma.physicalPrize.findFirst({ where: { id: Number(id), sessionId } }),
+            { module: MODULE, prizeId: id, sessionId }
+        );
     } catch (error) {
-        logger.error("Failed to fetch prize", { module: MODULE, prizeId: id, error: error?.message });
+        logger.error("Failed to fetch prize", { module: MODULE, prizeId: id, sessionId, error: error?.message });
         return null;
     }
 }
 
-async function getValidCustomer(id) {
+async function getValidCustomer(id, sessionId) {
     try {
-        return await prisma.customer.findFirst({ where: { id: Number(id) } });
+        return await dbRetry(
+            () => prisma.customer.findFirst({ where: { id: Number(id), sessionId } }),
+            { module: MODULE, customerIndex: id, sessionId }
+        );
     } catch (error) {
-        logger.error("Failed to fetch customer", { module: MODULE, customerIndex: id, error: error?.message });
+        logger.error("Failed to fetch customer", { module: MODULE, customerIndex: id, sessionId, error: error?.message });
         return null;
     }
 }

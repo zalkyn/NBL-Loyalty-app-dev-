@@ -1,6 +1,10 @@
 import prisma from "db-server";
 import syncAppConfig from "@controller/metafieldsSync/syncAppConfig";
 import { CSS_DEFAULTS } from "./constants/cssVarsConfig";
+import { logger } from "app/utils/logger.js";
+
+/** @constant {string} Module identifier for structured logging */
+const MODULE = "layout/customize/_action.server.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared upsert + sync helper. Every intent below ends with the same
@@ -35,7 +39,7 @@ export async function handleUpdate({ formData, session, admin }) {
             savedCssVars: cssVars, savedPresetKey: presetKey, savedWidgetConfig: widgetConfig,
         };
     } catch (err) {
-        console.error("[customize] update error:", err);
+        logger.error("Update customize error", { module: MODULE, intent, error: err?.message, shop: session.shop });
         return { ok: false, intent, message: "Something went wrong. Please try again." };
     }
 }
@@ -54,7 +58,7 @@ export async function handleResetAll({ session, admin }) {
             savedCssVars: fresh, savedPresetKey: null, savedWidgetConfig: null,
         };
     } catch (err) {
-        console.error("[customize] resetAll error:", err);
+        logger.error("Reset-all customize error", { module: MODULE, intent, error: err?.message, shop: session.shop });
         return { ok: false, intent, message: "Something went wrong. Please try again." };
     }
 }
@@ -77,7 +81,7 @@ export async function handleClearAll({ session, admin }) {
             savedCssVars: null, savedPresetKey: null, savedWidgetConfig: null,
         };
     } catch (err) {
-        console.error("[customize] clearAll error:", err);
+        logger.error("Clear-all customize error", { module: MODULE, intent, error: err?.message, shop: session.shop });
         return { ok: false, intent, message: "Something went wrong. Please try again." };
     }
 }

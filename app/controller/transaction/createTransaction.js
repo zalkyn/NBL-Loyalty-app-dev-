@@ -1,5 +1,6 @@
 import prisma from "../../db.server.js";
 import { logger } from "../../utils/logger.js";
+import { dbRetry } from "../../utils/retry/dbRetry.js";
 
 // ─── Default Select ───────────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ const DEFAULT_TRANSACTION_SELECT = {
     expiresAt: true,
     metadata: true,
     createdAt: true,
+    notifiedAt: true,
 };
 
 // ─── Create Transaction ───────────────────────────────────────────────────────
@@ -48,13 +50,22 @@ const DEFAULT_TRANSACTION_SELECT = {
  * @param {string}                                                    [input.activity]
  * @param {Date|string}                                               [input.expiresAt]
  * @param {Object}                                                    [input.metadata]
+ * @param {Date}                                                      [input.notifiedAt] - Set to `new Date()` ONLY for actions the customer
+ *   triggers themselves live inside the open widget (reward redeem, physical
+ *   prize claim, applying a referral code) — they already see a direct
+ *   success confirmation on screen, so this transaction should never also
+ *   surface as a toast notification later. Leave unset/null (default) for
+ *   anything that happens while the customer isn't looking at the widget
+ *   (order-paid webhooks, admin/merchant dashboard actions, third-party app
+ *   triggers) — those SHOULD still generate a toast on their next visit.
  * @param {Object}                                                    session
  * @param {string}                                                    session.id
  * @param {Object}                                                    [select]            - Prisma select object to control returned fields.
  * @returns {Promise<Object|null>} Created transaction or null on failure.
  *
  * @example
- * // Earn points for order
+ * // Earn points for order — background/webhook-driven, customer isn't
+ * // present, so leave notifiedAt unset (they'll get a toast next visit).
  * await createTransaction(
  *     {
  *         customerId:   12,
@@ -69,105 +80,124 @@ const DEFAULT_TRANSACTION_SELECT = {
  *     session
  * )
  *
+ * // Reward redeemed live, inside the widget — customer already sees the
+ * // voucher code on screen, so mark it notified immediately.
+ * await createTransaction(
+ *     { customerId: 12, type: "REDEEM", points: 100, rewardId: 4, notifiedAt: new Date() },
+ *     session
+ * )
+ *
  * // Minimal select — only return what's needed
  * await createTransaction(input, session, { id: true, points: true, balanceAfter: true })
  */
 export default async function createTransaction(input, session, select = DEFAULT_TRANSACTION_SELECT) {
     try {
-        return await prisma.$transaction(async (tx) => {
-            const customer = await tx.customer.findUnique({
-                where: { id: input.customerId },
-                select: {
-                    points: true,
-                    lifetimePoints: true,
-                    sessionId: true,
-                },
-            });
+        // Wrapped in dbRetry: the $transaction below is atomic (all-or-nothing),
+        // so retrying on a transient DB error (connection reset, deadlock under
+        // concurrent writes to the same customer row — e.g. an order-paid webhook
+        // and a live widget redemption landing at the same time) is safe. Business
+        // errors thrown inside (not found, unauthorized, insufficient points,
+        // unknown type) don't match dbRetry's retryable patterns, so they still
+        // fail immediately without wasted retry attempts.
+        return await dbRetry(
+            () =>
+                prisma.$transaction(async (tx) => {
+                    const customer = await tx.customer.findUnique({
+                        where: { id: input.customerId },
+                        select: {
+                            points: true,
+                            lifetimePoints: true,
+                            sessionId: true,
+                        },
+                    });
 
-            if (!customer) {
-                throw new Error("Customer not found");
-            }
-
-            if (customer.sessionId !== session.id) {
-                throw new Error("Unauthorized: customer does not belong to this shop");
-            }
-
-            const amount = Number(input.points);
-            let signedPoints;
-            let newBalance;
-            let newLifetimePoints = customer.lifetimePoints;
-
-            switch (input.type) {
-                case "EARN":
-                case "REFERRAL":
-                    signedPoints = amount;
-                    newBalance = customer.points + amount;
-                    newLifetimePoints += amount;
-                    break;
-
-                case "REDEEM":
-                case "EXPIRE":
-                    if (amount > customer.points) {
-                        throw new Error(
-                            `Insufficient points: has ${customer.points}, attempted ${amount}`
-                        );
+                    if (!customer) {
+                        throw new Error("Customer not found");
                     }
-                    signedPoints = -amount;
-                    newBalance = customer.points - amount;
-                    break;
 
-                case "ADJUST":
-                    signedPoints = amount;
-                    newBalance = Math.max(0, customer.points + amount);
-                    newLifetimePoints += amount;
-                    break;
-                case "REVERSAL":
-                    // Signed value passed directly from caller (+/-)
-                    signedPoints = amount;
-                    newBalance = Math.max(0, customer.points + amount);
-                    break;
+                    if (customer.sessionId !== session.id) {
+                        throw new Error("Unauthorized: customer does not belong to this shop");
+                    }
 
-                default:
-                    throw new Error(`Unknown transaction type: ${input.type}`);
-            }
+                    const amount = Number(input.points);
+                    let signedPoints;
+                    let newBalance;
+                    let newLifetimePoints = customer.lifetimePoints;
 
-            const transaction = await tx.transaction.create({
-                data: {
-                    customerId: input.customerId,
-                    type: input.type,
-                    points: signedPoints,
-                    balanceAfter: newBalance,
-                    status: input.status ?? "COMPLETED",
-                    reason: input.reason ?? null,
-                    activity: input.activity ?? null,
-                    eventId: input.eventId ?? null,
-                    rewardId: input.rewardId ?? null,
-                    referralId: input.referralId ?? null,
-                    pointsRuleId: input.pointsRuleId ?? null,
-                    expiresAt: input.expiresAt ?? null,
-                    metadata: input.metadata ?? {},
-                },
-                select,
-            });
+                    switch (input.type) {
+                        case "EARN":
+                        case "REFERRAL":
+                            signedPoints = amount;
+                            newBalance = customer.points + amount;
+                            newLifetimePoints += amount;
+                            break;
 
-            await tx.customer.update({
-                where: { id: input.customerId },
-                data: {
-                    points: newBalance,
-                    lifetimePoints: newLifetimePoints,
-                },
-            });
+                        case "REDEEM":
+                        case "EXPIRE":
+                            if (amount > customer.points) {
+                                throw new Error(
+                                    `Insufficient points: has ${customer.points}, attempted ${amount}`
+                                );
+                            }
+                            signedPoints = -amount;
+                            newBalance = customer.points - amount;
+                            break;
 
-            logger.info("Transaction created", {
-                transactionId: transaction.id,
-                customerId: input.customerId,
-                type: input.type,
-                points: signedPoints,
-                balanceAfter: newBalance,
-            });
+                        case "ADJUST":
+                            signedPoints = amount;
+                            newBalance = Math.max(0, customer.points + amount);
+                            newLifetimePoints += amount;
+                            break;
+                        case "REVERSAL":
+                            // Signed value passed directly from caller (+/-)
+                            signedPoints = amount;
+                            newBalance = Math.max(0, customer.points + amount);
+                            break;
 
-            return transaction;
-        });
+                        default:
+                            throw new Error(`Unknown transaction type: ${input.type}`);
+                    }
+
+                    const transaction = await tx.transaction.create({
+                        data: {
+                            customerId: input.customerId,
+                            type: input.type,
+                            points: signedPoints,
+                            balanceAfter: newBalance,
+                            status: input.status ?? "COMPLETED",
+                            reason: input.reason ?? null,
+                            activity: input.activity ?? null,
+                            eventId: input.eventId ?? null,
+                            rewardId: input.rewardId ?? null,
+                            referralId: input.referralId ?? null,
+                            pointsRuleId: input.pointsRuleId ?? null,
+                            expiresAt: input.expiresAt ?? null,
+                            metadata: input.metadata ?? {},
+                            notifiedAt: input.notifiedAt ?? null,
+                        },
+                        select,
+                    });
+
+                    await tx.customer.update({
+                        where: { id: input.customerId },
+                        data: {
+                            points: newBalance,
+                            lifetimePoints: newLifetimePoints,
+                        },
+                    });
+
+                    logger.info("Transaction created", {
+                        transactionId: transaction.id,
+                        customerId: input.customerId,
+                        type: input.type,
+                        points: signedPoints,
+                        balanceAfter: newBalance,
+                    });
+
+                    return transaction;
+                }),
+            { customerId: input.customerId, type: input.type }
+        );
     } catch (error) {
         logger.error("Failed to create transaction", {
             error: error?.message,

@@ -23,7 +23,7 @@ export function ConfigTab({
     const activeSection = CONFIG_SECTIONS.find((s) => s.key === activeConfigSection) ?? CONFIG_SECTIONS[0];
 
     return (
-        <s-grid gridTemplateColumns="280px 1fr" gap="base">
+        <s-grid gridTemplateColumns="280px 1fr 1fr" gap="base">
             {/* LEFT — config section nav */}
             <div>
                 <div style={{ position: "sticky", top: 16 }}>

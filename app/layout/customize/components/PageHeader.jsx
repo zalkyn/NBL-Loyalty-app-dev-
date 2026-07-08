@@ -1,9 +1,12 @@
-import { DS } from "../constants/cssVarsConfig";
+import { DS, ADVANCED_MODE_ENABLED } from "../constants/cssVarsConfig";
 
 const PAGE_TABS = [
     { key: "customize", label: "Customize" },
     { key: "config", label: "Widget Config" },
     { key: "labels", label: "Labels & Text" },
+    // Gated by ADVANCED_MODE_ENABLED (constants/cssVarsConfig.js) — flip that
+    // one constant to hide this tab everywhere, no other changes needed.
+    ...(ADVANCED_MODE_ENABLED ? [{ key: "advanced", label: "Advanced" }] : []),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────

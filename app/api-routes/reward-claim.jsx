@@ -7,6 +7,7 @@ import createTransaction from "app/controller/transaction/createTransaction";
 import { createCustomerReward } from "@app/controller/customerReward/createCustomerReward.js";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig.js";
 import { withRetry } from "app/utils/retry/withRetry.js";
+import { dbRetry } from "app/utils/retry/dbRetry.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "api.get-voucher.jsx";
@@ -38,16 +39,20 @@ export async function action({ request }) {
 
         logger.info("Received get-voucher request", { module: MODULE, shop, rewardRuleId, customerIndex });
 
-        // Fetch customer and authenticated shop session in parallel
-        const [customer, { admin, session }] = await Promise.all([
-            getValidCustomer(customerIndex),
-            unauthenticated.admin(shop),
+        // Authenticate the shop FIRST — customer and rewardRule lookups below
+        // are scoped to this session's id so a customerIndex/rewardRuleId that
+        // belongs to a *different* shop (same shared DB, sequential integer
+        // ids) can never be fetched here. Do not fetch those in parallel with
+        // auth, since the scoping depends on session.id being known.
+        const { admin, session } = await unauthenticated.admin(shop);
+        if (!session) throw new AppError("Valid shop session required", 401);
+
+        const [customer, rewardRule] = await Promise.all([
+            getValidCustomer(customerIndex, session.id),
+            getValidRewardRule(rewardRuleId, session.id),
         ]);
 
-        if (!session) throw new AppError("Valid shop session required", 401);
         if (!customer) throw new AppError("Customer not found", 404);
-
-        const rewardRule = await getValidRewardRule(rewardRuleId);
         if (!rewardRule) throw new AppError("Reward rule not found", 404);
         if (!rewardRule.isActive) throw new AppError("Reward is no longer active", 422);
 
@@ -58,13 +63,17 @@ export async function action({ request }) {
 
         // Guard: per-customer usage cap
         if (rewardRule.usagePerUser) {
-            const usedCount = await prisma.reward.count({
-                where: {
-                    customerId: customer.id,
-                    rewardRuleId: rewardRule.id,
-                    status: { in: ["ACTIVE", "USED"] },
-                },
-            });
+            const usedCount = await dbRetry(
+                () =>
+                    prisma.reward.count({
+                        where: {
+                            customerId: customer.id,
+                            rewardRuleId: rewardRule.id,
+                            status: { in: ["ACTIVE", "USED"] },
+                        },
+                    }),
+                { module: MODULE, customerId: customer.id, rewardRuleId: rewardRule.id }
+            );
             if (usedCount >= rewardRule.usagePerUser) {
                 throw new AppError("You have reached the usage limit for this reward", 422);
             }
@@ -87,24 +96,17 @@ export async function action({ request }) {
             customerId,
         });
 
-        // Sync updated customer config back to metafields — non-critical, but retried
-        // up to 3 times on network failure. If all retries fail, the redemption and
-        // points deduction are still committed in DB.
-        const updatedCustomer = await withRetry(
-            () => syncCustomerConfig(admin, customerId),
-            {
-                maxAttempts: 3,
-                baseDelayMs: 800,
-                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
-                context: { shop, module: MODULE },
-            }
-        ).catch((err) => {
+        // Sync updated customer config back to metafields — non-critical.
+        // syncCustomerConfig retries transient network failures internally;
+        // if all retries fail it returns null and the redemption/points
+        // deduction above are still committed in DB.
+        const updatedCustomer = await syncCustomerConfig(admin, customerId);
+        if (!updatedCustomer) {
             logger.error("Metafield sync failed after all retries — redemption is still valid", {
                 module: MODULE,
-                error: err?.message,
+                customerId,
             });
-            return null;
-        });
+        }
 
         logger.info("Reward redeemed successfully", {
             module: MODULE,
@@ -214,10 +216,10 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
             pointsCost,
             status: "ACTIVE",
         }),
-        prisma.rewardRule.update({
-            where: { id: rewardRule.id },
-            data: { usageCount: { increment: 1 } },
-        }),
+        dbRetry(
+            () => prisma.rewardRule.update({ where: { id: rewardRule.id }, data: { usageCount: { increment: 1 } } }),
+            { module: MODULE, rewardRuleId: rewardRule.id }
+        ),
     ]);
 
     // Deduct points + record transaction atomically via createTransaction.
@@ -232,6 +234,10 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
             points: pointsCost,
             rewardId: newReward?.id,
             status: "COMPLETED",
+            // Customer is live in the widget right now and sees the voucher
+            // code on screen immediately — this should never also surface
+            // as a toast notification on a later visit.
+            notifiedAt: new Date(),
         },
         session
     );
@@ -246,18 +252,33 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
             rewardId: newReward?.id,
         });
 
-        await Promise.allSettled([
+        const rollbackResults = await Promise.allSettled([
             newReward?.id
-                ? prisma.reward.update({
-                    where: { id: newReward.id },
-                    data: { status: "CANCELLED" },
-                })
+                ? dbRetry(
+                    () => prisma.reward.update({ where: { id: newReward.id }, data: { status: "CANCELLED" } }),
+                    { module: MODULE, rewardId: newReward.id }
+                )
                 : Promise.resolve(),
-            prisma.rewardRule.update({
-                where: { id: rewardRule.id },
-                data: { usageCount: { decrement: 1 } },
-            }),
+            dbRetry(
+                () => prisma.rewardRule.update({ where: { id: rewardRule.id }, data: { usageCount: { decrement: 1 } } }),
+                { module: MODULE, rewardRuleId: rewardRule.id }
+            ),
         ]);
+
+        // Rollback is best-effort but must not fail silently — a failed
+        // rollback here means the reward stays ACTIVE (or usageCount stays
+        // incremented) despite the points deduction having failed, i.e. a
+        // free/uncounted voucher.
+        rollbackResults.forEach((result, idx) => {
+            if (result.status === "rejected") {
+                logger.error(`Rollback step ${idx === 0 ? "reward cancel" : "usage count decrement"} failed after retries`, {
+                    module: MODULE,
+                    rewardId: newReward?.id,
+                    rewardRuleId: rewardRule.id,
+                    error: result.reason?.message,
+                });
+            }
+        });
 
         throw new AppError("Points deduction failed. Please try again.", 500);
     }
@@ -292,31 +313,42 @@ function validateRequestBody({ shop, customerId, customerIndex, rewardRuleId }) 
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Fetches a RewardRule by its numeric ID.
+ * Fetches a RewardRule by its numeric ID, scoped to the authenticated shop's
+ * session so a rewardRuleId belonging to another shop can never be read.
  *
  * @param {number|string} id - RewardRule primary key
+ * @param {string} sessionId - The authenticated shop's session id
  * @returns {Promise<object|null>} Prisma RewardRule record, or null on failure
  */
-async function getValidRewardRule(id) {
+async function getValidRewardRule(id, sessionId) {
     try {
-        return await prisma.rewardRule.findFirst({ where: { id: Number(id) } });
+        return await dbRetry(
+            () => prisma.rewardRule.findFirst({ where: { id: Number(id), sessionId } }),
+            { module: MODULE, rewardRuleId: id, sessionId }
+        );
     } catch (error) {
-        logger.error("Failed to fetch reward rule", { module: MODULE, rewardRuleId: id, error: error?.message });
+        logger.error("Failed to fetch reward rule", { module: MODULE, rewardRuleId: id, sessionId, error: error?.message });
         return null;
     }
 }
 
 /**
- * Fetches a Customer by its numeric internal ID (customerIndex).
+ * Fetches a Customer by its numeric internal ID (customerIndex), scoped to
+ * the authenticated shop's session so a customerIndex belonging to another
+ * shop can never be read.
  *
  * @param {number|string} id - Customer primary key
+ * @param {string} sessionId - The authenticated shop's session id
  * @returns {Promise<object|null>} Prisma Customer record, or null on failure
  */
-async function getValidCustomer(id) {
+async function getValidCustomer(id, sessionId) {
     try {
-        return await prisma.customer.findFirst({ where: { id: Number(id) } });
+        return await dbRetry(
+            () => prisma.customer.findFirst({ where: { id: Number(id), sessionId } }),
+            { module: MODULE, customerIndex: id, sessionId }
+        );
     } catch (error) {
-        logger.error("Failed to fetch customer", { module: MODULE, customerIndex: id, error: error?.message });
+        logger.error("Failed to fetch customer", { module: MODULE, customerIndex: id, sessionId, error: error?.message });
         return null;
     }
 }

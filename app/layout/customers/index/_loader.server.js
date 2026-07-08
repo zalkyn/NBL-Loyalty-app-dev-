@@ -1,5 +1,9 @@
 import prisma from "db-server";
 import { ALLOWED_PAGE_SIZES, DEFAULT_PAGE_SIZE, SORT_OPTIONS } from "./_data";
+import { logger } from "app/utils/logger.js";
+
+/** @constant {string} Module identifier for structured logging */
+const MODULE = "layout/customers/index/_loader.server.js";
 
 const SORTABLE_FIELDS = new Set(["id", "name", "email", "points", "enrolledAt"]);
 
@@ -77,7 +81,7 @@ export async function loadCustomers(sessionId, shop, searchParams) {
             syncJobStatus: activeSyncJob?.status ?? null,
         };
     } catch (err) {
-        console.error("[customers.loader]", err);
+        logger.error("Failed to load customers", { module: MODULE, error: err?.message, sessionId, shop });
         return {
             customers: [], totalCount: 0, page: 1, pageSize, search, sortBy,
             error: "Failed to load customers.",

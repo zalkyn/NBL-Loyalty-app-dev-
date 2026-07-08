@@ -20,9 +20,9 @@
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
-    "widget:build": "rollup -c rollup.config.js && npx clean-css-cli public/widget/modules-main/styles/main.css -o extensions/theme-extension/assets/ui.min.css",
-    "widget:build-solid": "rollup -c rollup.config.js && npx clean-css-cli public/widget/modules-main/styles/main-solid-color.css -o extensions/theme-extension/assets/ui.min.css",
-    "widget:build-preact": "rollup -c rollup.config.js && npx clean-css-cli public/widget/module-preact/styles/ui.css -o extensions/theme-extension/assets/ui.min.css && npx clean-css-cli public/widget/module-preact/styles/ui.css -o public/widget/preview.min.css"
+    "widget:build": "node app/widget-ui/ui/build.js",
+    "widget:build:debug": "node app/widget-ui/ui/build.js --debug",
+    "widget:dev": "node app/widget-ui/ui/build.js --watch"
   },
   "type": "module",
   "engines": {
@@ -53,8 +53,6 @@
     "vite-tsconfig-paths": "^5.1.4"
   },
   "devDependencies": {
-    "@rollup/plugin-node-resolve": "^16.0.3",
-    "@rollup/plugin-terser": "^1.0.0",
     "@shopify/api-codegen-preset": "^2.0.0",
     "@shopify/cli": "^4.2.0",
     "@shopify/polaris-types": "^1.0.1",
@@ -78,7 +76,6 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "graphql-config": "^5.1.1",
     "prettier": "^3.6.2",
-    "rollup-plugin-esbuild": "^6.1.0",
     "typescript": "^5.9.3",
     "vite": "^6.3.6"
   },

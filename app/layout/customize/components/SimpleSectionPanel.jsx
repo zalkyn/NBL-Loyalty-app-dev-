@@ -45,14 +45,6 @@ export function SimpleSectionPanel({ section, cssVars, onChange, disabled, notif
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: DS.sp10 }}>
                 {section.fields
-                    .filter((field) => {
-                        if (section.key !== "notifications") return true;
-                        const commonKeys = ["notifyBgFrom", "notifyBgTo", "notifyColor"];
-                        if (commonKeys.includes(field.key)) return true;
-                        if (notificationPreviewType === "reward") return field.key.startsWith("notifyReward");
-                        if (notificationPreviewType === "info") return field.key.startsWith("notifyInfo");
-                        return true;
-                    })
                     .map((field) => {
                         if (field.type === "color") return <SimpleColorField key={field.key} field={field} cssVars={cssVars} onChange={onChange} disabled={disabled} />;
                         if (field.type === "range") return <SimpleRangeField key={field.key} field={field} cssVars={cssVars} onChange={onChange} disabled={disabled} />;

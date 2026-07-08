@@ -2,7 +2,12 @@ import { authenticate } from "shopify-server";
 import prisma from "db-server";
 import generateReferralCode from "@app/utils/generateReferralCode.js";
 import { syncCustomerConfig } from "@app/controller/metafieldsSync/syncCustomerConfig";
+import { isDuplicateEvent } from "@app/controller/webhook/handleDuplicateWebhook";
 import { logger } from "@app/utils/logger.js";
+import { dbRetry } from "@app/utils/retry/dbRetry.js";
+
+/** @constant {string} Module identifier for structured logging */
+const MODULE = "webhook-routes/customer-create.jsx";
 
 export const action = async ({ request }) => {
     const { admin, shop, session, topic, payload } =
@@ -11,14 +16,15 @@ export const action = async ({ request }) => {
     logger.info(shop, `Received ${topic} webhook`);
 
     // ── 1. Idempotency check ──────────────────────────────────────────────────
-    const eventKey = request.headers.get("x-shopify-webhook-id");
+    // Uses the shared atomic check (create + unique-constraint on eventKey),
+    // not a plain findUnique — a plain read-then-write check here would race
+    // if Shopify redelivers the same webhook twice in quick succession.
+    const webhookId = request.headers.get("x-shopify-webhook-id");
+    const eventKey = webhookId ? `SHOPIFY:${webhookId}` : null;
 
     if (eventKey) {
-        const alreadyProcessed = await prisma.webhookEvent.findUnique({
-            where: { eventKey },
-        });
-
-        if (alreadyProcessed) {
+        const isDuplicate = await isDuplicateEvent({ shop, eventKey });
+        if (isDuplicate) {
             logger.warn(shop, "Duplicate webhook, skipping", { eventKey });
             return new Response();
         }
@@ -52,47 +58,55 @@ export const action = async ({ request }) => {
     try {
         const name = `${customer.first_name || ""} ${customer.last_name || ""}`.trim();
 
-        const existingCustomer = await prisma.customer.findUnique({
-            where: { shopifyId },
-            select: { id: true },
-        });
+        const existingCustomer = await dbRetry(
+            () => prisma.customer.findUnique({ where: { shopifyId }, select: { id: true } }),
+            { module: MODULE, shop, shopifyId }
+        );
 
         if (existingCustomer) {
-            await prisma.customer.update({
-                where: { shopifyId },
-                data: {
-                    email,
-                    name: name || null,
-                    firstName: customer.first_name || null,
-                    lastName: customer.last_name || null,
-                    metadata: customer,
-                },
-            });
+            await dbRetry(
+                () =>
+                    prisma.customer.update({
+                        where: { shopifyId },
+                        data: {
+                            email,
+                            name: name || null,
+                            firstName: customer.first_name || null,
+                            lastName: customer.last_name || null,
+                            metadata: customer,
+                        },
+                    }),
+                { module: MODULE, shop, shopifyId }
+            );
 
             logger.info(shop, "Customer updated", { email, shopifyId });
         } else {
             const referralCode = await generateReferralCode();
 
-            await prisma.customer.create({
-                data: {
-                    shopifyId,
-                    name: name || null,
-                    firstName: customer.first_name || null,
-                    lastName: customer.last_name || null,
-                    email,
-                    referralCode,
-                    sessionId: session.id,
-                    metadata: customer,
-                },
-            });
+            await dbRetry(
+                () =>
+                    prisma.customer.create({
+                        data: {
+                            shopifyId,
+                            name: name || null,
+                            firstName: customer.first_name || null,
+                            lastName: customer.last_name || null,
+                            email,
+                            referralCode,
+                            sessionId: session.id,
+                            metadata: customer,
+                        },
+                    }),
+                { module: MODULE, shop, shopifyId }
+            );
 
             logger.success(shop, "Customer created", { email, shopifyId, referralCode });
         }
 
         // ── 5. Sync metafields (isolated) ─────────────────────────────────────
-        await syncCustomerConfig(admin, shopifyId).catch((err) => {
-            logger.error(shop, "syncCustomerConfig failed", err, { shopifyId });
-        });
+        // syncCustomerConfig retries transient network failures internally and
+        // never throws, so no outer catch is needed here.
+        await syncCustomerConfig(admin, shopifyId);
 
         // ── 6. Log success ────────────────────────────────────────────────────
         await logWebhookEvent({ eventKey, shop, topic, status: "PROCESSED" });
@@ -111,14 +125,26 @@ export const action = async ({ request }) => {
     return new Response();
 };
 
-// ── Helper: WebhookEvent logger ───────────────────────────────────────────────
+/**
+ * Updates the WebhookEvent audit row created by `isDuplicateEvent` with the
+ * final processing status. No-ops if there's no eventKey (e.g. webhook
+ * arrived without an X-Shopify-Webhook-Id header).
+ *
+ * @param {Object} params
+ * @param {string|null} params.eventKey
+ * @param {string}      params.shop
+ * @param {string}      params.topic
+ * @param {"PROCESSED"|"SKIPPED"|"FAILED"} params.status
+ * @param {string|null} [params.error]
+ * @returns {Promise<void>}
+ */
 async function logWebhookEvent({ eventKey, shop, topic, status, error = null }) {
     if (!eventKey) return;
 
     try {
         await prisma.webhookEvent.upsert({
             where: { eventKey },
-            update: { status, error },
+            update: { status, error, topic },
             create: { shop, eventKey, topic, status, error },
         });
     } catch (err) {

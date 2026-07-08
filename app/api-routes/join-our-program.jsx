@@ -86,6 +86,7 @@ export async function action({ request }) {
         logger.info("Join program request received", { module: MODULE, shop, customerId });
 
         // 1. Fetch customer data from Shopify
+        // (customer() already retries transient network failures internally)
         const customerData = await customer(admin, customerId);
 
         if (!customerData) {
@@ -96,10 +97,32 @@ export async function action({ request }) {
             );
         }
 
-        // 2. Persist to DB — must succeed before syncing metafields
-        await storeCustomer(session, customerData);
+        // 2. Persist to DB — must succeed before syncing metafields.
+        // storeCustomer() already retries transient DB failures internally,
+        // but on a *non*-transient failure (missing email, referral code
+        // exhaustion, or retries exhausted) it returns `null` instead of
+        // throwing. Without this check the route would fall through to
+        // syncCustomerConfig and respond `{ success: true }` even though no
+        // Customer row was ever created.
+        const storedCustomer = await storeCustomer(session, customerData);
 
-        // 3. Sync updated config to Shopify metafields
+        if (!storedCustomer) {
+            logger.error("storeCustomer failed — customer not persisted", {
+                module: MODULE,
+                shop,
+                customerId,
+            });
+            return jsonResponse(
+                { error: "Failed to enroll customer. Please try again." },
+                HTTP.INTERNAL_SERVER_ERROR,
+                corsHeaders
+            );
+        }
+
+        // 3. Sync updated config to Shopify metafields.
+        // syncCustomerConfig() retries transient failures internally and
+        // never throws — it's a best-effort background sync, so we don't
+        // fail the request if it can't complete right now.
         await syncCustomerConfig(admin, customerId);
 
         logger.success("Customer successfully joined program", { module: MODULE, shop, customerId });

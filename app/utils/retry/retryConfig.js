@@ -1,24 +1,33 @@
+/**
+ * Default options for `withRetry` (see withRetry.js).
+ * Individual call sites override any of these per use-case, e.g.
+ * `withRetry(fn, { maxAttempts: 2, retryableErrors: [...] })`.
+ *
+ * Delay progression with the defaults below: 1.2s -> 2.4s -> 4.8s (+ jitter).
+ *
+ * @type {{
+ *   maxAttempts: number,
+ *   baseDelayMs: number,
+ *   backoffFactor: number,
+ *   maxDelayMs: number,
+ *   jitterFactor: number,
+ *   retryableErrors: Array<string|Function>,
+ *   context: { app: string },
+ * }}
+ */
 export const RETRY_CONFIG = {
-    // 🔁 Total attempts (1 initial + retries)
     maxAttempts: 4,
-
-    // ⏳ Balanced delay (slightly higher than 1s for production safety)
     baseDelayMs: 1200,
-
-    // 📈 Exponential backoff (1.2s → 2.4s → 4.8s → 9.6s)
     backoffFactor: 2,
+    maxDelayMs: 30000, // 30s cap, regardless of attempt count
+    jitterFactor: 0.3, // up to +30% random jitter, avoids synchronized retry spikes
 
-    // ⛔ Max delay cap (avoid too long wait)
-    maxDelayMs: 30000, // 30s
-
-    // 🎲 Small jitter to avoid retry spikes
-    jitterFactor: 0.3,
-
-    // ⚠️ Retry all by default (can override per use-case)
+    // Empty = retry every error. Callers should pass an explicit list
+    // (e.g. ["fetch failed", "ECONNRESET", "ETIMEDOUT"]) to avoid retrying
+    // non-transient failures such as validation or business-rule errors.
     retryableErrors: [],
 
-    // 🧠 Default context (auto used in logger)
     context: {
-        app: "NBL"
-    }
+        app: "NBL",
+    },
 };

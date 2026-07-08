@@ -1,5 +1,9 @@
 import prisma from "db-server";
 import syncAppConfig from "@controller/metafieldsSync/syncAppConfig";
+import { logger } from "app/utils/logger.js";
+
+/** @constant {string} Module identifier for structured logging */
+const MODULE = "layout/rewards-rules/_data.server.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TITLE PLACEHOLDER
@@ -18,7 +22,13 @@ const resolveTitlePlaceholder = (title, discountType, rewardValue) => {
 
 export async function handleAddRule({ formData, session, admin }) {
     const submitType = "addRule";
-    const newRule = JSON.parse(formData.get("rule") || "{}");
+
+    let newRule;
+    try {
+        newRule = JSON.parse(formData.get("rule") || "{}");
+    } catch {
+        return { message: "Invalid reward rule data.", status: "error", submitType };
+    }
 
     if (!newRule.rewardType)
         return { message: "Please select a reward type.", status: "error", submitType };
@@ -45,10 +55,10 @@ export async function handleAddRule({ formData, session, admin }) {
             },
         });
 
-        await syncAppConfig(admin);
+        await syncAppConfig(admin, session);
         return { message: "Reward rule created successfully.", rule: created, status: "success", submitType };
     } catch (err) {
-        console.error("Create RewardRule Error:", err);
+        logger.error("Create reward rule failed", { module: MODULE, error: err?.message, shop: session.shop });
         return { message: "Failed to create reward rule. Please try again.", status: "error", submitType };
     }
 }
@@ -57,7 +67,13 @@ export async function handleAddRule({ formData, session, admin }) {
 
 export async function handleUpdateRule({ formData, session, admin }) {
     const submitType = "updateRule";
-    const updatedRule = JSON.parse(formData.get("rule") || "{}");
+
+    let updatedRule;
+    try {
+        updatedRule = JSON.parse(formData.get("rule") || "{}");
+    } catch {
+        return { message: "Invalid reward rule data.", status: "error", submitType };
+    }
 
     if (!updatedRule.id)
         return { message: "Rule ID is required.", status: "error", submitType };
@@ -90,10 +106,10 @@ export async function handleUpdateRule({ formData, session, admin }) {
             },
         });
 
-        await syncAppConfig(admin);
+        await syncAppConfig(admin, session);
         return { message: "Reward rule updated successfully.", rule, status: "success", submitType };
     } catch (err) {
-        console.error("Update RewardRule Error:", err);
+        logger.error("Update reward rule failed", { module: MODULE, error: err?.message, shop: session.shop, ruleId: updatedRule.id });
         return { message: "Failed to update reward rule. Please try again.", status: "error", submitType };
     }
 }
@@ -112,10 +128,10 @@ export async function handleDeleteRule({ formData, session, admin }) {
             return { message: "Rule not found or access denied.", status: "error", submitType };
 
         await prisma.rewardRule.delete({ where: { id: ruleId } });
-        await syncAppConfig(admin);
+        await syncAppConfig(admin, session);
         return { message: "Reward rule deleted successfully.", status: "success", submitType };
     } catch (err) {
-        console.error("Delete RewardRule Error:", err);
+        logger.error("Delete reward rule failed", { module: MODULE, error: err?.message, shop: session.shop, ruleId });
         return { message: err.message || "Failed to delete rule. Please try again.", status: "error", submitType };
     }
 }

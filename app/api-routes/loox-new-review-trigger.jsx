@@ -7,6 +7,7 @@ import { createCustomerReward } from "app/controller/customerReward/createCustom
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig";
 import { getPointRuleByEvent } from "app/controller/pointsRule/getPointRuleByEvent";
 import { isDuplicateEvent } from "app/controller/webhook/handleDuplicateWebhook";
+import { dbRetry } from "app/utils/retry/dbRetry.js";
 
 const MODULE = "api.loox-new-review-trigger";
 
@@ -97,10 +98,10 @@ const detectReviewType = async (photoUrl) => {
  */
 const loadCustomerAndRule = async (email) => {
     const [customer, rule] = await Promise.all([
-        prisma.customer.findFirst({
-            where: { email },
-            select: { id: true, shopifyId: true, sessionId: true },
-        }),
+        dbRetry(
+            () => prisma.customer.findFirst({ where: { email }, select: { id: true, shopifyId: true, sessionId: true } }),
+            { module: MODULE, email }
+        ),
         getPointRuleByEvent("REVIEW"),
     ]);
     return { customer, rule };
@@ -113,10 +114,10 @@ const loadCustomerAndRule = async (email) => {
  * @returns {Promise<{ id: string, shop: string }|null>}
  */
 const loadSession = (sessionId) =>
-    prisma.session.findUnique({
-        where: { id: sessionId },
-        select: { id: true, shop: true },
-    });
+    dbRetry(
+        () => prisma.session.findUnique({ where: { id: sessionId }, select: { id: true, shop: true } }),
+        { module: MODULE, sessionId }
+    );
 
 /**
  * Resolves reward config for a given review type from rule conditions.

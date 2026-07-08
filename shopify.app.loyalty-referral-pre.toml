@@ -22,6 +22,14 @@ api_version = "2026-04"
   topics = [ "orders/paid" ]
 
   [[webhooks.subscriptions]]
+  uri = "https://nbl-loyalty-and-referral-production.up.railway.app/webhooks/app/orders_cancelled"
+  topics = [ "orders/cancelled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "https://nbl-loyalty-and-referral-production.up.railway.app/webhooks/app/refunds_create"
+  topics = [ "refunds/create" ]
+
+  [[webhooks.subscriptions]]
   uri = "https://nbl-loyalty-and-referral-production.up.railway.app/webhooks/app/customers_create"
   topics = [ "customers/create" ]
 
@@ -39,3 +47,8 @@ use_legacy_install_flow = false
 redirect_urls = [
   "https://nbl-loyalty-and-referral-production.up.railway.app/api/auth"
 ]
+
+[app_proxy]
+url = "/widget-data"
+prefix = "apps"
+subpath = "widget"
