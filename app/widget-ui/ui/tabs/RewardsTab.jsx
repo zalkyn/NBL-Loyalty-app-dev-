@@ -14,7 +14,6 @@ import { Button } from '../components/Button.jsx';
 import { ItemList } from '../components/ItemList.jsx';
 import { Pagination } from '../components/Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
-import { ActiveRewardItem } from '../components/items.jsx';
 
 function RewardRuleItem({ reward, customerPoints, onOpenInfo }) {
     const isFixed = reward.discountType === 'fixed';
@@ -33,10 +32,9 @@ function RewardRuleItem({ reward, customerPoints, onOpenInfo }) {
 
     return (
         <Item
-            lift
             active={canRedeem}
             onClick={handleClick}
-            leading={<Icon name="reward-discount" size="lg" />}
+            leading={<Icon name="reward-discount" px={26} />}
             content={
                 <div class="nbl-item__content">
                     <div class="nbl-item__title">{title}</div>
@@ -52,6 +50,26 @@ function RewardRuleItem({ reward, customerPoints, onOpenInfo }) {
                             <Text as="span" bare extraClass="nbl-item__status">Not enough points</Text>
                         )}
                     </Button>
+                </div>
+            }
+        />
+    );
+}
+
+function ActiveRewardRow({ reward, onOpenVoucher }) {
+    return (
+        <Item
+            variant="row"
+            onClick={() => onOpenVoucher(reward.code)}
+            leading={<Icon name="reward-discount" px={26} />}
+            content={
+                <div class="nbl-item__content">
+                    <div class="nbl-item__title">{reward.title || 'Voucher'}</div>
+                </div>
+            }
+            trailing={
+                <div class="nbl-item__trailing">
+                    <Icon name="chevron-right" size="sm" />
                 </div>
             }
         />
@@ -84,7 +102,7 @@ export function RewardsTab({ rewardRules, points, customerRewards, perPage, pagi
                     <ItemList
                         items={pagination.pageItems}
                         emptyText={lbl('emptyRewards')}
-                        renderItem={(reward) => <ActiveRewardItem reward={reward} onOpenVoucher={onOpenVoucher} />}
+                        renderItem={(reward) => <ActiveRewardRow reward={reward} onOpenVoucher={onOpenVoucher} />}
                     />
                 </div>
                 <Pagination pagination={pagination} lbl={lbl} />

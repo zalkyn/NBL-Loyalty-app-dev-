@@ -557,8 +557,9 @@ input:not([type=checkbox], [type=radio]) {
    Variants:
    --card   bordered card row (reward / points / prize)
    --row    borderless divided row (active-reward / claim)
-   --clickable  adds pointer cursor + hover affordance
-   .active / .inactive  redeemable state (card variant)
+   .active / .inactive  redeemable state (card variant) — every
+     active card gets the exact same hover treatment, regardless
+     of which screen it renders on.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 .nbl-item {
@@ -621,40 +622,14 @@ input:not([type=checkbox], [type=radio]) {
 .nbl-item--card.inactive {
     opacity: 0.6;
     cursor: default;
-}
-
-/* Lift items (reward) fully disable interaction when inactive; prize items
-   (image-leading, no lift) keep pointer events off but cursor:default only */
-.nbl-item--card.nbl-item--lift.inactive {
     pointer-events: none;
 }
 
-/* Hover lift — reward item, points item (no image leading slot) */
-.nbl-item--card.nbl-item--lift:hover {
+/* Single, consistent hover treatment for every active/clickable card item
+   (reward, points, prize — no exceptions, no per-context variants) */
+.nbl-item--card.active:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.nbl-item--card.nbl-item--lift.active:hover {
-    background: var(--nbl-surface) !important;
-}
-
-/* Points item: always clickable, no active/inactive state — its own
-   accent border-tint + softer shadow replaces the generic lift shadow */
-.nbl-item--card.nbl-item--lift.nbl-item--accent-hover {
-    cursor: pointer;
-}
-
-.nbl-item--card.nbl-item--lift.nbl-item--accent-hover:hover {
     border-color: var(--nbl-accent);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
-}
-
-/* Prize item: no lift, image-leading layout, tint + glow on hover instead.
-   Note: the prize list wrapper has no list-level gap (unlike reward/points
-   lists) — items space themselves via their own bottom margin instead. */
-.nbl-item--card.active:not(.nbl-item--lift):hover {
-    background: color-mix(in srgb, var(--nbl-item-active-bg) 85%, var(--nbl-accent) 15%);
     box-shadow: var(--nbl-item-hover-shadow);
 }
 
@@ -662,73 +637,49 @@ input:not([type=checkbox], [type=radio]) {
     margin-block-end: 8px;
 }
 
-/* Leading icon + trailing chevron inside reward/points/active-reward items
-   are always accent-colored (these are the only Item contexts that had an
-   explicit icon color in the original design) */
+/* Leading icon + trailing chevron inside every card/row item are
+   accent-colored */
 .nbl-item--card>.nbl-icon,
-.nbl-item--voucher-row>.nbl-icon,
-.nbl-item__trailing>.nbl-icon {
+.nbl-item--row>.nbl-icon,
+.nbl-item__trailing .nbl-icon {
     color: var(--nbl-accent);
 }
 
-/* ── Row variant A: prize-claim / my-prize row — divided list with
-   bottom-border separators, used standalone or inside a section card ── */
+/* ── Row variant: shared style for every "row inside a divided list" item —
+   prize-claim / my-prize row AND active-reward (voucher) row. These used to
+   carry two separate rule-sets (different bg / hover / divider), even though
+   they render in the exact same context (inside .nbl-home-section-card /
+   .nbl-item-rows). Content differences (image leading vs icon leading,
+   chevron trailing vs status text) are handled entirely via props on
+   <Item> — there is only one row style, used by every row item. ── */
 .nbl-item--row {
-    padding: 10px 4px;
-    border-bottom: var(--nbl-border-width) solid var(--nbl-item-row-border-color);
-    font-size: var(--nbl-text-sm);
-    border-radius: 0;
-    background: transparent;
-}
-
-.nbl-item--row:last-child {
-    border-bottom: none;
-}
-
-/* Flush wrapper for .nbl-item--row lists. Keeps the row items as a
-   contiguous sibling group so each row's :last-child border rule resolves
-   against the actual last row, not against a trailing sibling like
-   .nbl-pagination rendered after the list. */
-.nbl-item-rows {
-    display: block;
-}
-
-.nbl-item--row.nbl-item--clickable {
-    cursor: pointer;
-    transition: background var(--nbl-dur-fast) var(--nbl-ease-out);
-}
-
-.nbl-item--row.nbl-item--clickable:hover {
-    background: var(--nbl-item-active-bg);
-}
-
-/* ── Row variant B: active-reward (voucher) row — surface background,
-   card padding, hover tint. Lives inside a list wrapper that supplies
-   the 1px divider lines via gap + background (see .nbl-item-list--divided) ── */
-.nbl-item--voucher-row {
     background: var(--nbl-surface);
     padding: var(--nbl-card-padding);
+    border-radius: 0;
     cursor: pointer;
     transition: background 0.15s;
 }
 
-.nbl-item--voucher-row:hover {
+.nbl-item--row:hover {
     background: var(--nbl-surface-2);
 }
 
-/* Nested in a section card: dividers become a top border per row
-   instead of the list wrapper's gap-line trick */
-.nbl-home-section-card .nbl-item--voucher-row {
-    background: var(--nbl-surface) !important;
+/* Divider: top border per row, first row skips it. Every row item in this
+   codebase renders nested inside a .nbl-home-section-card, so this is
+   unconditional. */
+.nbl-item--row {
     border-top: var(--nbl-border-width) solid var(--nbl-border);
 }
 
-.nbl-home-section-card .nbl-item--voucher-row:first-child {
+.nbl-item--row:first-child {
     border-top: none;
 }
 
-.nbl-home-section-card .nbl-item--voucher-row:hover {
-    background: var(--nbl-surface-2) !important;
+/* Flush wrapper for .nbl-item--row lists. Keeps the row items as a
+   contiguous sibling group so each row's :first-child border rule resolves
+   against the actual first row, not against a preceding sibling. */
+.nbl-item-rows {
+    display: block;
 }
 
 /* ── Content slot: title + meta ── */
@@ -797,7 +748,7 @@ input:not([type=checkbox], [type=radio]) {
 }
 
 /* Nested in a section card: dividers come from each row's own border-top
-   instead (see .nbl-item--voucher-row), so the wrapper's gap-line trick
+   instead (see .nbl-item--row), so the wrapper's gap-line trick
    is switched off here */
 .nbl-home-section-card .nbl-item-list--divided {
     background: transparent !important;
@@ -1963,10 +1914,11 @@ input:not([type=checkbox], [type=radio]) {
     display: grid;
     grid-template-columns: 90px 1fr 65px;
     justify-items: center;
-    gap: 8px;
-    padding: 0 4px 10px;
-    border-bottom: 1.5px solid var(--nbl-border);
-    margin-bottom: 6px;
+    gap: 10px;
+    padding: 9px 4px 10px;
+    margin-bottom: 0;
+    background: var(--nbl-surface);
+    border-bottom: .5px solid var(--nbl-section-header-bg);
 }
 
 .nbl-activity-table__head-cell {
@@ -1977,14 +1929,22 @@ input:not([type=checkbox], [type=radio]) {
     color: var(--nbl-text);
 }
 
+.nbl-activity-table__head-cell:first-child {
+    justify-self: start;
+}
+
+.nbl-activity-table__head-cell:last-child {
+    justify-self: end;
+}
+
 .nbl-activity-row {
     display: grid;
     grid-template-columns: 90px 1fr 65px;
     justify-items: center;
     gap: 10px;
     padding: var(--nbl-activity-row-padding);
-    border-bottom: 1px solid var(--nbl-activity-border-color);
-    border-radius: 6px;
+    background: var(--nbl-surface);
+    border-bottom: 1px solid var(--nbl-border);
     transition: background 0.15s ease;
     animation: nbl-row-in 0.3s var(--nbl-ease-out) both;
 }
@@ -2045,6 +2005,16 @@ input:not([type=checkbox], [type=radio]) {
     align-items: center;
     justify-content: center;
     text-transform: capitalize;
+}
+
+.nbl-activity-row__cell:first-child {
+    text-align: left;
+    justify-content: flex-start;
+}
+
+.nbl-activity-row__cell:last-child {
+    text-align: right;
+    justify-content: flex-end;
 }
 
 /* Points earned/spent indicator in the activity row's points cell — driven
