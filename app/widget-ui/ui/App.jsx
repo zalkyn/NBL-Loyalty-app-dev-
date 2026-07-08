@@ -47,7 +47,6 @@ function fmtDate(iso) {
 }
 
 export function App({ initialData, bridgeRef, hostEl }) {
-    console.log('[NBL] App() component function called. initialData present:', !!initialData);
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('home');
     const [points, setPoints] = useState(Number(initialData.points) || 0);
@@ -382,7 +381,6 @@ export function App({ initialData, bridgeRef, hostEl }) {
         }
     }
 
-    console.log('[NBL] App(): about to return JSX');
     return (
         <div id="nbl-loyalty-root">
             <LauncherButton
@@ -487,11 +485,9 @@ export function App({ initialData, bridgeRef, hostEl }) {
                             <ReferralTab pointRules={pointRules} referralLink={referralLink} currencySymbol={currencySymbol} onOpenInfo={openInfo} />
                         </TabPanel>
                         <TabPanel tabKey="activities" activeTab={activeTab}>
-                            {/* Purono activities.js-e eta hardcoded '10' chilo, kono config field na */}
                             <ActivitiesTab transactions={transactions} perPage={10} paginationMode={paginationMode} lbl={lbl} />
                         </TabPanel>
                         <TabPanel tabKey="active-rewards" activeTab={activeTab}>
-                            {/* Purono activities.js-e eta hardcoded '8' chilo, kono config field na */}
                             <ActiveRewardsTab customerRewards={customerRewards} perPage={8} paginationMode={paginationMode} lbl={lbl} onOpenVoucher={openReward} />
                         </TabPanel>
                         <TabPanel tabKey="my-prizes" activeTab={activeTab}>

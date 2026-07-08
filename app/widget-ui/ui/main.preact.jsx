@@ -91,9 +91,8 @@ function boot() {
 
     try {
         render(<App initialData={initialData} bridgeRef={bridgeRef} hostEl={host} />, mountPoint);
-        console.log('[NBL] boot(): render() returned without throwing. mountPoint.innerHTML =', mountPoint.innerHTML);
     } catch (err) {
-        console.error('[NBL] boot(): render() threw an exception:', err);
+        // console.error('[NBL] boot(): render() threw an exception:', err);
     }
 }
 

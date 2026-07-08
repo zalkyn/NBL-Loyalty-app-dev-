@@ -89,7 +89,7 @@ export function PrizesTab({ physicalPrizes, points, prizeClaims, perPage, pagina
                     <Icon name="reward-discount" px={16} />
                     <Text as="span" bare extraClass="nbl-section-title">{lbl('sectionPrizeRequests')}</Text>
                 </div>
-                <div class="nbl-item-rows nbl-home-section-card__body--padded">
+                <div class="nbl-item-rows">
                     <ItemList
                         items={pagination.pageItems}
                         emptyText={lbl('emptyMyPrizes')}
