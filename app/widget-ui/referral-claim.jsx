@@ -33,6 +33,8 @@ import createTransaction from "@controller/transaction/createTransaction.js";
 import { createCustomerReward } from "@controller/customerReward/createCustomerReward.js";
 import { withRetry } from "app/utils/retry/withRetry.js";
 import { dbRetry } from "app/utils/retry/dbRetry.js";
+import { getReferralByReferredId } from "@controller/referral/getReferral.js";
+import { createReferral as createReferralRecord } from "@controller/referral/createReferral.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "widget-data.get-referral-discount";
@@ -116,7 +118,64 @@ export async function action({ request }) {
         // ── 1. Validate input ─────────────────────────────────────────────────
         if (!referralCode) throw createError("Referral code is required.", ERROR_CODES.INVALID_INPUT);
 
-        // ── 2. Eligibility: referred customer must have 0 prior orders ────────
+        // ── 2. Fetch referrer and referred customer in parallel ───────────────
+        //
+        // referralCode is globally unique (checked at generation time across
+        // the whole DB), so getReferrer intentionally does NOT filter by
+        // session — that's fine for finding the row. getReferred IS scoped
+        // to session.id since shopifyId lookups should only ever resolve
+        // within the currently authenticated shop.
+        const [referrer, referred] = await Promise.all([
+            getReferrer(referralCode),
+            getReferred(shopifyId, session.id),
+        ]);
+
+        validateCustomers(referrer, referred);
+
+        // ── 2.1 Enforce same-shop referral ─────────────────────────────────────
+        if (referrer.sessionId !== session.id) {
+            throw createError(
+                "Invalid referral code. Please check the code and try again.",
+                ERROR_CODES.INVALID_REFERRAL_CODE
+            );
+        }
+
+        // ── 3. Prevent self-referral ──────────────────────────────────────────
+        if (referrer.id === referred.id) {
+            throw createError(
+                "You cannot use your own referral code.",
+                ERROR_CODES.SELF_REFERRAL
+            );
+        }
+
+        // ── 4. Check for existing referral ────────────────────────────────────
+        //
+        // Deliberately BEFORE the order-count eligibility check below. Once a
+        // referred customer completes their first order (the referred order
+        // itself!), their order count is permanently > 0 — so if eligibility
+        // ran first, every re-check after that (the widget's revalidateClaim
+        // background reconciliation, or simply reopening the modal) would
+        // hit "you've already placed an order" (422 INELIGIBLE_CUSTOMER_ORDERS)
+        // and never reach the "already used" / "still valid" report below.
+        // The customer would see a stale "your code is ready" success state
+        // forever, since the frontend doesn't treat that 422 as a locked
+        // state either. Checking for an existing referral first means a
+        // customer who already has one — used or not — always gets an
+        // accurate status, regardless of their current order count.
+        const existingReferral = await findExistingReferral(referred.id);
+
+        if (existingReferral) {
+            return handleExistingReferral({
+                existingReferral,
+                currentReferrerId: referrer.id,
+                referralCode,
+            });
+        }
+
+        // ── 5. Eligibility: referred customer must have 0 prior orders ────────
+        // Only reached for a genuinely first-time claim attempt (no existing
+        // referral row yet) — this is what actually prevents an existing
+        // customer from grabbing a "new customer" referral discount.
         const referredOrderCount = await customerOrderCount(admin, shopifyId);
 
         logger.info("Checking referral eligibility", {
@@ -131,47 +190,6 @@ export async function action({ request }) {
                 "You are not eligible for the referral reward because you have already placed an order.",
                 ERROR_CODES.INELIGIBLE_CUSTOMER_ORDERS
             );
-        }
-
-        // ── 3. Fetch referrer and referred customer in parallel ───────────────
-        //
-        // referralCode is globally unique (checked at generation time across
-        // the whole DB), so getReferrer intentionally does NOT filter by
-        // session — that's fine for finding the row. getReferred IS scoped
-        // to session.id since shopifyId lookups should only ever resolve
-        // within the currently authenticated shop.
-        const [referrer, referred] = await Promise.all([
-            getReferrer(referralCode),
-            getReferred(shopifyId, session.id),
-        ]);
-
-        validateCustomers(referrer, referred);
-
-        // ── 3.1 Enforce same-shop referral ─────────────────────────────────────
-        if (referrer.sessionId !== session.id) {
-            throw createError(
-                "Invalid referral code. Please check the code and try again.",
-                ERROR_CODES.INVALID_REFERRAL_CODE
-            );
-        }
-
-        // ── 4. Prevent self-referral ──────────────────────────────────────────
-        if (referrer.id === referred.id) {
-            throw createError(
-                "You cannot use your own referral code.",
-                ERROR_CODES.SELF_REFERRAL
-            );
-        }
-
-        // ── 5. Check for existing referral ────────────────────────────────────
-        const existingReferral = await findExistingReferral(referred.id);
-
-        if (existingReferral) {
-            return handleExistingReferral({
-                existingReferral,
-                currentReferrerId: referrer.id,
-                referralCode,
-            });
         }
 
         // ── 6. Generate Shopify discount code ─────────────────────────────────
@@ -349,14 +367,17 @@ function validateCustomers(referrer, referred) {
 }
 
 function findExistingReferral(referredId) {
-    return dbRetry(
-        () =>
-            prisma.referral.findUnique({
-                where: { referredId },
-                select: { id: true, referrerId: true, discountCode: true, discountUsed: true },
-            }),
-        { module: MODULE, referredId }
-    );
+    // Shared with app/controller/referral/getReferral.js — same dbRetry-wrapped
+    // findUnique-by-referredId query used elsewhere in the app (customer detail
+    // page, referral listing). Keeping this as one implementation means retry
+    // behavior and logging stay consistent everywhere a referral is looked up
+    // by the referred customer.
+    return getReferralByReferredId(referredId, {
+        id: true,
+        referrerId: true,
+        discountCode: true,
+        discountUsed: true,
+    });
 }
 
 // =====================================================
@@ -399,28 +420,27 @@ function handleExistingReferral({ existingReferral, currentReferrerId, referralC
 }
 
 async function createReferral(referrerId, referredId, discountCode) {
-    try {
-        return await dbRetry(
-            () =>
-                prisma.referral.create({
-                    data: {
-                        status: REFERRAL_STATUS.ACTIVE,
-                        discountCode,
-                        discountInfo: "Referral discount code generated",
-                        referrerId,
-                        referredId,
-                    },
-                    select: { id: true },
-                }),
-            { module: MODULE, referrerId, referredId }
+    // Shared with app/controller/referral/createReferral.js — same
+    // dbRetry-wrapped create, same P2002 (unique referredId) handling.
+    // The controller swallows P2002 and returns null instead of throwing,
+    // so we translate that back into this route's error-code convention.
+    const referral = await createReferralRecord(
+        {
+            referrerId,
+            referredId,
+            status: REFERRAL_STATUS.ACTIVE,
+            discountCode,
+            discountInfo: "Referral discount code generated",
+        },
+        { id: true }
+    );
+
+    if (!referral) {
+        throw createError(
+            "A referral discount has already been generated for your account.",
+            ERROR_CODES.DISCOUNT_ALREADY_EXISTS
         );
-    } catch (err) {
-        if (err.code === "P2002") {
-            throw createError(
-                "A referral discount has already been generated for your account.",
-                ERROR_CODES.DISCOUNT_ALREADY_EXISTS
-            );
-        }
-        throw err;
     }
+
+    return referral;
 }

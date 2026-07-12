@@ -161,6 +161,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
     useConfigResync({
         isMember,
         proxyPath,
+        customerId: shopifyCustomerId,
         onSynced: function (config) {
             if (typeof config.points === 'number') setPoints(config.points);
             if (Array.isArray(config.rewards)) setCustomerRewards(config.rewards);

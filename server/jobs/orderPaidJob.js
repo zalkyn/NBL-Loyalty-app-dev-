@@ -10,6 +10,7 @@ import { createCustomerReward } from "../../app/controller/customerReward/create
 import { syncCustomerConfig } from "../../app/controller/metafieldsSync/syncCustomerConfig.js";
 import { getCustomerRewardByCode } from "../../app/controller/customerReward/getCustomerReward.js";
 import { updateCustomerReward } from "../../app/controller/customerReward/updateCustomerReward.js";
+import { updateReferral } from "../../app/controller/referral/updateReferral.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "orderPaidJob";
@@ -503,7 +504,16 @@ const detectReferralOrder = ({ order, customer, contract }) => {
     const referral = customer?.referralsUsed;
     if (!referral) return { isReferralOrder: false };
 
-    const discountMatch = order?.discount_codes?.find((d) => d.code === referral.discountCode);
+    // Case-insensitive: Shopify itself treats discount codes as
+    // case-insensitive at checkout, but order.discount_codes[].code reflects
+    // whatever case the customer actually typed (copy-paste preserves our
+    // stored uppercase, but manual entry — especially mobile autocapitalize/
+    // autocorrect — can change it). An exact-case match here would silently
+    // never mark the referral as used even though Shopify already applied
+    // the discount, leaving the widget showing "code ready" indefinitely.
+    const discountMatch = order?.discount_codes?.find(
+        (d) => d.code?.toUpperCase() === referral.discountCode?.toUpperCase()
+    );
     if (discountMatch) return { isReferralOrder: true, type: "FIRST", referral };
 
     if (
@@ -812,20 +822,19 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
         const { referrerPoints, referredPoints } = resolveReferralPoints(conditions, lineItems, subscriptionInterval, false);
 
         await Promise.all([
-            dbRetry(
-                () =>
-                    prisma.referral.update({
-                        where: { id: referral.id },
-                        data: {
-                            status: "USED",
-                            discountUsed: true,
-                            orderId: order.admin_graphql_api_id,
-                            subscriptionContractId: subscriptionContract?.id?.toString() ?? null,
-                            metadata: subscriptionContract ?? {},
-                        },
-                    }),
-                { module: MODULE, shop, referralId: referral.id }
-            ),
+            updateReferral(referral.id, {
+                status: "USED",
+                discountUsed: true,
+                // Set alongside discountUsed since this is the single point
+                // where the referrer's points transaction (below, in the
+                // same Promise.all) is actually created — rewardGiven was
+                // previously never populated anywhere despite being a real
+                // schema field and a supported updateReferral() input.
+                rewardGiven: true,
+                orderId: order.admin_graphql_api_id,
+                subscriptionContractId: subscriptionContract?.id?.toString() ?? null,
+                metadata: subscriptionContract ?? {},
+            }),
             createTransaction(
                 {
                     customerId: referral.referrerId,
@@ -969,10 +978,7 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
 
         await Promise.all([
             ...rewardTasks,
-            dbRetry(
-                () => prisma.referral.update({ where: { id: referral.id }, data: { metadata: subscriptionContract ?? {} } }),
-                { module: MODULE, shop, referralId: referral.id }
-            ),
+            updateReferral(referral.id, { metadata: subscriptionContract ?? {} }),
         ]);
 
         // Non-critical — syncCustomerConfig retries transient failures internally and never throws.
@@ -1008,8 +1014,13 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
         const orderDiscountCodes = order?.discount_codes ?? [];
         if (!orderDiscountCodes.length) return;
 
+        // Normalize to uppercase — DB codes are always generated uppercase
+        // (generateDiscountCode.js), but a customer typing the code by hand
+        // at checkout (rather than copy-pasting) can submit it in a
+        // different case, which would otherwise silently miss this `in`
+        // filter and leave an already-redeemed voucher looking unused.
         const discountCodeSet = new Set(
-            orderDiscountCodes.map((d) => d?.code).filter(Boolean)
+            orderDiscountCodes.map((d) => d?.code?.toUpperCase()).filter(Boolean)
         );
         if (!discountCodeSet.size) return;
 
