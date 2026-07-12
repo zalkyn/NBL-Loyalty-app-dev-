@@ -13,10 +13,21 @@
 (function () {
     "use strict";
 
-    // ── 1. Mock fetch() for any /api/* call api.js makes ────────────────────
+    // ── 1. Mock fetch() for any widget API call (App Proxy /apps/widget/*,
+    //      or the legacy /api/* pattern kept for safety) ─────────────────────
+    //
+    // The real widget's API routes moved from /api/* to the App Proxy path
+    // (/apps/widget/*, via widget-data/* in app/routes.js) a while back —
+    // this intercept condition was never updated to match, so every preview
+    // session was silently firing a REAL, unmocked fetch('/apps/widget')
+    // (from useConfigResync — isMember is true in the mock data) straight at
+    // the customize page's own origin, which 404s there (no such route
+    // outside Shopify's actual App Proxy tunnel). Matching both patterns
+    // here keeps this working regardless of which path style is current.
     var originalFetch = window.fetch;
     window.fetch = function (url, opts) {
-        var isApiCall = typeof url === "string" && url.indexOf("/api/") !== -1;
+        var isApiCall = typeof url === "string" &&
+            (url.indexOf("/apps/widget") !== -1 || url.indexOf("/api/") !== -1);
         if (!isApiCall) return originalFetch.call(this, url, opts);
 
         var mockResponse = { success: true };

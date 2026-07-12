@@ -160,24 +160,102 @@ export async function action({ request }) {
 
 async function redeemReward({ admin, session, customer, rewardRule, customerId, title }) {
     const shop = session?.shop;
-    const voucherCode = await withRetry(
-        () => generateRewardVoucher(admin, customerId, rewardRule),
-        {
-            maxAttempts: 3,
-            baseDelayMs: 800,
-            retryableErrors: [
-                "fetch failed",
-                "ECONNRESET",
-                "ETIMEDOUT",
-                "Something went wrong. Please try again later.",
-            ],
-            context: { shop, module: MODULE, customerId, rewardRuleId: rewardRule.id },
-        }
-    );
-    if (!voucherCode) throw new AppError("Voucher generation failed", 500);
-
     const pointsCost = Math.abs(Number(rewardRule.pointsCost) || 0);
 
+    // ── 1. Deduct points FIRST ──────────────────────────────────────────────
+    //
+    // Previously the Shopify voucher (a real, external, hard-to-revoke
+    // discount code) was generated before points were deducted. If the points
+    // deduction then failed, the customer was left with a genuinely usable
+    // discount code they never actually paid points for — an internal
+    // rollback can cancel our own Reward/usageCount records, but can't
+    // "un-create" a discount code that already exists on Shopify.
+    //
+    // Deducting first flips the failure mode to something fully recoverable
+    // within our own DB: if voucher generation then fails, we refund the
+    // points we just took (see the catch block below) — no external state
+    // to reconcile either way.
+    const transaction = await createTransaction(
+        {
+            customerId: customer.id,
+            type: "REDEEM",
+            reason: `${pointsCost.toLocaleString()} points redeemed for reward: ${rewardRule.title}`,
+            activity: `-${pointsCost.toLocaleString()} points redeemed for reward: ${rewardRule.title}`,
+            points: pointsCost,
+            // rewardId intentionally omitted — the Reward row doesn't exist
+            // yet at this point (it needs the real voucher code, generated
+            // next). The reason/activity text above already identifies which
+            // reward this was for.
+            status: "COMPLETED",
+            notifiedAt: new Date(),
+        },
+        session
+    );
+
+    if (!transaction) {
+        throw new AppError("Points deduction failed. Please try again.", 500);
+    }
+
+    // ── 2. Generate the Shopify voucher ──────────────────────────────────────
+    let voucherCode;
+    try {
+        voucherCode = await withRetry(
+            () => generateRewardVoucher(admin, customerId, rewardRule),
+            {
+                maxAttempts: 3,
+                baseDelayMs: 800,
+                retryableErrors: [
+                    "fetch failed",
+                    "ECONNRESET",
+                    "ETIMEDOUT",
+                    "Something went wrong. Please try again later.",
+                ],
+                context: { shop, module: MODULE, customerId, rewardRuleId: rewardRule.id },
+            }
+        );
+        if (!voucherCode) throw new Error("Voucher generation returned no code");
+    } catch (err) {
+        logger.error("Voucher generation failed after points were deducted — refunding", {
+            module: MODULE,
+            customerId: customer.id,
+            rewardRuleId: rewardRule.id,
+            originalTransactionId: transaction.id,
+            error: err?.message,
+        });
+
+        const refund = await createTransaction(
+            {
+                customerId: customer.id,
+                type: "ADJUST",
+                reason: `Refund — voucher generation failed for reward: ${rewardRule.title}`,
+                activity: `+${pointsCost.toLocaleString()} points refunded (redemption failed)`,
+                points: pointsCost, // positive = credit back
+                status: "COMPLETED",
+            },
+            session
+        );
+
+        if (!refund) {
+            // Both the original deduction and the refund attempt are logged
+            // with enough detail (customerId, rewardRuleId, transaction id)
+            // for manual reconciliation — this should be rare (createTransaction
+            // already retries transient failures internally) but must never
+            // be silent, since it's the one path where a customer could be
+            // left short of points with nothing to show for it.
+            logger.error("Refund ALSO failed — customer may be short points, needs manual reconciliation", {
+                module: MODULE,
+                customerId: customer.id,
+                rewardRuleId: rewardRule.id,
+                originalTransactionId: transaction.id,
+            });
+        }
+
+        throw new AppError("Voucher generation failed. Your points were refunded — please try again.", 500);
+    }
+
+    // ── 3. Create the reward record + bump usage count ───────────────────────
+    // Only reached once we have a real voucher code and the customer's points
+    // are already safely deducted.
     const [newReward] = await Promise.all([
         createCustomerReward({
             customerId: customer.id,
@@ -195,55 +273,6 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
             { module: MODULE, rewardRuleId: rewardRule.id }
         ),
     ]);
-
-    const transaction = await createTransaction(
-        {
-            customerId: customer.id,
-            type: "REDEEM",
-            reason: `${pointsCost.toLocaleString()} points redeemed for reward: ${rewardRule.title}`,
-            activity: `-${pointsCost.toLocaleString()} points redeemed for reward: ${rewardRule.title}`,
-            points: pointsCost,
-            rewardId: newReward?.id,
-            status: "COMPLETED",
-            notifiedAt: new Date(),
-        },
-        session
-    );
-
-    if (!transaction) {
-        logger.error("Transaction failed — cancelling reward and rolling back usage count", {
-            module: MODULE,
-            customerId: customer.id,
-            rewardRuleId: rewardRule.id,
-            rewardId: newReward?.id,
-        });
-
-        const rollbackResults = await Promise.allSettled([
-            newReward?.id
-                ? dbRetry(
-                    () => prisma.reward.update({ where: { id: newReward.id }, data: { status: "CANCELLED" } }),
-                    { module: MODULE, rewardId: newReward.id }
-                )
-                : Promise.resolve(),
-            dbRetry(
-                () => prisma.rewardRule.update({ where: { id: rewardRule.id }, data: { usageCount: { decrement: 1 } } }),
-                { module: MODULE, rewardRuleId: rewardRule.id }
-            ),
-        ]);
-
-        rollbackResults.forEach((result, idx) => {
-            if (result.status === "rejected") {
-                logger.error(`Rollback step ${idx === 0 ? "reward cancel" : "usage count decrement"} failed after retries`, {
-                    module: MODULE,
-                    rewardId: newReward?.id,
-                    rewardRuleId: rewardRule.id,
-                    error: result.reason?.message,
-                });
-            }
-        });
-
-        throw new AppError("Points deduction failed. Please try again.", 500);
-    }
 
     return {
         voucherCode,

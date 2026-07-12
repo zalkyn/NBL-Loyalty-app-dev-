@@ -1,6 +1,6 @@
-import prisma from "db-server";
-import { logger } from "@app/utils/logger";
-import { dbRetry } from "@app/utils/retry/dbRetry.js";
+import prisma from "../../db.server.js";
+import { logger } from "../../utils/logger.js";
+import { dbRetry } from "../../utils/retry/dbRetry.js";
 import { DEFAULT_REFERRAL_SELECT } from "./referralSelect.js";
 
 /**
@@ -19,7 +19,14 @@ import { DEFAULT_REFERRAL_SELECT } from "./referralSelect.js";
  * @param {string}        [input.subscriptionContractId]
  * @param {Object}        [input.metadata]
  * @param {Object}        [select]                      - Prisma select object to control returned fields.
- * @returns {Promise<Object|null>} Created referral or null on failure.
+ * @returns {Promise<Object|null>} Created referral, or null specifically when
+ *   the referred customer already has a referral (P2002 on the unique
+ *   [referredId] constraint) — a normal, expected outcome callers should
+ *   treat as "already referred", not a failure.
+ * @throws {Error} Any other database error (connection issues, timeouts,
+ *   etc.) is re-thrown rather than swallowed, so callers can tell "this
+ *   customer was already referred" apart from "the database call failed"
+ *   instead of both silently returning null.
  *
  * @example
  * await createReferral({
@@ -74,6 +81,12 @@ export const createReferral = async (input, select = DEFAULT_REFERRAL_SELECT) =>
             stack: error?.stack,
         });
 
-        return null;
+        // Re-throw: unlike the P2002 case above, this isn't an expected
+        // outcome the caller should quietly treat as "no referral created".
+        // Swallowing it here previously made real DB failures (timeouts,
+        // connection drops) indistinguishable from "referral already
+        // exists", which is misleading in any caller that maps a null
+        // return to a 409 "already exists" response.
+        throw error;
     }
 };

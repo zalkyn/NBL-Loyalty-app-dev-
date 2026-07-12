@@ -12,8 +12,12 @@
 // useCustomerProvision's shopifyCustomerId).
 //
 // PENDING_KEY (savePendingCode/restorePendingCode) is deliberately NOT
-// scoped — it exists specifically for the pre-login moment, before any
-// customer identity is known yet.
+// scoped by customerId — it exists specifically for the pre-login moment,
+// before any customer identity is known yet. To still stay safe on a
+// shared/family device, it carries its own short expiry (see
+// PENDING_EXPIRY_MS below) so an abandoned login can't leak its referral
+// code to whichever different customer happens to log in next on the same
+// browser.
 // =============================================================================
 
 const CACHE_PREFIX = 'NBL_ReferralCache_';
@@ -97,17 +101,50 @@ export function removeURLCode() {
     url.searchParams.delete('nbl-referral');
     history.replaceState({}, '', url);
 }
+
+// How long a pending code survives the login redirect round-trip before
+// being treated as abandoned. This only needs to comfortably cover a normal
+// login (including e.g. a password reset detour) — it deliberately does NOT
+// need to survive hours/days. A short window closes off the shared/family-
+// device case where customer A clicks "Login" (saving their pending code)
+// but never completes it, and customer B logs into a *different* account on
+// the same browser later — without this, B's session would silently
+// auto-apply A's referral code on next load. PENDING_KEY itself is
+// intentionally unscoped (no customer identity exists yet at save-time), so
+// this expiry is the only thing standing between "normal login flow" and
+// "stale code leaking to whoever logs in next on this browser".
+const PENDING_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
+
 export function savePendingCode(code) {
-    if (code) localStorage.setItem(PENDING_KEY, code);
+    if (!code) return;
+    try {
+        localStorage.setItem(PENDING_KEY, JSON.stringify({ code, savedAt: Date.now() }));
+    } catch (e) { /* ignore — storage unavailable/blocked */ }
 }
 export function restorePendingCode() {
     const urlCode = getURLCode();
     if (urlCode) return urlCode;
-    const saved = localStorage.getItem(PENDING_KEY);
-    if (!saved) return null;
-    const url = new URL(window.location.href);
-    url.searchParams.set('nbl-referral', saved);
-    history.replaceState({}, '', url);
+
+    let saved = null;
+    try {
+        saved = JSON.parse(localStorage.getItem(PENDING_KEY));
+    } catch (e) {
+        // Also catches the pre-fix plain-string format from before this
+        // change shipped — JSON.parse throws on a bare unquoted string, so
+        // an in-flight login from just before deploy safely falls through
+        // to "no pending code" instead of crashing.
+        saved = null;
+    }
+
+    // One-time-use either way — never let a second read (this customer
+    // revisiting, or a different customer's session) find it again.
     localStorage.removeItem(PENDING_KEY);
-    return saved;
+
+    if (!saved || !saved.code || typeof saved.savedAt !== 'number') return null;
+    if (Date.now() - saved.savedAt > PENDING_EXPIRY_MS) return null; // stale — treat as abandoned
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('nbl-referral', saved.code);
+    history.replaceState({}, '', url);
+    return saved.code;
 }
