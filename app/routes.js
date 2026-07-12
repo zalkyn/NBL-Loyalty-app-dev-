@@ -34,24 +34,34 @@ export default [
         // background jobs (retry/monitor)
         route("app/jobs", "./layout/jobs/route.jsx"),
 
+        // Loox review points — Shopify Flow setup guide
+        route("app/loox-setup", "./layout/loox-setup/route.jsx"),
+
         // widget preview
         // route("widget/preview", "./widget-routes/preview.jsx"),
 
     ]),
 
     // API Routes
-    route("api/claim-prize", "./api-routes/physical-prize-claim.jsx"),
-    route("api/get-reward-voucher", "./api-routes/reward-claim.jsx"),
-    route("api/join-our-program", "./api-routes/join-our-program.jsx"),
-    route("api/get-referral-discount", "./api-routes/referral-claim.jsx"),
-    route("api/loox-new-review-trigger", "./api-routes/loox-new-review-trigger.jsx"),
-    route("api/provision-customer", "./api-routes/provision-customer.jsx"),
+    // NOTE: claim-prize / get-reward-voucher / get-referral-discount /
+    // provision-customer / join-program used to live here as plain `api/*`
+    // routes, trusting a client-supplied shop/customerId/customerIndex in
+    // the request body — spoofable from devtools with no proof the request
+    // came from that customer's actual storefront session. Migrated below to
+    // the App Proxy (widget-data/*), where identity comes only from
+    // Shopify's signed `logged_in_customer_id`. Do not re-add them here.
+    route("api/loox-new-review-trigger/:token", "./api-routes/loox-new-review-trigger.jsx"),
 
     // Widget App Proxy — storefront calls /apps/widget, Shopify proxies it here.
     // Backend code lives in app/widget-ui/ (not app/routes/), kept grouped
     // with the rest of the widget-related code.
     route("widget-data", "./widget-ui/route.jsx"),
     route("widget-data/notifications/mark-seen", "./widget-ui/notifications-mark-seen.jsx"),
+    route("widget-data/provision-customer", "./widget-ui/provision-customer.jsx"),
+    route("widget-data/join-program", "./widget-ui/join-program.jsx"),
+    route("widget-data/get-reward-voucher", "./widget-ui/reward-claim.jsx"),
+    route("widget-data/claim-prize", "./widget-ui/prize-claim.jsx"),
+    route("widget-data/get-referral-discount", "./widget-ui/referral-claim.jsx"),
 
     // Webhooks
     route("webhooks/app/orders_paid", "./webhook-routes/order-paid.jsx"),

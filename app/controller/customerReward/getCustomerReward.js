@@ -136,7 +136,13 @@ export const getCustomerRewardByKey = async (rewardKey, select = DEFAULT_REWARD_
 };
 
 /**
- * Fetches a reward by its discount code.
+ * Fetches a reward by its discount code, optionally scoped to a customer.
+ *
+ * `code` has no unique constraint at the database level, so two shops
+ * could in principle generate matching codes. Passing `customerId` narrows
+ * the match to that customer's own reward and prevents a cross-shop
+ * collision from resolving to the wrong reward record; omit it only for
+ * callers that intentionally search across all customers.
  *
  * Retried on transient DB failure — this backs the redemption/validation
  * flow, where a dropped connection should not surface as a false
@@ -144,26 +150,34 @@ export const getCustomerRewardByKey = async (rewardKey, select = DEFAULT_REWARD_
  *
  * @param {string} code
  * @param {Object} [select] - Prisma select object to control returned fields.
+ * @param {number|string} [customerId] - Restricts the match to this customer's rewards.
  * @returns {Promise<Object|null>} Reward or null if not found.
  *
  * @example
- * // Fetch for redemption — only fields needed for validation
+ * // Fetch for redemption — scoped to the customer, only fields needed for validation
  * await getCustomerRewardByCode("NBL_A3K9XZT_REFERRAL", {
  *     id:        true,
  *     status:    true,
  *     expiresAt: true,
  *     pointsCost: true,
- * })
+ * }, customerId)
  */
-export const getCustomerRewardByCode = async (code, select = DEFAULT_REWARD_SELECT) => {
+export const getCustomerRewardByCode = async (code, select = DEFAULT_REWARD_SELECT, customerId = null) => {
     try {
         const reward = await dbRetry(
-            () => prisma.reward.findFirst({ where: { code }, select }),
-            { code }
+            () =>
+                prisma.reward.findFirst({
+                    where: {
+                        code,
+                        ...(customerId !== null && { customerId: Number(customerId) }),
+                    },
+                    select,
+                }),
+            { code, customerId }
         );
 
         if (!reward) {
-            logger.warn("Reward not found by code", { code });
+            logger.warn("Reward not found by code", { code, customerId });
             return null;
         }
 
@@ -171,6 +185,7 @@ export const getCustomerRewardByCode = async (code, select = DEFAULT_REWARD_SELE
     } catch (error) {
         logger.error("Failed to fetch reward by code", {
             code,
+            customerId,
             error: error?.message,
             stack: error?.stack,
         });

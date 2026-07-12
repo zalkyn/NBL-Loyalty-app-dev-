@@ -2,41 +2,60 @@
 // modules/module-preact/hooks/referralCache.js
 // localStorage cache + URL code detection — pure functions, purono
 // referral-modal.js-er cache/URL logic-er extraction, framework-agnostic.
+//
+// getClaim/setClaim/getCache/setCache/hasUsedCode are ALL scoped by
+// customerId — localStorage is shared per-browser, not per-account, so on
+// a shared/family device (or someone logging out and a different customer
+// logging in) an unscoped cache would leak the first customer's referral
+// claim to the second. Callers must always pass the current customer's id
+// (Shopify customer id/GID — same value used elsewhere, e.g.
+// useCustomerProvision's shopifyCustomerId).
+//
+// PENDING_KEY (savePendingCode/restorePendingCode) is deliberately NOT
+// scoped — it exists specifically for the pre-login moment, before any
+// customer identity is known yet.
 // =============================================================================
 
-const CACHE_KEY = 'NBL_ReferralCache';
+const CACHE_PREFIX = 'NBL_ReferralCache_';
+const CLAIM_PREFIX = 'NBL_ReferralClaim_';
 const PENDING_KEY = 'NBL_PendingReferral';
-const CLAIM_KEY = 'NBL_ReferralClaim';
 
-export function getCacheStore() {
-    try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; } catch (e) { return {}; }
+function cacheKey(customerId) {
+    return `${CACHE_PREFIX}${customerId}`;
 }
-export function setCacheStore(store) {
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify(store)); } catch (e) { /* ignore */ }
+function claimKey(customerId) {
+    return `${CLAIM_PREFIX}${customerId}`;
 }
-export function getCache(code) {
-    const store = getCacheStore();
+
+export function getCacheStore(customerId) {
+    try { return JSON.parse(localStorage.getItem(cacheKey(customerId))) || {}; } catch (e) { return {}; }
+}
+export function setCacheStore(customerId, store) {
+    try { localStorage.setItem(cacheKey(customerId), JSON.stringify(store)); } catch (e) { /* ignore */ }
+}
+export function getCache(customerId, code) {
+    const store = getCacheStore(customerId);
     const item = store[code];
     if (!item) return null;
-    if (Date.now() > item.expiresAt) { delete store[code]; setCacheStore(store); return null; }
+    if (Date.now() > item.expiresAt) { delete store[code]; setCacheStore(customerId, store); return null; }
     return item.data;
 }
-export function setCache(code, data) {
+export function setCache(customerId, code, data) {
     const duration = data.success ? 60000 : 30000;
-    const store = getCacheStore();
+    const store = getCacheStore(customerId);
     store[code] = { data, expiresAt: Date.now() + duration };
-    setCacheStore(store);
+    setCacheStore(customerId, store);
 }
-export function hasUsedCode() {
-    return Object.values(getCacheStore()).some(
+export function hasUsedCode(customerId) {
+    return Object.values(getCacheStore(customerId)).some(
         (entry) => entry.data && entry.data.success && entry.data.referralDiscountCode
     );
 }
-export function sweepExpiredCache() {
-    const store = getCacheStore();
+export function sweepExpiredCache(customerId) {
+    const store = getCacheStore(customerId);
     const now = Date.now();
     Object.keys(store).forEach((key) => { if (now > store[key].expiresAt) delete store[key]; });
-    setCacheStore(store);
+    setCacheStore(customerId, store);
 }
 
 // ── Persistent claim record ───────────────────────────────────────────────
@@ -46,12 +65,12 @@ export function sweepExpiredCache() {
 // referral link later — even after the short-lived cache has expired —
 // still shows the right state without hitting the API again.
 
-export function getClaim() {
-    try { return JSON.parse(localStorage.getItem(CLAIM_KEY)); } catch (e) { return null; }
+export function getClaim(customerId) {
+    try { return JSON.parse(localStorage.getItem(claimKey(customerId))); } catch (e) { return null; }
 }
-export function setClaim({ code, discountCode, used, lockedToOtherCode, message }) {
+export function setClaim(customerId, { code, discountCode, used, lockedToOtherCode, message }) {
     try {
-        localStorage.setItem(CLAIM_KEY, JSON.stringify({
+        localStorage.setItem(claimKey(customerId), JSON.stringify({
             code,
             discountCode: discountCode || null,
             used: !!used,
@@ -61,13 +80,13 @@ export function setClaim({ code, discountCode, used, lockedToOtherCode, message 
         }));
     } catch (e) { /* ignore */ }
 }
-export function markClaimUsed() {
-    const claim = getClaim();
+export function markClaimUsed(customerId) {
+    const claim = getClaim(customerId);
     if (!claim) return;
-    setClaim({ ...claim, used: true });
+    setClaim(customerId, { ...claim, used: true });
 }
-export function clearClaim() {
-    try { localStorage.removeItem(CLAIM_KEY); } catch (e) { /* ignore */ }
+export function clearClaim(customerId) {
+    try { localStorage.removeItem(claimKey(customerId)); } catch (e) { /* ignore */ }
 }
 
 export function getURLCode() {

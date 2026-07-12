@@ -35,7 +35,11 @@ const DEFAULT_TRANSACTION_SELECT = {
  * Transaction types:
  * - EARN / REFERRAL   → adds points, increases lifetimePoints
  * - REDEEM / EXPIRE   → deducts points (throws if insufficient balance)
- * - ADJUST / REVERSAL → signed value (+/-), balance floored at 0
+ * - ADJUST            → signed value (+/-), balance floored at 0, adjusts lifetimePoints
+ * - REVERSAL          → signed value (+/-), balance NOT floored — can go
+ *                        negative (a real "debt" if the customer already
+ *                        spent points a cancelled/refunded order earned;
+ *                        see the REVERSAL case below), lifetimePoints untouched
  *
  * @param {Object}                                                    input
  * @param {number}                                                    input.customerId
@@ -136,7 +140,7 @@ export default async function createTransaction(input, session, select = DEFAULT
                         case "EXPIRE":
                             if (amount > customer.points) {
                                 throw new Error(
-                                    `Insufficient points: has ${customer.points}, attempted ${amount}`
+                                    `Insufficient points: has ${customer.points.toLocaleString()}, attempted ${amount.toLocaleString()}`
                                 );
                             }
                             signedPoints = -amount;
@@ -149,9 +153,23 @@ export default async function createTransaction(input, session, select = DEFAULT
                             newLifetimePoints += amount;
                             break;
                         case "REVERSAL":
-                            // Signed value passed directly from caller (+/-)
+                            // Signed value passed directly from caller (+/-).
+                            // Deliberately NOT floored at 0 like ADJUST above:
+                            // a REVERSAL fires when an order is cancelled or
+                            // refunded, reversing points the customer earned
+                            // from it. If they already spent those points on
+                            // a reward/prize before the cancellation/refund,
+                            // flooring at 0 would silently forgive that
+                            // shortfall — letting a customer buy something,
+                            // immediately redeem the points it earned, then
+                            // cancel the order and keep the reward for free.
+                            // Instead the balance is allowed to go negative,
+                            // recording a real "debt" that blocks new reward/
+                            // prize claims (their pointsCost > any negative
+                            // balance) until it's paid down by future earning
+                            // or a manual admin adjustment.
                             signedPoints = amount;
-                            newBalance = Math.max(0, customer.points + amount);
+                            newBalance = customer.points + amount;
                             break;
 
                         default:

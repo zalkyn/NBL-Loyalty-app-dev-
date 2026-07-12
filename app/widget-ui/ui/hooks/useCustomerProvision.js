@@ -3,11 +3,20 @@
 // Silent customer auto-provisioning — kichu logged-in customer Shopify-te
 // ache kintu app DB-te nai (e.g. install-er age customer ছিল, ba webhook
 // miss hoyeche). Eta detect kore background-e provision kore, then reload.
+//
+// On failure (backend unreachable, timeout, non-success response), this
+// never shows an alarming error itself — instead it exposes `failed`, and
+// App.jsx falls back to the explicit JoinProgramPanel (same UI merchants
+// see when autoProvisionCustomer is off) so the customer always has a
+// clear, actionable next step instead of silently landing on a broken
+// widget (0 points, empty referral link, etc. with no explanation).
 // =============================================================================
 
 import { useState, useEffect, useRef } from 'preact/hooks';
+import { requestProvisionCustomer } from '../api.js';
 
 const SESSION_GUARD_KEY = 'NBL_ProvisionAttempted';
+const SESSION_FAILED_KEY = 'NBL_ProvisionFailed';
 
 // Hard cutoff — customer ke kokhono lomba shomoy dhore overlay-te lock kore
 // rakha jabe na. Eita ekta circuit breaker: backend slow/unreachable hole,
@@ -22,6 +31,12 @@ function hasAttemptedThisSession() {
 function markAttemptedThisSession() {
     try { sessionStorage.setItem(SESSION_GUARD_KEY, '1'); } catch (e) { /* ignore */ }
 }
+function hasFailedThisSession() {
+    try { return sessionStorage.getItem(SESSION_FAILED_KEY) === '1'; } catch (e) { return false; }
+}
+function markFailedThisSession() {
+    try { sessionStorage.setItem(SESSION_FAILED_KEY, '1'); } catch (e) { /* ignore */ }
+}
 
 /**
  * @param {Object} params
@@ -30,10 +45,12 @@ function markAttemptedThisSession() {
  *                                          ekhane Shopify customer GID (referralModal/api.js
  *                                          eki convention follow kore) — even if
  *                                          customer.config missing thake, customer.id thakte pare.
- * @param {Object} params.appConfig      - appConfig.appUrl, appConfig.autoProvisionCustomer
+ * @param {Object} params.appConfig      - appConfig.autoProvisionCustomer
  *                                          (default true — static flag, explicit false e off hoy),
  *                                          appConfig.showProvisionLoadingOverlay
- * @returns {{ provisioning: boolean, provisionNeeded: boolean, inFlight: boolean }}
+ * @param {string} params.proxyPath      - App Proxy base path (e.g. "/apps/widget"),
+ *                                          same one every other widget API call uses.
+ * @returns {{ provisioning: boolean, provisionNeeded: boolean, inFlight: boolean, failed: boolean }}
  *          provisioning     - true jokhon OVERLAY dekhano dorkar (in-flight AND showOverlay on).
  *                              UI render-er jonno — ReferralModal-er overlay slot eta use kore.
  *          provisionNeeded  - synchronous, render-time true/false — "ei customer-er
@@ -44,10 +61,20 @@ function markAttemptedThisSession() {
  *                              use kora uchit, `provisioning` na — karon showOverlay false
  *                              thakle `provisioning` kokhono true hobei na, kintu call tobu
  *                              pending thakte pare.
+ *          failed           - true jokhon eই session-e ekbar attempt hoyeche ebong seta fail
+ *                              koreche (timeout / network error / non-success response) —
+ *                              persisted in sessionStorage, tai circuit-breaker-er karone
+ *                              re-attempt na hoyeo, page reload-er pore-o eই flag thik thake.
+ *                              App.jsx eta diye JoinProgramPanel fallback dekhay.
  */
-export function useCustomerProvision({ isLoggedIn, customer, appConfig }) {
+export function useCustomerProvision({ isLoggedIn, customer, appConfig, proxyPath }) {
     const [provisioning, setProvisioning] = useState(false); // overlay visibility only
     const [inFlight, setInFlight] = useState(false); // true whenever a provision call is outstanding, regardless of overlay setting
+    // Lazy init reads sessionStorage once on first mount — so a customer who
+    // reloads after a failed attempt (circuit breaker blocks re-attempting)
+    // still sees the fallback panel immediately, instead of the failure
+    // being "forgotten" because this is a fresh hook instance.
+    const [failed, setFailed] = useState(hasFailedThisSession);
     const ranRef = useRef(false);
 
     const cfg = appConfig || {};
@@ -85,6 +112,8 @@ export function useCustomerProvision({ isLoggedIn, customer, appConfig }) {
             settled = true;
             // eslint-disable-next-line no-console
             console.error('[NBL Provision] hard cutoff reached — giving up silently');
+            markFailedThisSession();
+            setFailed(true);
             setProvisioning(false);
             setInFlight(false);
         }, HARD_CUTOFF_MS);
@@ -94,16 +123,7 @@ export function useCustomerProvision({ isLoggedIn, customer, appConfig }) {
             signal = AbortSignal.timeout(HARD_CUTOFF_MS);
         }
 
-        fetch(cfg.appUrl + '/api/provision-customer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                shop: window.Shopify && window.Shopify.shop,
-                customerId: shopifyCustomerId,
-            }),
-            signal,
-        })
-            .then((res) => res.json().catch(() => ({})))
+        requestProvisionCustomer({ proxyPath, signal })
             .then((data) => {
                 if (settled) return;
                 settled = true;
@@ -116,6 +136,17 @@ export function useCustomerProvision({ isLoggedIn, customer, appConfig }) {
                     window.location.reload();
                     return;
                 }
+
+                // success:true + shouldReload:false means a record already
+                // existed (not a failure) — anything else (missing/falsy
+                // success) is a real failure the fallback panel should
+                // catch, e.g. the backend was unreachable or returned an
+                // error body.
+                if (!data || !data.success) {
+                    markFailedThisSession();
+                    setFailed(true);
+                }
+
                 setProvisioning(false);
                 setInFlight(false);
             })
@@ -125,6 +156,8 @@ export function useCustomerProvision({ isLoggedIn, customer, appConfig }) {
                 clearTimeout(cutoff);
                 // eslint-disable-next-line no-console
                 console.error('[NBL Provision] failed:', err);
+                markFailedThisSession();
+                setFailed(true);
                 setProvisioning(false);
                 setInFlight(false);
             });
@@ -136,5 +169,5 @@ export function useCustomerProvision({ isLoggedIn, customer, appConfig }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [provisionNeeded]);
 
-    return { provisioning, provisionNeeded, inFlight };
+    return { provisioning, provisionNeeded, inFlight, failed };
 }

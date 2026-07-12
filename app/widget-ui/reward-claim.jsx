@@ -1,7 +1,26 @@
+/**
+ * @file widget-ui/reward-claim.jsx
+ * @description App Proxy route: redeems a points-based reward rule for a
+ * discount voucher.
+ *
+ * Registered manually in app/routes.js:
+ *   route("widget-data/get-reward-voucher", "widget-ui/reward-claim.jsx")
+ *
+ * Storefront calls: POST /apps/widget/get-reward-voucher
+ *   Body: { rewardRuleId, title? }
+ *
+ * Identity comes ONLY from the Shopify-signed `logged_in_customer_id` query
+ * param — the customer is resolved server-side from it, never from a
+ * client-supplied numeric id. (Previously this trusted a `customerIndex`
+ * sent by the client; if that ever went stale — e.g. after a DB reset, or
+ * pointing at a different shop's row — every redemption failed with
+ * "Customer not found" even though the customer genuinely existed.)
+ */
+
 import { logger } from "app/utils/logger.js";
-import { unauthenticated } from "shopify-server";
-import getCorsHeaders from "app/utils/getCorsHeaders.js";
+import { authenticate } from "shopify-server";
 import prisma from "db-server";
+import { normalizeCustomerGid } from "@controller/customers/normalizeCustomerGid.js";
 import { generateRewardVoucher } from "app/graphql/mutation/discounts/generateRewardVoucher.js";
 import createTransaction from "app/controller/transaction/createTransaction";
 import { createCustomerReward } from "@app/controller/customerReward/createCustomerReward.js";
@@ -10,45 +29,49 @@ import { withRetry } from "app/utils/retry/withRetry.js";
 import { dbRetry } from "app/utils/retry/dbRetry.js";
 
 /** @constant {string} Module identifier for structured logging */
-const MODULE = "api.get-voucher.jsx";
+const MODULE = "widget-data.get-voucher";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Route Handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * POST /api/get-voucher
- *
- * Validates the customer and reward rule, deducts points, generates a
- * discount voucher, and returns the voucher code with redemption details.
- *
- * @param {{ request: Request }} args - Remix action arguments
- * @returns {Promise<Response>} JSON response with voucher and redemption details
- */
 export async function action({ request }) {
-    const corsHeaders = getCorsHeaders(request);
+    if (request.method !== "POST") {
+        return jsonResponse({ error: "Method not allowed" }, 405);
+    }
 
-    if (request.method === "OPTIONS") return corsResponse(null, 204, corsHeaders);
-    if (request.method !== "POST") return corsResponse({ error: "Method not allowed" }, 405, corsHeaders);
+    // Declared here (not just inside the try) so the catch block can still
+    // log them even if the failure happens before they're assigned (e.g. an
+    // auth rejection before shop/shopifyId are known).
+    let shop;
+    let shopifyId;
 
     try {
+        // ── Auth + identity resolution now live INSIDE the try/catch below,
+        // same as every other step in this handler. Previously this ran
+        // before the try block, so if authenticate.public.appProxy() ever
+        // threw (a malformed/replayed proxy request, a library-level edge
+        // case, etc.) it would bypass our structured logger and JSON error
+        // response entirely and surface as an unhandled framework error
+        // instead of a clean, logged one.
+        const { admin, session } = await authenticate.public.appProxy(request);
+        if (!session) throw new AppError("Valid shop session required.", 401);
+        shop = session.shop;
+
+        const url = new URL(request.url);
+        const loggedInCustomerId = url.searchParams.get("logged_in_customer_id");
+        if (!loggedInCustomerId) throw new AppError("You must be logged in.", 401);
+        shopifyId = normalizeCustomerGid(loggedInCustomerId);
+
         const body = await request.json();
         validateRequestBody(body);
 
-        const { shop, customerId, customerIndex, rewardRuleId, title } = body;
+        const { rewardRuleId, title } = body;
 
-        logger.info("Received get-voucher request", { module: MODULE, shop, rewardRuleId, customerIndex });
-
-        // Authenticate the shop FIRST — customer and rewardRule lookups below
-        // are scoped to this session's id so a customerIndex/rewardRuleId that
-        // belongs to a *different* shop (same shared DB, sequential integer
-        // ids) can never be fetched here. Do not fetch those in parallel with
-        // auth, since the scoping depends on session.id being known.
-        const { admin, session } = await unauthenticated.admin(shop);
-        if (!session) throw new AppError("Valid shop session required", 401);
+        logger.info("Received get-voucher request", { module: MODULE, shop, rewardRuleId, shopifyId });
 
         const [customer, rewardRule] = await Promise.all([
-            getValidCustomer(customerIndex, session.id),
+            getValidCustomer(shopifyId, session.id),
             getValidRewardRule(rewardRuleId, session.id),
         ]);
 
@@ -82,7 +105,7 @@ export async function action({ request }) {
         // Guard: sufficient points balance
         if (rewardRule.pointsCost > customer.points) {
             throw new AppError(
-                `Insufficient points. Required: ${rewardRule.pointsCost}, Available: ${customer.points}`,
+                `Insufficient points. Required: ${Number(rewardRule.pointsCost).toLocaleString()}, Available: ${Number(customer.points).toLocaleString()}`,
                 422
             );
         }
@@ -93,32 +116,28 @@ export async function action({ request }) {
             customer,
             rewardRule,
             title,
-            customerId,
+            customerId: shopifyId,
         });
 
         // Sync updated customer config back to metafields — non-critical.
-        // syncCustomerConfig retries transient network failures internally;
-        // if all retries fail it returns null and the redemption/points
-        // deduction above are still committed in DB.
-        const updatedCustomer = await syncCustomerConfig(admin, customerId);
+        const updatedCustomer = await syncCustomerConfig(admin, shopifyId);
         if (!updatedCustomer) {
             logger.error("Metafield sync failed after all retries — redemption is still valid", {
                 module: MODULE,
-                customerId,
+                shopifyId,
             });
         }
 
         logger.info("Reward redeemed successfully", {
             module: MODULE,
-            customerId,
-            customerIndex,
+            shopifyId,
             rewardRuleId,
             voucherCode,
         });
 
-        return corsResponse(
+        return jsonResponse(
             {
-                shop,
+                shop: session.shop,
                 voucherCode,
                 title: title || rewardTitle,
                 points: updatedCustomer?.points ?? null,
@@ -126,63 +145,21 @@ export async function action({ request }) {
                 activity,
                 createdAt,
             },
-            200,
-            corsHeaders
+            200
         );
     } catch (err) {
         const statusCode = err instanceof AppError ? err.statusCode : 500;
-        logger.error("Get voucher api error", err, { module: MODULE });
-        return corsResponse({ error: "Get voucher api error", details: err.message }, statusCode, corsHeaders);
+        logger.error("Get voucher api error", err, { module: MODULE, shop, shopifyId });
+        return jsonResponse({ error: "Get voucher api error", details: err.message }, statusCode);
     }
 }
 
-/**
- * GET /api/get-voucher
- *
- * Health-check endpoint. Also handles CORS preflight for OPTIONS requests.
- *
- * @param {{ request: Request }} args - Remix loader arguments
- * @returns {Promise<Response>} JSON status response
- */
-export async function loader({ request }) {
-    const corsHeaders = getCorsHeaders(request);
-    if (request.method === "OPTIONS") return corsResponse(null, 204, corsHeaders);
-    return corsResponse({ status: "ok", timestamp: new Date().toISOString() }, 200, corsHeaders);
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// Core Business Logic
+// Core Business Logic (unchanged from api-routes/reward-claim.jsx)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Executes the full reward redemption flow:
- * 1. Generates a discount voucher code via the Shopify Admin API
- * 2. Creates a Reward record and increments the rule's usage count (parallel)
- * 3. Records a debit Transaction for the points spent
- *
- * @param {object}  args
- * @param {object}  args.admin       - Authenticated Shopify Admin API client
- * @param {object}  args.session     - Shopify session object
- * @param {object}  args.customer    - Prisma Customer record
- * @param {object}  args.rewardRule  - Prisma RewardRule record
- * @param {string}  args.customerId  - Shopify customer GID
- * @param {string}  [args.title]     - Optional display title override
- *
- * @returns {Promise<{
- *   voucherCode: string,
- *   pointsCost:  number,
- *   rewardTitle: string,
- *   activity:    string,
- *   createdAt:   Date,
- * }>} Redemption result with display-ready fields
- *
- * @throws {AppError} If voucher generation fails
- */
 async function redeemReward({ admin, session, customer, rewardRule, customerId, title }) {
     const shop = session?.shop;
-    // Retry voucher generation on transient Shopify API / network failures.
-    // generateRewardVoucher is idempotent-safe here because no DB writes have
-    // happened yet — retrying cannot cause duplicate points deductions.
     const voucherCode = await withRetry(
         () => generateRewardVoucher(admin, customerId, rewardRule),
         {
@@ -192,8 +169,6 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
                 "fetch failed",
                 "ECONNRESET",
                 "ETIMEDOUT",
-                // generateRewardVoucher.js catches network errors and re-throws
-                // with this message — include it so withRetry can match and retry
                 "Something went wrong. Please try again later.",
             ],
             context: { shop, module: MODULE, customerId, rewardRuleId: rewardRule.id },
@@ -203,7 +178,6 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
 
     const pointsCost = Math.abs(Number(rewardRule.pointsCost) || 0);
 
-    // Create the Reward record and bump global usage count in parallel
     const [newReward] = await Promise.all([
         createCustomerReward({
             customerId: customer.id,
@@ -222,29 +196,21 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
         ),
     ]);
 
-    // Deduct points + record transaction atomically via createTransaction.
-    // If this fails (e.g. Shopify session flap), cancel the reward record so
-    // the customer cannot use a voucher without paying points.
     const transaction = await createTransaction(
         {
             customerId: customer.id,
             type: "REDEEM",
-            reason: `${pointsCost} points redeemed for reward: ${rewardRule.title}`,
-            activity: `-${pointsCost} points redeemed for reward: ${rewardRule.title}`,
+            reason: `${pointsCost.toLocaleString()} points redeemed for reward: ${rewardRule.title}`,
+            activity: `-${pointsCost.toLocaleString()} points redeemed for reward: ${rewardRule.title}`,
             points: pointsCost,
             rewardId: newReward?.id,
             status: "COMPLETED",
-            // Customer is live in the widget right now and sees the voucher
-            // code on screen immediately — this should never also surface
-            // as a toast notification on a later visit.
             notifiedAt: new Date(),
         },
         session
     );
 
     if (!transaction) {
-        // createTransaction returned null — points were NOT deducted.
-        // Cancel the reward and roll back the usage counter so the state is consistent.
         logger.error("Transaction failed — cancelling reward and rolling back usage count", {
             module: MODULE,
             customerId: customer.id,
@@ -265,10 +231,6 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
             ),
         ]);
 
-        // Rollback is best-effort but must not fail silently — a failed
-        // rollback here means the reward stays ACTIVE (or usageCount stays
-        // incremented) despite the points deduction having failed, i.e. a
-        // free/uncounted voucher.
         rollbackResults.forEach((result, idx) => {
             if (result.status === "rejected") {
                 logger.error(`Rollback step ${idx === 0 ? "reward cancel" : "usage count decrement"} failed after retries`, {
@@ -287,7 +249,7 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
         voucherCode,
         pointsCost,
         rewardTitle: rewardRule.title,
-        activity: `-${pointsCost} points redeemed for reward: ${rewardRule.title}`,
+        activity: `-${pointsCost.toLocaleString()} points redeemed for reward: ${rewardRule.title}`,
         createdAt: newReward?.createdAt ?? new Date(),
     };
 }
@@ -296,15 +258,7 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
 // Validation
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Validates required POST body fields and throws early if any are missing.
- *
- * @param {{ shop: string, customerId: string, customerIndex: string, rewardRuleId: string }} body
- * @throws {AppError} 400 if any required field is absent
- */
-function validateRequestBody({ shop, customerId, customerIndex, rewardRuleId }) {
-    if (!shop) throw new AppError("Valid shop required", 400);
-    if (!customerId || !customerIndex) throw new AppError("Valid customer required", 400);
+function validateRequestBody({ rewardRuleId }) {
     if (!rewardRuleId) throw new AppError("Valid rewardRuleId required", 400);
 }
 
@@ -312,14 +266,6 @@ function validateRequestBody({ shop, customerId, customerIndex, rewardRuleId }) 
 // DB Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Fetches a RewardRule by its numeric ID, scoped to the authenticated shop's
- * session so a rewardRuleId belonging to another shop can never be read.
- *
- * @param {number|string} id - RewardRule primary key
- * @param {string} sessionId - The authenticated shop's session id
- * @returns {Promise<object|null>} Prisma RewardRule record, or null on failure
- */
 async function getValidRewardRule(id, sessionId) {
     try {
         return await dbRetry(
@@ -332,23 +278,17 @@ async function getValidRewardRule(id, sessionId) {
     }
 }
 
-/**
- * Fetches a Customer by its numeric internal ID (customerIndex), scoped to
- * the authenticated shop's session so a customerIndex belonging to another
- * shop can never be read.
- *
- * @param {number|string} id - Customer primary key
- * @param {string} sessionId - The authenticated shop's session id
- * @returns {Promise<object|null>} Prisma Customer record, or null on failure
- */
-async function getValidCustomer(id, sessionId) {
+// shopifyId comes from Shopify's signed `logged_in_customer_id` — not from
+// the client body — so this lookup can't be pointed at another shop's
+// customer or a stale/forged id the way the old customerIndex lookup could.
+async function getValidCustomer(shopifyId, sessionId) {
     try {
         return await dbRetry(
-            () => prisma.customer.findFirst({ where: { id: Number(id), sessionId } }),
-            { module: MODULE, customerIndex: id, sessionId }
+            () => prisma.customer.findFirst({ where: { shopifyId, sessionId } }),
+            { module: MODULE, shopifyId, sessionId }
         );
     } catch (error) {
-        logger.error("Failed to fetch customer", { module: MODULE, customerIndex: id, sessionId, error: error?.message });
+        logger.error("Failed to fetch customer", { module: MODULE, shopifyId, sessionId, error: error?.message });
         return null;
     }
 }
@@ -357,31 +297,14 @@ async function getValidCustomer(id, sessionId) {
 // Utilities
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Builds a JSON Response with CORS headers attached.
- *
- * @param {object|null} body        - Response payload (null for 204)
- * @param {number}      status      - HTTP status code
- * @param {object}      corsHeaders - CORS headers object
- * @returns {Response}
- */
-function corsResponse(body, status, corsHeaders) {
-    return new Response(body !== null ? JSON.stringify(body) : null, {
+function jsonResponse(data, status) {
+    return new Response(JSON.stringify(data), {
         status,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+        headers: { "Content-Type": "application/json" },
     });
 }
 
-/**
- * Domain-specific error class that carries an HTTP status code.
- * Allows the action handler to distinguish expected business errors
- * from unexpected runtime exceptions.
- */
 class AppError extends Error {
-    /**
-     * @param {string} message    - Human-readable error description
-     * @param {number} statusCode - HTTP status code to return (default 500)
-     */
     constructor(message, statusCode = 500) {
         super(message);
         this.name = "AppError";

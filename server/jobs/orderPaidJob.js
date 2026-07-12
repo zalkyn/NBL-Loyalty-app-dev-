@@ -425,6 +425,30 @@ async function mainHandler({ admin, session, shop, orderId, customerId }) {
         return;
     }
 
+    // ── Cached order-count maintenance ──────────────────────────────────────
+    // Keeps Customer.orders in sync incrementally so the admin dashboard can
+    // read it directly instead of calling Shopify's API on every page view
+    // (see app/layout/customers/$id/_loader.server.js). Runs regardless of
+    // whether this order matches a points rule — the order genuinely
+    // happened either way. If the cache is still null (never backfilled —
+    // see schema.prisma), Postgres leaves a NULL+1 increment as NULL, which
+    // is fine: it self-heals the next time an admin opens this customer's
+    // detail page. Best-effort — never let this block points awarding.
+    try {
+        await dbRetry(
+            () =>
+                prisma.customer.update({
+                    where: { id: customer.id },
+                    data: { orders: { increment: 1 } },
+                }),
+            { module: MODULE, shop, customerId: customer.id }
+        );
+    } catch (err) {
+        logger.error(MODULE, "Failed to increment cached order count", {
+            shop, orderId, customerId: customer.id, error: err?.message,
+        });
+    }
+
     // Resolve subscription interval — uses the pre-fetched appstle metafield
     // so getAppstleMetafield only needs one API call (product.sellingPlanGroups)
     const appstle = await withRetry(
@@ -689,7 +713,7 @@ const resolveReferralPoints = (conditions, lineItems, interval, isRenewal) => {
  */
 const handleNormalOrder = async ({ admin, order, customer, session, shop, subscriptionInterval, isSubscription }) => {
     // getPointRuleByEvent retries transient DB errors internally.
-    const rule = await getPointRuleByEvent("ORDER");
+    const rule = await getPointRuleByEvent("ORDER", session.id);
 
     if (!rule?.isActive) {
         logger.warn(MODULE, "ORDER rule inactive — skipping", { shop });
@@ -755,7 +779,7 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop, subscr
  */
 const handleReferral = async ({ admin, referralContext, order, subscriptionContract, subscriptionInterval, isSubscription, session, shop }) => {
     // getPointRuleByEvent retries transient DB errors internally.
-    const rule = await getPointRuleByEvent("REFERRAL");
+    const rule = await getPointRuleByEvent("REFERRAL", session.id);
 
     if (!rule?.isActive) {
         logger.warn(MODULE, "REFERRAL rule inactive — skipping", { shop });
@@ -834,8 +858,14 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
             ),
         ]);
 
-        // Mark referred customer's reward voucher as used
-        const existingReward = await getCustomerRewardByCode(referral.discountCode, { id: true, status: true });
+        // Mark referred customer's reward voucher as used — scoped to the
+        // referred customer so a discount code collision on another shop
+        // can never resolve to the wrong reward.
+        const existingReward = await getCustomerRewardByCode(
+            referral.discountCode,
+            { id: true, status: true },
+            referral.referredId
+        );
         if (existingReward) {
             await updateCustomerReward(existingReward.id, {
                 status: "USED",

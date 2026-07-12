@@ -23,57 +23,82 @@
 import { authenticate } from "shopify-server";
 import prisma from "db-server";
 import { normalizeCustomerGid } from "@controller/customers/normalizeCustomerGid.js";
+import { logger } from "app/utils/logger";
+
+const MODULE = "widget-data.notifications-mark-seen";
 
 export const action = async ({ request }) => {
     if (request.method !== "POST") {
         return new Response("Method not allowed", { status: 405 });
     }
 
-    const { session } = await authenticate.public.appProxy(request);
+    let shop;
+    let shopifyId;
 
-    if (!session) {
-        return new Response("Unauthorized", { status: 401 });
-    }
-
-    const url = new URL(request.url);
-    const loggedInCustomerId = url.searchParams.get("logged_in_customer_id");
-
-    if (!loggedInCustomerId) {
-        return Response.json({ ok: false, marked: 0 });
-    }
-
-    const customer = await prisma.customer.findUnique({
-        where: { shopifyId: normalizeCustomerGid(loggedInCustomerId) },
-        select: { id: true },
-    });
-
-    if (!customer) {
-        return Response.json({ ok: false, marked: 0 });
-    }
-
-    // Optional { ids: [...] } body — only present when a single toast's
-    // close button was clicked. Malformed/missing body just means "mark
-    // all", same as before.
-    let ids = null;
     try {
-        const body = await request.json();
-        if (Array.isArray(body?.ids) && body.ids.length > 0) {
-            ids = body.ids
-                .map((id) => Number(id))
-                .filter((id) => Number.isInteger(id));
+        // Auth lives inside this try/catch (same rationale as reward-claim.jsx,
+        // prize-claim.jsx, referral-claim.jsx) so an unexpected throw here is
+        // logged and returns a clean response instead of an unhandled error.
+        const { session } = await authenticate.public.appProxy(request);
+
+        if (!session) {
+            return new Response("Unauthorized", { status: 401 });
         }
+        shop = session.shop;
+
+        const url = new URL(request.url);
+        const loggedInCustomerId = url.searchParams.get("logged_in_customer_id");
+
+        if (!loggedInCustomerId) {
+            return Response.json({ ok: false, marked: 0 });
+        }
+        shopifyId = normalizeCustomerGid(loggedInCustomerId);
+
+        const customer = await prisma.customer.findUnique({
+            where: { shopifyId },
+            select: { id: true },
+        });
+
+        if (!customer) {
+            return Response.json({ ok: false, marked: 0 });
+        }
+
+        // Optional { ids: [...] } body — only present when a single toast's
+        // close button was clicked. Malformed/missing body just means "mark
+        // all", same as before.
+        let ids = null;
+        try {
+            const body = await request.json();
+            if (Array.isArray(body?.ids) && body.ids.length > 0) {
+                ids = body.ids
+                    .map((id) => Number(id))
+                    .filter((id) => Number.isInteger(id));
+            }
+        } catch (err) {
+            // No/invalid JSON body — fall through to "mark all".
+        }
+
+        const where = ids && ids.length
+            ? { id: { in: ids }, customerId: customer.id, notifiedAt: null }
+            : { customerId: customer.id, notifiedAt: null };
+
+        const { count } = await prisma.transaction.updateMany({
+            where,
+            data: { notifiedAt: new Date() },
+        });
+
+        return Response.json({ ok: true, marked: count });
     } catch (err) {
-        // No/invalid JSON body — fall through to "mark all".
+        // This endpoint is fire-and-forget from the client (it never awaits
+        // or reads the response), so there's nothing customer-facing to
+        // protect here — but we still log it so a real failure (bad auth,
+        // DB outage, etc.) doesn't disappear silently in production.
+        logger.error("Notifications mark-seen failed", {
+            module: MODULE,
+            shop,
+            shopifyId,
+            error: err?.message,
+        });
+        return Response.json({ ok: false, marked: 0 });
     }
-
-    const where = ids && ids.length
-        ? { id: { in: ids }, customerId: customer.id, notifiedAt: null }
-        : { customerId: customer.id, notifiedAt: null };
-
-    const { count } = await prisma.transaction.updateMany({
-        where,
-        data: { notifiedAt: new Date() },
-    });
-
-    return Response.json({ ok: true, marked: count });
 };
