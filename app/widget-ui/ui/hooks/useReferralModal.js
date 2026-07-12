@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useRef } from 'preact/hooks';
 import * as cache from './referralCache.js';
+import { requestReferralDiscount } from '../api.js';
 
 const LOCKED_CODES = ['DISCOUNT_ALREADY_USED', 'REFERRAL_ALREADY_LOCKED'];
 
@@ -50,7 +51,7 @@ function wait(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function useReferralModal({ isLoggedIn, customer, appConfig, provisioning, provisionNeeded }) {
+export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisionNeeded, customerId }) {
     // NOTE: `provisioning` here is expected to be useCustomerProvision's
     // `inFlight` value (always accurate), not its `provisioning` (overlay-only,
     // can stay false even while a call is pending if the overlay is disabled
@@ -65,26 +66,17 @@ export function useReferralModal({ isLoggedIn, customer, appConfig, provisioning
     const [discountCode, setDiscountCode] = useState('');
     const [copied, setCopied] = useState(false);
 
+    // Permanent "has this code been copied at least once" flag, separate from
+    // `copied` above (which is purely transient — it flips back to false after
+    // 2.5s so the button label reverts to "Copy Code"). handleFinish must gate
+    // on THIS, not on `copied`, or clicking Finish more than ~2.5s after a
+    // successful copy would wrongly block closing the modal.
+    const copiedOnceRef = useRef(false);
+
     // Tracks the in-flight submission so a stale response (or a stale retry
     // loop) can never clobber state after the user has moved on (closed the
     // modal, submitted a different code, etc).
     const requestIdRef = useRef(0);
-
-    async function fetchReferralDiscount(code, signal) {
-        const res = await fetch(appConfig.appUrl + '/api/get-referral-discount', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                shop: window.Shopify && window.Shopify.shop,
-                customerId: customer && customer.id,
-                referralCode: code,
-            }),
-            signal,
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok && !data.code) data.code = 'INTERNAL_ERROR';
-        return data;
-    }
 
     async function submitCode(rawCode) {
         const code = (rawCode || '').trim();
@@ -95,7 +87,7 @@ export function useReferralModal({ isLoggedIn, customer, appConfig, provisioning
             return;
         }
 
-        const claim = cache.getClaim();
+        const claim = cache.getClaim(customerId);
         if (claim && claim.used) {
             setStep('locked');
             setLockedMessage({ type: 'error', text: ERROR_MESSAGES.DISCOUNT_ALREADY_USED });
@@ -110,12 +102,19 @@ export function useReferralModal({ isLoggedIn, customer, appConfig, provisioning
             return;
         }
         if (claim && claim.code === code && claim.discountCode) {
-            // Same code, already claimed, not used — just show it again.
+            // Same code, already claimed locally — show it immediately for a
+            // snappy UI (no spinner flash on repeat opens). But NEVER trust this
+            // cached "still valid" state as the final word: `discountUsed` flips
+            // to true at checkout, which happens entirely outside this browser
+            // (a webhook), so this local cache has no way to learn about that on
+            // its own. Reconcile with the server in the background on every
+            // reuse so a used code can't keep showing as valid forever.
             applyClaimedResponse(code, claim);
+            revalidateClaim(code);
             return;
         }
 
-        const cached = cache.getCache(code);
+        const cached = cache.getCache(customerId, code);
         if (cached) {
             applyResponse(code, cached);
             return;
@@ -141,11 +140,11 @@ export function useReferralModal({ isLoggedIn, customer, appConfig, provisioning
                     setTimeout(() => manualController.abort(), ATTEMPT_TIMEOUT_MS);
                 }
 
-                const data = await fetchReferralDiscount(code, signal);
+                const data = await requestReferralDiscount({ proxyPath, referralCode: code, signal });
 
                 if (requestId !== requestIdRef.current) return;
 
-                cache.setCache(code, data);
+                cache.setCache(customerId, code, data);
                 applyResponse(code, data);
                 return;
             } catch (err) {
@@ -173,12 +172,13 @@ export function useReferralModal({ isLoggedIn, customer, appConfig, provisioning
     function applyResponse(code, data) {
         setLoading(false);
         if (data.success) {
-            cache.setClaim({ code, discountCode: data.referralDiscountCode, used: false, message: data.message });
+            cache.setClaim(customerId, { code, discountCode: data.referralDiscountCode, used: false, message: data.message });
+            copiedOnceRef.current = false;
             setStep('success');
             setDiscountCode(data.referralDiscountCode);
             setSuccessMessage({ type: 'success', text: data.message || 'Your code is ready!' });
         } else if (data.code === 'DISCOUNT_ALREADY_USED') {
-            cache.markClaimUsed();
+            cache.markClaimUsed(customerId);
             setStep('locked');
             setLockedMessage({ type: 'error', text: friendlyMessage(data) });
         } else if (LOCKED_CODES.indexOf(data.code) > -1) {
@@ -191,15 +191,51 @@ export function useReferralModal({ isLoggedIn, customer, appConfig, provisioning
 
     function applyClaimedResponse(code, claim) {
         setLoading(false);
+        copiedOnceRef.current = false;
         setStep('success');
         setDiscountCode(claim.discountCode);
         setSuccessMessage({ type: 'success', text: claim.message || 'Your referral discount is still valid. Use it at checkout!' });
     }
 
+    // ── Background reconciliation for a cached claim ──────────────────────────
+    // Fires whenever submitCode() short-circuits on a previously-cached claim
+    // (see above). Silent, fire-and-forget: never surfaces a raw network/5xx
+    // error over what's already a perfectly good optimistic view. Its only job
+    // is to catch the one state transition that matters — `discountUsed` having
+    // flipped to true at checkout since we last cached this claim — and correct
+    // the UI/cache if so. Uses the same requestIdRef guard as submitCode() so a
+    // genuine newer user action (submitting a different code, etc.) always wins
+    // over a slow background reconciliation call.
+    function revalidateClaim(code) {
+        const requestId = ++requestIdRef.current;
+        requestReferralDiscount({ proxyPath, referralCode: code })
+            .then((data) => {
+                if (requestId !== requestIdRef.current) return;
+                if (data.code === 'DISCOUNT_ALREADY_USED') {
+                    cache.markClaimUsed(customerId);
+                    setStep('locked');
+                    setLockedMessage({ type: 'error', text: friendlyMessage(data) });
+                } else if (LOCKED_CODES.indexOf(data.code) > -1) {
+                    setStep('locked');
+                    setLockedMessage({ type: 'error', text: friendlyMessage(data) });
+                } else if (data.success) {
+                    // Still valid — refresh the cache (message/code may have
+                    // changed) so the next open stays in sync too.
+                    cache.setClaim(customerId, { code, discountCode: data.referralDiscountCode, used: false, message: data.message });
+                }
+                // Any other outcome (transient network error, 5xx, etc.) —
+                // say nothing and keep showing the cached view; the next open
+                // (or the customer's own retry) will reconcile again.
+            })
+            .catch(() => {
+                // Silent by design — see comment above.
+            });
+    }
+
     // ── Boot-time: URL/pending code detection (runs once on mount) ───────────
     useEffect(() => {
         const code = cache.restorePendingCode();
-        const sweepId = setInterval(cache.sweepExpiredCache, 30000);
+        const sweepId = setInterval(() => cache.sweepExpiredCache(customerId), 30000);
 
         if (code) {
             setIsOpen(true);
@@ -263,7 +299,7 @@ export function useReferralModal({ isLoggedIn, customer, appConfig, provisioning
         window.location.href = '/account/login';
     }
     function handleFinish() {
-        if (step === 'success' && !copied) {
+        if (step === 'success' && !copiedOnceRef.current) {
             setSuccessMessage({ type: 'error', text: 'Please copy your code before closing.' });
             return;
         }
@@ -272,6 +308,7 @@ export function useReferralModal({ isLoggedIn, customer, appConfig, provisioning
     function handleCopy() {
         if (!discountCode || !navigator.clipboard) return;
         navigator.clipboard.writeText(discountCode).then(() => {
+            copiedOnceRef.current = true;
             setCopied(true);
             setTimeout(() => setCopied(false), 2500);
         });

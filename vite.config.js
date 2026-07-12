@@ -48,8 +48,23 @@ export default defineConfig(({ isSsrBuild }) => ({
       // See https://vitejs.dev/config/server-options.html#server-fs-allow for more information
       allow: ["app", "node_modules"],
     },
+    watch: {
+      ignored: ['**/.react-router/**']
+    }
   },
-  plugins: [reactRouter(), tsconfigPaths()],
+  plugins: [
+    // reactRouter(), 
+    reactRouter({
+      future: {
+        v8_middleware: true,
+        v8_splitRouteModules: true,
+        v8_viteEnvironmentApi: true,
+        v8_passThroughRequests: true,
+        v8_trailingSlashAwareDataRequests: true,
+      },
+    }),
+    tsconfigPaths()
+  ],
   build: {
     assetsInlineLimit: 0,
     rollupOptions: isSsrBuild

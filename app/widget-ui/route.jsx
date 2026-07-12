@@ -1,6 +1,7 @@
 /**
  * @file widget-ui/route.jsx
- * @description App Proxy route for the storefront widget.
+ * @description App Proxy route for the storefront widget — periodic,
+ * silent config resync for an already-joined customer.
  *
  * Registered manually in app/routes.js:
  *   route("widget-data", "widget-ui/route.jsx")
@@ -17,12 +18,19 @@
  * shopper is logged in — logged_in_customer_id).
  *
  * Endpoints:
- *   GET /apps/widget  — Live customer data for the storefront widget
+ *   GET /apps/widget  — Re-syncs and returns the logged-in customer's app
+ *                       config (points, referralCode, rewards, prizeClaims,
+ *                       transactions). Called by useConfigResync.js, at
+ *                       most once every few hours per browser (throttled
+ *                       client-side via localStorage) — see that hook for
+ *                       why: it heals metafields left stale by a backend
+ *                       schema change or old test data, and lets the
+ *                       widget refresh in place without a page reload.
  */
 
 import { authenticate } from "shopify-server";
 import { logger } from "app/utils/logger";
-import { customer } from "app/graphql/query/customers";
+import ensureAndSyncCustomer from "@controller/customers/ensureAndSyncCustomer.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -31,10 +39,9 @@ const MODULE = "widget-ui/route.jsx";
 const HTTP = /** @type {const} */ ({
     OK: 200,
     UNAUTHORIZED: 401,
-    INTERNAL_SERVER_ERROR: 500,
 });
 
-// ─── GET: Live widget data ─────────────────────────────────────────────────────
+// ─── GET: Config resync ─────────────────────────────────────────────────────────
 
 /**
  * Handles GET /apps/widget.
@@ -45,9 +52,21 @@ const HTTP = /** @type {const} */ ({
  *     it itself and it's covered by the signature just verified. Never
  *     accept a self-invented query param (e.g. ?customer_id=123) — that
  *     would let anyone read anyone else's data.
- *  3. Guest (not logged in) -> generic response, no personal data
- *  4. Logged in -> fetch that customer's real data via the shared
- *     customer() helper (same one app/api-routes/join-our-program.jsx uses)
+ *  3. Guest (not logged in) -> generic response, nothing to sync
+ *  4. Logged in -> ensureAndSyncCustomer() re-syncs this customer fresh
+ *     from the DB (current schema, whatever it is today) and rewrites
+ *     their nbl_customer_v1 metafield — creating the DB record first if
+ *     it's missing (self-healing: a customer's metafield can go on
+ *     looking "valid" even after their DB row is gone, e.g. test data
+ *     wiped directly from the database — see ensureAndSyncCustomer.js for
+ *     why this matters specifically for the resync path). We then return
+ *     that same fresh shape so the widget can update in place, no reload
+ *     needed.
+ *
+ * Deliberately does NOT return raw Shopify customer fields (name, email,
+ * phone, tags, amountSpent, etc.) — only our own app config, which is all
+ * the widget ever reads. See CUSTOMER_SELECT in syncCustomerConfig.js for
+ * the exact shape returned.
  *
  * @param {{ request: Request }} context - React Router loader context
  * @returns {Promise<Response>}
@@ -63,51 +82,57 @@ export async function loader({ request }) {
     const loggedInCustomerId = url.searchParams.get("logged_in_customer_id");
 
     if (!loggedInCustomerId) {
-        // Guest visitor — no personalized data, don't cache aggressively
-        // since this is served fresh per-request via the proxy.
+        // Guest visitor — nothing to sync, don't cache aggressively since
+        // this is served fresh per-request via the proxy.
         return jsonResponse(
-            { customer: null },
+            { config: null },
             HTTP.OK,
             { "Cache-Control": "public, max-age=30" },
         );
     }
 
+    // ensureAndSyncCustomer never throws for the "customer not found on
+    // Shopify" case — it resolves { config: null } instead. Always resolve
+    // 200 here regardless: this is a best-effort background refresh the
+    // widget silently retries later, not something worth surfacing as an
+    // error to the customer.
+    let result;
     try {
-        const customerData = await customer(admin, loggedInCustomerId);
-
-        if (!customerData) {
-            logger.warn(MODULE, "Customer not found for logged_in_customer_id", {
-                shop: session.shop,
-                loggedInCustomerId,
-            });
-            return jsonResponse({ customer: null }, HTTP.OK, {
-                "Cache-Control": "private, no-store",
-            });
-        }
-
-        logger.info(MODULE, "Widget data served for logged-in customer", {
-            shop: session.shop,
-            loggedInCustomerId,
-        });
-
-        return jsonResponse(
-            { customer: customerData },
-            HTTP.OK,
-            // Personalized response — never let this be cached by CDNs/browsers.
-            { "Cache-Control": "private, no-store" },
-        );
+        result = await ensureAndSyncCustomer(admin, session, loggedInCustomerId);
     } catch (error) {
-        logger.error(MODULE, "Failed to load widget data", {
+        logger.error(MODULE, "Failed to resync widget config", {
             shop: session.shop,
             loggedInCustomerId,
             error: error?.message,
         });
-        // Don't crash the whole widget over a transient failure — degrade
-        // to a non-personalized response instead.
-        return jsonResponse({ customer: null }, HTTP.OK, {
+        return jsonResponse({ config: null }, HTTP.OK, {
             "Cache-Control": "private, no-store",
         });
     }
+
+    const { config, created } = result;
+
+    if (!config) {
+        logger.warn(MODULE, "Config resync returned nothing", {
+            shop: session.shop,
+            loggedInCustomerId,
+        });
+        return jsonResponse({ config: null }, HTTP.OK, {
+            "Cache-Control": "private, no-store",
+        });
+    }
+
+    logger.info(MODULE, created ? "Customer self-healed and synced" : "Config resynced for logged-in customer", {
+        shop: session.shop,
+        loggedInCustomerId,
+    });
+
+    return jsonResponse(
+        { config },
+        HTTP.OK,
+        // Personalized response — never let this be cached by CDNs/browsers.
+        { "Cache-Control": "private, no-store" },
+    );
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

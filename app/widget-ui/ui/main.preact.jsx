@@ -54,6 +54,7 @@ function boot() {
         customer: customer,
         widgetConfig: widgetConfig,
         referralLink: referralLink,
+        shopUrl: liquidData.shopUrl || '',
         loginUrl: loginUrl,
         signupUrl: signupUrl,
         rewardRules: appConfig.rewardRules || [],

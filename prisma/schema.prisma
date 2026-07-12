@@ -45,7 +45,13 @@ model Customer {
   lastName       String?
   email          String
   points         Int       @default(0)
-  orders         Int       @default(0)
+  // Cached count of the customer's total Shopify orders — NOT incremented
+  // live per request. null means "never synced yet" (distinct from a real
+  // 0), so the admin dashboard can lazily backfill it once via a live
+  // Shopify call, then rely on the cache afterward. Kept fresh going
+  // forward by orderPaidJob.js incrementing it on every processed paid
+  // order. See app/layout/customers/$id/_loader.server.js.
+  orders         Int?
   lifetimePoints Int       @default(0)
   referralCode   String    @unique
   birthday       DateTime?
@@ -276,12 +282,21 @@ model WebhookEvent {
 }
 
 model AppSettings {
-  id        Int      @id @default(autoincrement())
-  shop      String
-  settings  Json
-  updatedAt DateTime @updatedAt
-  sessionId String
-  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id            Int      @id @default(autoincrement())
+  shop          String
+  settings      Json
+  updatedAt     DateTime @updatedAt
+  sessionId     String
+  session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Per-shop secret embedded in the URL the merchant pastes into their
+  // "Loox new review trigger" Shopify Flow workflow (Send HTTP request
+  // action). Lets api/loox-new-review-trigger/:token authenticate the
+  // call AND resolve which shop it belongs to from the token alone —
+  // Flow's HTTP action has no built-in signing, and the review payload
+  // itself carries no shop identifier. Nullable/lazily generated: existing
+  // rows predate this field: see app/layout/loox-setup/_loader.server.js.
+  looxFlowToken String?  @unique
 
   @@unique([sessionId])
   @@unique([shop])

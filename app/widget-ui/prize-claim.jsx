@@ -1,45 +1,63 @@
+/**
+ * @file widget-ui/prize-claim.jsx
+ * @description App Proxy route: claims a physical prize with points.
+ *
+ * Registered manually in app/routes.js:
+ *   route("widget-data/claim-prize", "widget-ui/prize-claim.jsx")
+ *
+ * Storefront calls: POST /apps/widget/claim-prize
+ *   Body: { prizeId }
+ *
+ * Identity comes ONLY from the Shopify-signed `logged_in_customer_id` query
+ * param — same fix as widget-ui/reward-claim.jsx (see that file's header
+ * comment for why trusting a client-supplied customerIndex was fragile).
+ */
+
 import { logger } from "app/utils/logger.js";
-import { unauthenticated } from "shopify-server";
-import getCorsHeaders from "app/utils/getCorsHeaders.js";
+import { authenticate } from "shopify-server";
 import prisma from "db-server";
+import { normalizeCustomerGid } from "@controller/customers/normalizeCustomerGid.js";
 import createTransaction from "app/controller/transaction/createTransaction";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig.js";
-import { withRetry } from "app/utils/retry/withRetry.js";
 import { dbRetry } from "app/utils/retry/dbRetry.js";
 
-const MODULE = "api.claim-prize.jsx";
+const MODULE = "widget-data.claim-prize";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Route Handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * POST /api/claim-prize
- *
- * Validates the customer and prize, deducts points, creates a
- * PhysicalPrizeClaim record with status PENDING, and returns the claim details.
- */
 export async function action({ request }) {
-    const corsHeaders = getCorsHeaders(request);
+    if (request.method !== "POST") {
+        return jsonResponse({ error: "Method not allowed" }, 405);
+    }
 
-    if (request.method === "OPTIONS") return corsResponse(null, 204, corsHeaders);
-    if (request.method !== "POST") return corsResponse({ error: "Method not allowed" }, 405, corsHeaders);
+    // Declared here (not just inside the try) so the catch block can still
+    // log them even if the failure happens before they're assigned (e.g. an
+    // auth rejection before shopifyId is known).
+    let shopifyId;
 
     try {
+        // ── Auth + identity resolution now live INSIDE the try/catch below —
+        // see reward-claim.jsx's header comment for why running this before
+        // the try block was a reliability gap (an unexpected throw from
+        // authenticate.public.appProxy() would bypass our structured logger
+        // and JSON error response entirely).
+        const { admin, session } = await authenticate.public.appProxy(request);
+        if (!session) throw new AppError("Valid shop session required.", 401);
+
+        const url = new URL(request.url);
+        const loggedInCustomerId = url.searchParams.get("logged_in_customer_id");
+        if (!loggedInCustomerId) throw new AppError("You must be logged in.", 401);
+        shopifyId = normalizeCustomerGid(loggedInCustomerId);
+
         const body = await request.json();
         validateRequestBody(body);
 
-        const { shop, customerId, customerIndex, prizeId } = body;
-
-        // Authenticate the shop FIRST — customer/prize lookups below are
-        // scoped to this session's id so a customerIndex/prizeId belonging
-        // to a *different* shop (same shared DB, sequential integer ids)
-        // can never be fetched here.
-        const { admin, session } = await unauthenticated.admin(shop);
-        if (!session) throw new AppError("Valid shop session required", 401);
+        const { prizeId } = body;
 
         const [customer, prize] = await Promise.all([
-            getValidCustomer(customerIndex, session.id),
+            getValidCustomer(shopifyId, session.id),
             getValidPrize(prizeId, session.id),
         ]);
 
@@ -47,21 +65,18 @@ export async function action({ request }) {
         if (!prize) throw new AppError("Prize not found", 404);
         if (!prize.isActive) throw new AppError("This prize is no longer available", 422);
 
-        // Guard: sufficient points
         if (prize.pointsCost > customer.points) {
             throw new AppError(
-                `Insufficient points. Required: ${prize.pointsCost}, Available: ${customer.points}`,
+                `Insufficient points. Required: ${Number(prize.pointsCost).toLocaleString()}, Available: ${Number(customer.points).toLocaleString()}`,
                 422
             );
         }
 
         const { claim, pointsCost } = await claimPrize({ session, customer, prize });
 
-        // Sync metafields — non-critical. syncCustomerConfig retries transient
-        // network failures internally; if all retries fail, the claim and
-        // points deduction above are still committed in DB and the metafield
-        // will reflect the correct state on the next successful sync.
-        const updatedCustomer = await syncCustomerConfig(admin, customerId);
+        // Sync metafields — non-critical. See reward-claim.jsx for the same
+        // pattern/rationale.
+        const updatedCustomer = await syncCustomerConfig(admin, shopifyId);
         if (!updatedCustomer) {
             logger.error("Metafield sync failed after all retries — claim is still valid", {
                 module: MODULE,
@@ -71,15 +86,14 @@ export async function action({ request }) {
 
         logger.info("Prize claimed successfully", {
             module: MODULE,
-            customerId,
-            customerIndex,
+            shopifyId,
             prizeId,
             claimId: claim.id,
         });
 
-        return corsResponse(
+        return jsonResponse(
             {
-                shop,
+                shop: session.shop,
                 claimId: claim.id,
                 prizeId: prize.id,
                 status: claim.status,
@@ -88,40 +102,22 @@ export async function action({ request }) {
                 pointsCost: -pointsCost,
                 createdAt: claim.createdAt,
             },
-            200,
-            corsHeaders
+            200
         );
     } catch (err) {
         const statusCode = err instanceof AppError ? err.statusCode : 500;
-        logger.error("Claim prize api error", err, { module: MODULE });
-        return corsResponse({ error: "Claim prize api error", details: err.message }, statusCode, corsHeaders);
+        logger.error("Claim prize api error", err, { module: MODULE, shopifyId });
+        return jsonResponse({ error: "Claim prize api error", details: err.message }, statusCode);
     }
 }
 
-/**
- * GET /api/claim-prize — health check
- */
-export async function loader({ request }) {
-    const corsHeaders = getCorsHeaders(request);
-    if (request.method === "OPTIONS") return corsResponse(null, 204, corsHeaders);
-    return corsResponse({ status: "ok", timestamp: new Date().toISOString() }, 200, corsHeaders);
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// Core Business Logic
+// Core Business Logic (unchanged from api-routes/physical-prize-claim.jsx)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Executes the full prize claim flow:
- * 1. Creates a PhysicalPrizeClaim record with status PENDING
- * 2. Records a debit Transaction for the points spent
- *    (createTransaction handles points deduction atomically)
- * 3. If transaction fails, the claim is cancelled to keep state consistent.
- */
 async function claimPrize({ session, customer, prize }) {
     const pointsCost = Math.abs(Number(prize.pointsCost) || 0);
 
-    // 1. Create the claim record
     const claim = await dbRetry(
         () =>
             prisma.physicalPrizeClaim.create({
@@ -135,19 +131,14 @@ async function claimPrize({ session, customer, prize }) {
         { module: MODULE, customerId: customer.id, prizeId: prize.id }
     );
 
-    // 2. Deduct points + record transaction atomically via createTransaction.
-    // If this fails, cancel the claim so the customer does not get a free prize.
     const transaction = await createTransaction(
         {
             customerId: customer.id,
             type: "REDEEM",
-            reason: `${pointsCost} points redeemed for prize: ${prize.title}`,
-            activity: `-${pointsCost} points redeemed for prize: ${prize.title}`,
+            reason: `${pointsCost.toLocaleString()} points redeemed for prize: ${prize.title}`,
+            activity: `-${pointsCost.toLocaleString()} points redeemed for prize: ${prize.title}`,
             points: pointsCost,
             status: "COMPLETED",
-            // Customer is live in the widget right now and sees the claim
-            // confirmation on screen immediately — never surface this as a
-            // toast on a later visit.
             notifiedAt: new Date(),
         },
         session
@@ -169,9 +160,6 @@ async function claimPrize({ session, customer, prize }) {
         throw new AppError("Points deduction failed. Please try again.", 500);
     }
 
-    // 3. Link transaction to claim — retried since points are already
-    // deducted at this point; a transient failure here must not surface as
-    // a customer-facing error with no compensating action.
     await dbRetry(
         () => prisma.physicalPrizeClaim.update({ where: { id: claim.id }, data: { transactionId: transaction.id } }),
         { module: MODULE, claimId: claim.id, transactionId: transaction.id }
@@ -184,9 +172,7 @@ async function claimPrize({ session, customer, prize }) {
 // Validation
 // ─────────────────────────────────────────────────────────────────────────────
 
-function validateRequestBody({ shop, customerId, customerIndex, prizeId }) {
-    if (!shop) throw new AppError("Valid shop required", 400);
-    if (!customerId || !customerIndex) throw new AppError("Valid customer required", 400);
+function validateRequestBody({ prizeId }) {
     if (!prizeId) throw new AppError("Valid prizeId required", 400);
 }
 
@@ -194,10 +180,6 @@ function validateRequestBody({ shop, customerId, customerIndex, prizeId }) {
 // DB Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-// `id` is a raw auto-increment primary key shared across ALL shops in this
-// database, so both lookups below MUST filter by sessionId — otherwise a
-// request could read (and claim/redeem against) another shop's prize or
-// customer.
 async function getValidPrize(id, sessionId) {
     try {
         return await dbRetry(
@@ -210,14 +192,14 @@ async function getValidPrize(id, sessionId) {
     }
 }
 
-async function getValidCustomer(id, sessionId) {
+async function getValidCustomer(shopifyId, sessionId) {
     try {
         return await dbRetry(
-            () => prisma.customer.findFirst({ where: { id: Number(id), sessionId } }),
-            { module: MODULE, customerIndex: id, sessionId }
+            () => prisma.customer.findFirst({ where: { shopifyId, sessionId } }),
+            { module: MODULE, shopifyId, sessionId }
         );
     } catch (error) {
-        logger.error("Failed to fetch customer", { module: MODULE, customerIndex: id, sessionId, error: error?.message });
+        logger.error("Failed to fetch customer", { module: MODULE, shopifyId, sessionId, error: error?.message });
         return null;
     }
 }
@@ -226,10 +208,10 @@ async function getValidCustomer(id, sessionId) {
 // Utilities
 // ─────────────────────────────────────────────────────────────────────────────
 
-function corsResponse(body, status, corsHeaders) {
-    return new Response(body !== null ? JSON.stringify(body) : null, {
+function jsonResponse(data, status) {
+    return new Response(JSON.stringify(data), {
         status,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+        headers: { "Content-Type": "application/json" },
     });
 }
 

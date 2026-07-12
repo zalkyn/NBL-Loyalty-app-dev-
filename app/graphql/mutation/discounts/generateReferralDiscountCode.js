@@ -17,23 +17,26 @@ const MODULE = "graphql/mutation/discounts/generateReferralDiscountCode.js";
  * @param {Object}        admin        - Shopify Admin GraphQL client
  * @param {string|number} customerId   - Shopify customer ID
  * @param {string}        referralCode - Referral code (used for logging only)
+ * @param {string}        sessionId    - Shopify session ID identifying the shop;
+ *   required to resolve the correct shop's referral rule
  *
  * @returns {Promise<string>} Generated discount code
  * @throws {Error} Customer-friendly error message
  */
-export const generateReferralDiscountCode = async (admin, customerId, referralCode) => {
+export const generateReferralDiscountCode = async (admin, customerId, referralCode, sessionId) => {
     // ── Validate inputs ───────────────────────────────────────────────────────
     if (!admin?.graphql) throw new Error("Something went wrong. Please try again later.");
     if (!customerId) throw new Error("Customer not found. Please login again.");
     if (!referralCode || typeof referralCode !== "string") throw new Error("Invalid referral code.");
+    if (!sessionId) throw new Error("Valid shop session required.");
 
     const customerGid = normalizeCustomerGid(customerId);
     if (!customerGid) throw new Error("Invalid customer. Please try again.");
 
-    const ctx = { customerId, referralCode };
+    const ctx = { customerId, referralCode, sessionId };
 
     // ── Resolve active referral rule ────────────────────────────────────────
-    const referralRule = await getPointRuleByEvent("Referral");
+    const referralRule = await getPointRuleByEvent("REFERRAL", sessionId);
     if (!referralRule?.isActive) throw new Error("Referral not available right now");
 
     const referralTrigger = referralRule?.conditions?.referral?.trigger ?? "oneTime";

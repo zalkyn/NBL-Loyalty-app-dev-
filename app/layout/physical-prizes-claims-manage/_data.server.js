@@ -86,34 +86,45 @@ export async function handleUpdateClaimStatus({ formData, session, admin }) {
         if (newStatus === "CANCELLED") {
             const pointsCost = Math.abs(Number(claim.pointsCost) || 0);
 
-            await prisma.$transaction(async (tx) => {
-                await tx.physicalPrizeClaim.update({
-                    where: { id: claimIdInt },
-                    data: { status: "CANCELLED", fulfilledAt: null, completedAt: null },
-                });
-                await tx.customer.update({
-                    where: { id: claim.customer.id },
-                    data: { points: { increment: pointsCost } },
-                });
+            // NOTE: createTransaction() below already updates customer.points
+            // (and lifetimePoints) atomically inside its own internal
+            // prisma.$transaction — it does NOT read/trust balanceAfter from
+            // the caller. Previously this code ALSO manually incremented
+            // customer.points here first, so the refund was applied twice
+            // (once here, once again inside createTransaction). Only the
+            // claim's own status needs updating in this step.
+            await prisma.physicalPrizeClaim.update({
+                where: { id: claimIdInt },
+                data: { status: "CANCELLED", fulfilledAt: null, completedAt: null },
             });
 
-            const updated = await prisma.customer.findUnique({
-                where: { id: claim.customer.id }, select: { points: true },
-            });
-
-            await createTransaction({
+            const transaction = await createTransaction({
                 customerId: claim.customer.id, type: "ADJUST",
                 reason: `Points refunded — prize cancelled: ${claim.prize.title}`,
-                activity: `+${pointsCost} points refunded for cancelled prize: ${claim.prize.title}`,
+                activity: `+${pointsCost.toLocaleString()} points refunded for cancelled prize: ${claim.prize.title}`,
                 points: pointsCost,
-                balanceAfter: updated?.points ?? 0,
                 status: "COMPLETED",
             }, session);
+
+            if (!transaction) {
+                // createTransaction failed — the claim status change above is
+                // still valid on its own (it doesn't require the refund to
+                // succeed), but the customer wasn't refunded. Surface this
+                // clearly rather than silently reporting success.
+                logger.error("Prize claim cancelled but points refund failed", {
+                    module: MODULE, claimId: claimIdInt, customerId: claim.customer.id, pointsCost,
+                });
+                return {
+                    message: "Claim cancelled, but the points refund failed. Please adjust points manually.",
+                    status: "error", submitType,
+                    claimId: claimIdInt, newStatus: "CANCELLED",
+                };
+            }
 
             await syncCustomerConfig(admin, claim.customer.shopifyId);
 
             return {
-                message: `Claim cancelled. ${Number(pointsCost).toLocaleString()} points refunded.`,
+                message: `Claim cancelled. ${pointsCost.toLocaleString()} points refunded.`,
                 status: "success", submitType,
                 claimId: claimIdInt, newStatus: "CANCELLED",
             };
@@ -261,32 +272,37 @@ export async function handleRevertClaim({ formData, session, admin }) {
                     status: "error", submitType,
                 };
 
-            await prisma.$transaction(async (tx) => {
-                await tx.physicalPrizeClaim.update({
-                    where: { id: claimIdInt },
-                    data: { status: "PENDING", fulfilledAt: null, completedAt: null, trackingInfo: null },
-                });
-                await tx.customer.update({
-                    where: { id: claim.customer.id },
-                    data: { points: { decrement: pointsCost } },
-                });
+            // See the CANCELLED branch of handleUpdateClaimStatus above for
+            // why customer.points must NOT also be updated manually here —
+            // createTransaction() does that atomically on its own.
+            await prisma.physicalPrizeClaim.update({
+                where: { id: claimIdInt },
+                data: { status: "PENDING", fulfilledAt: null, completedAt: null, trackingInfo: null },
             });
 
-            const updated = await prisma.customer.findUnique({
-                where: { id: claim.customer.id }, select: { points: true },
-            });
-            await createTransaction({
+            const transaction = await createTransaction({
                 customerId: claim.customer.id, type: "ADJUST",
                 reason: `Points re-deducted — prize reinstated: ${claim.prize.title}`,
-                activity: `-${pointsCost} points re-deducted for reinstated prize: ${claim.prize.title}`,
+                activity: `-${pointsCost.toLocaleString()} points re-deducted for reinstated prize: ${claim.prize.title}`,
                 points: -pointsCost,
-                balanceAfter: updated?.points ?? 0,
                 status: "COMPLETED",
             }, session);
+
+            if (!transaction) {
+                logger.error("Prize claim reverted to pending but points re-deduction failed", {
+                    module: MODULE, claimId: claimIdInt, customerId: claim.customer.id, pointsCost,
+                });
+                return {
+                    message: "Claim reverted, but re-deducting points failed. Please adjust points manually.",
+                    status: "error", submitType,
+                    claimId: claimIdInt, newStatus: "PENDING",
+                };
+            }
+
             await syncCustomerConfig(admin, claim.customer.shopifyId);
 
             return {
-                message: `Claim reverted to pending. ${Number(pointsCost).toLocaleString()} points re-deducted.`,
+                message: `Claim reverted to pending. ${pointsCost.toLocaleString()} points re-deducted.`,
                 status: "success", submitType,
                 claimId: claimIdInt, newStatus: "PENDING",
             };
@@ -367,27 +383,25 @@ export async function handleBulkAction({ formData, session, admin }) {
 
             if (bulkAction === "CANCELLED") {
                 const pointsCost = Math.abs(Number(claim.pointsCost) || 0);
-                await prisma.$transaction(async (tx) => {
-                    await tx.physicalPrizeClaim.update({
-                        where: { id },
-                        data: { status: "CANCELLED", fulfilledAt: null, completedAt: null },
-                    });
-                    await tx.customer.update({
-                        where: { id: claim.customer.id },
-                        data: { points: { increment: pointsCost } },
-                    });
+                // Same fix as the single-claim CANCELLED path above —
+                // createTransaction() updates customer.points atomically on
+                // its own, so it must not also be updated manually here.
+                await prisma.physicalPrizeClaim.update({
+                    where: { id },
+                    data: { status: "CANCELLED", fulfilledAt: null, completedAt: null },
                 });
-                const updated = await prisma.customer.findUnique({
-                    where: { id: claim.customer.id }, select: { points: true },
-                });
-                await createTransaction({
+                const transaction = await createTransaction({
                     customerId: claim.customer.id, type: "ADJUST",
                     reason: `Points refunded — prize cancelled: ${claim.prize.title}`,
-                    activity: `+${pointsCost} points refunded for cancelled prize: ${claim.prize.title}`,
+                    activity: `+${pointsCost.toLocaleString()} points refunded for cancelled prize: ${claim.prize.title}`,
                     points: pointsCost,
-                    balanceAfter: updated?.points ?? 0,
                     status: "COMPLETED",
                 }, session);
+                if (!transaction) {
+                    logger.error("Bulk cancel: points refund failed", {
+                        module: MODULE, claimId: id, customerId: claim.customer.id, pointsCost,
+                    });
+                }
                 await syncCustomerConfig(admin, claim.customer.shopifyId);
             }
 

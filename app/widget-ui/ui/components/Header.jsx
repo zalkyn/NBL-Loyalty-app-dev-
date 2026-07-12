@@ -33,7 +33,7 @@ export function Header({ isLoggedIn, customerName, points, compact, activeTab, o
     const [ptsBefore, ptsAfter] = pointsLabelTemplate.split('[points]');
 
     return (
-        <div class={`nbl-header${compact ? ' compact' : ''}${ready ? ' ready' : ''}`}>
+        <div class={`nbl-header${compact ? ' compact' : ''}${ready ? ' ready' : ''}${isLoggedIn ? '' : ' nbl-header--standalone'}`}>
             <Button bare extraClass="nbl-header__close" aria-label="Close" onClick={onClose}>
                 <span
                     class="nbl-icon"
