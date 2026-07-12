@@ -17,14 +17,16 @@ import { useLoaderData, useActionData } from "react-router";
 import { authenticate } from "shopify-server";
 
 import { loadCustomerDetails } from "./_loader.server";
-import { handleAdjustPoints }  from "./_action.server";
+import { handleAdjustPoints, handleCancelReward }  from "./_action.server";
 import { useCustomerDetailsPage } from "./_hooks";
 
 import { SummaryCard }        from "./components/SummaryCard";
 import { StatsGrid }          from "./components/StatsGrid";
 import { AdjustPointsModal }  from "./components/AdjustPointsModal";
+import { CancelRewardModal }  from "./components/CancelRewardModal";
 import { TransactionsTable }  from "./components/TransactionsTable";
 import { RewardsTable }       from "./components/RewardsTable";
+import { PhysicalPrizeClaimsTable } from "./components/PhysicalPrizeClaimsTable";
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
@@ -43,6 +45,7 @@ export const action = async ({ request }) => {
 
     switch (submitType) {
         case "adjustPoints": return handleAdjustPoints(ctx);
+        case "cancelReward": return handleCancelReward(ctx);
         default: return { message: "Invalid action.", status: "error", submitType };
     }
 };
@@ -94,11 +97,18 @@ export default function CustomerDetails() {
                 </s-grid>
             </s-section>
 
-            {/* ── Modal ── */}
+            {/* ── Modals ── */}
             <AdjustPointsModal
                 customer={page.customer}
                 isAdjusting={page.isAdjusting}
                 onConfirm={page.handleAdjustPoints}
+            />
+            <CancelRewardModal
+                modalRef={page.cancelRewardModalRef}
+                target={page.cancelTarget}
+                isSubmitting={page.isCancellingReward}
+                onConfirm={page.handleConfirmCancelReward}
+                onHide={page.closeCancelRewardModal}
             />
 
             {/* ── Summary + Stats ── */}
@@ -113,7 +123,10 @@ export default function CustomerDetails() {
             <TransactionsTable pagination={page.txPagination} />
 
             {/* ── Rewards History ── */}
-            <RewardsTable pagination={page.rwPagination} />
+            <RewardsTable pagination={page.rwPagination} onCancelReward={page.openCancelReward} />
+
+            {/* ── Physical Prize Claims (read-only) ── */}
+            <PhysicalPrizeClaimsTable pagination={page.prizeClaimPagination} />
 
         </s-page>
     );

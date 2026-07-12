@@ -79,7 +79,11 @@ export function CustomerTable({
                                         <s-text>{c.email || "N/A"}</s-text>
                                     </s-table-cell>
                                     <s-table-cell>{c._count.transactions}</s-table-cell>
-                                    <s-table-cell>{c.points.toLocaleString()}</s-table-cell>
+                                    <s-table-cell>
+                                        <s-text tone={c.points < 0 ? "critical" : undefined}>
+                                            {c.points.toLocaleString()}
+                                        </s-text>
+                                    </s-table-cell>
                                     <s-table-cell>{c._count.rewards}</s-table-cell>
                                     <s-table-cell>
                                         {c.enrolledAt ? new Date(c.enrolledAt).toLocaleDateString() : "N/A"}

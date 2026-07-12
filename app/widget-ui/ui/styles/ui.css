@@ -1378,6 +1378,19 @@ input:not([type=checkbox], [type=radio]) {
     color: var(--nbl-text-muted);
 }
 
+/* ── Join Program panel — error message under the CTA ── */
+.nbl-join__error {
+    margin-top: 4px;
+    padding: 10px 13px;
+    border-radius: var(--nbl-radius-sm);
+    font-size: var(--nbl-text-base);
+    line-height: 1.5;
+    text-align: center;
+    background: var(--nbl-status-error-bg);
+    border: 1px solid var(--nbl-status-error-border);
+    color: var(--nbl-status-error-color);
+}
+
 /* Notification lives inside the widget, positioned over everything */
 .nbl-notification-slot {
     position: absolute;
@@ -1402,6 +1415,16 @@ input:not([type=checkbox], [type=radio]) {
     flex-shrink: 0;
     will-change: auto;
     contain: layout style;
+}
+
+/* When Nav isn't rendered (guest view, or JoinProgramPanel's "not yet
+   joined" state — see App.jsx's isMember), Nav's own border-bottom that
+   normally separates the header from the body below is simply absent.
+   Without this, the header ends abruptly with no visual break at all
+   before the white content underneath, which reads as an unfinished/buggy
+   seam rather than an intentional design choice. */
+.nbl-header--standalone .nbl-header__top {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .nbl-header__close {
@@ -1915,10 +1938,10 @@ input:not([type=checkbox], [type=radio]) {
     grid-template-columns: 90px 1fr 65px;
     justify-items: center;
     gap: 10px;
-    padding: 9px 4px 10px;
+    padding: 12px 12px 13px;
     margin-bottom: 0;
     background: var(--nbl-surface);
-    border-bottom: .5px solid var(--nbl-section-header-bg);
+    border-bottom: 1px solid var(--nbl-section-header-bg);
 }
 
 .nbl-activity-table__head-cell {
@@ -3608,10 +3631,6 @@ input:not([type=checkbox], [type=radio]) {
 
     .nbl-widget-container.pos-left {
         left: 3%;
-    }
-
-    .nbl-notify-panel {
-        width: 100%;
     }
 
     .nbl-refer-modal {

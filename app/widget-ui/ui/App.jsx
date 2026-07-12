@@ -12,12 +12,15 @@ import { formatNumber } from './utils.js';
 import { LauncherButton } from './components/LauncherButton.jsx';
 import { WidgetShell } from './components/WidgetShell.jsx';
 import { GuestPanel } from './components/GuestPanel.jsx';
+import { JoinProgramPanel } from './components/JoinProgramPanel.jsx';
 import { NotificationPanel } from './components/NotificationPanel.jsx';
 import { ImagePreviewOverlay } from './components/ImagePreviewOverlay.jsx';
 import { ReferralModal } from './components/ReferralModal.jsx';
 import { ToastStack } from './components/ToastStack.jsx';
 import { useReferralModal } from './hooks/useReferralModal.js';
 import { useCustomerProvision } from './hooks/useCustomerProvision.js';
+import { useJoinProgram } from './hooks/useJoinProgram.js';
+import { useConfigResync } from './hooks/useConfigResync.js';
 import { useApplyTheme } from './hooks/useApplyTheme.js';
 import { useToastNotifications } from './hooks/useToastNotifications.js';
 import { HomeTab } from './tabs/HomeTab.jsx';
@@ -84,7 +87,8 @@ export function App({ initialData, bridgeRef, hostEl }) {
     const [widgetConfig, setWidgetConfig] = useState(initialData.widgetConfig || {});
     const prizeConfig = widgetConfig.prize || {};
     const currencySymbol = (appConfig.shop && appConfig.shop.currencySymbol) || '$';
-    const referralLink = initialData.referralLink || '';
+    const [referralLink, setReferralLink] = useState(initialData.referralLink || '');
+    const shopUrl = initialData.shopUrl || '';
     const loginUrl = initialData.loginUrl || '/account/login';
     const signupUrl = initialData.signupUrl || '/account/register';
     const paginationMode = widgetConfig.paginationMode === 'pagination' ? 'pagination' : 'loadmore';
@@ -97,15 +101,82 @@ export function App({ initialData, bridgeRef, hostEl }) {
         return (labels && labels[key]) || '';
     }
 
-    const { provisioning, provisionNeeded, inFlight } = useCustomerProvision({ isLoggedIn, customer, appConfig });
-    const refModal = useReferralModal({ isLoggedIn, customer, appConfig, provisioning: inFlight, provisionNeeded });
+    // App Proxy base path (e.g. "/apps/widget") — every widget API call goes
+    // through this, never the app's own backend domain. Declared before the
+    // hooks below since both now call the backend exclusively via this path.
+    const proxyPath = initialData.proxyPath || '/apps/widget';
+
+    // Shopify customer id — needed by useCustomerProvision (below) and now
+    // also useReferralModal (to scope its localStorage cache per-account,
+    // see referralCache.js), so it's derived before both instead of down
+    // near needsJoin where it used to live.
+    const shopifyCustomerId = customer && customer.id;
+
+    const { provisioning, provisionNeeded, inFlight, failed: provisionFailed } = useCustomerProvision({ isLoggedIn, customer, appConfig, proxyPath });
+    const refModal = useReferralModal({ isLoggedIn, proxyPath, provisioning: inFlight, provisionNeeded, customerId: shopifyCustomerId });
+
+    // ── Explicit "Join our program" step ──────────────────────────────────────
+    // Two distinct ways to land here:
+    //   1. autoProvisionCustomer is OFF — merchant wants an explicit opt-in
+    //      click instead of a silent background join. needsJoin is true
+    //      from the very first render in this case.
+    //   2. autoProvisionCustomer is ON (default) but the silent attempt
+    //      failed (backend unreachable, timeout, error response) —
+    //      useCustomerProvision never shows an alarming error itself, it
+    //      just exposes `failed`; this becomes true only after that attempt
+    //      settles, so the customer sees the provisioning spinner first and
+    //      this panel only appears if that genuinely didn't work out —
+    //      instead of silently landing on a broken widget (0 points, empty
+    //      referral link) with no explanation or way to retry.
+    const autoProvisionEnabled = appConfig.autoProvisionCustomer !== false;
+    const needsJoin = !!(
+        isLoggedIn
+        && shopifyCustomerId
+        && (!customer.config || !customer.config.id)
+        && (!autoProvisionEnabled || provisionFailed)
+    );
+    // Only meaningful when needsJoin is true via path 2 above — lets
+    // JoinProgramPanel soften its copy ("we couldn't set this up
+    // automatically") instead of the generic first-time wording.
+    const joinFromAutoFailure = autoProvisionEnabled && provisionFailed;
+    const joinProgram = useJoinProgram({ proxyPath });
     useApplyTheme(initialData.cssVars, hostEl);
+
+    // isLoggedIn means "authenticated with Shopify" — true even before the
+    // customer has actually joined the loyalty program (needsJoin state).
+    // isMember additionally requires NOT needing the join step, and is
+    // what the chrome around the tab content (nav, "Welcome {name}" +
+    // points header, launcher subtitle) should key off — otherwise a
+    // customer sees a personalized nav/points header while the widget
+    // body itself is still asking them to join, which doesn't make sense.
+    // JoinProgramPanel intentionally shares GuestPanel's full-bleed layout
+    // (see WidgetShell below), so treating needsJoin like the guest case
+    // here is consistent, not a special case.
+    const isMember = isLoggedIn && !needsJoin;
+
+    // ── Periodic background config resync ──────────────────────────────────────
+    // Only for customers who are actually fully set up (isMember) — nothing
+    // to resync for a guest or a customer still on the join step. See
+    // useConfigResync.js for the throttling/circuit-breaker rationale.
+    useConfigResync({
+        isMember,
+        proxyPath,
+        customerId: shopifyCustomerId,
+        onSynced: function (config) {
+            if (typeof config.points === 'number') setPoints(config.points);
+            if (Array.isArray(config.rewards)) setCustomerRewards(config.rewards);
+            if (Array.isArray(config.prizeClaims)) setPrizeClaims(config.prizeClaims);
+            if (Array.isArray(config.transactions)) setTransactions(config.transactions);
+            if (config.referralCode) {
+                setReferralLink(shopUrl + '/?nbl-referral=' + config.referralCode);
+            }
+        },
+    });
 
     // ── Toast notifications (unseen transactions from since the customer's
     //    last visit) — derived client-side from `transactions` (already on
     //    the page via the customer metafield), hidden while widget is open.
     //    See hooks/useToastNotifications.js for why this isn't a fetch().
-    const proxyPath = initialData.proxyPath || '/apps/widget';
     const {
         toasts,
         moreCount: toastsMoreCount,
@@ -345,7 +416,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
         try {
             if (data.isPrize) {
                 const prize = data.prize;
-                const response = await requestClaimPrize({ prizeId: prize.id, customer, appConfig });
+                const response = await requestClaimPrize({ prizeId: prize.id, proxyPath });
 
                 const newPoints = Number(response.points);
                 if (!isNaN(newPoints)) setPoints(newPoints);
@@ -362,7 +433,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
                 });
             } else {
                 const rule = data.rewardRule;
-                const response = await requestRewardVoucher({ rewardRuleId: rule.id, title: data.title, customer, appConfig });
+                const response = await requestRewardVoucher({ rewardRuleId: rule.id, title: data.title, proxyPath });
 
                 const newPoints = Number(response.points);
                 if (!isNaN(newPoints)) setPoints(newPoints);
@@ -385,7 +456,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
     return (
         <div id="nbl-loyalty-root">
             <LauncherButton
-                isLoggedIn={isLoggedIn}
+                isLoggedIn={isMember}
                 points={points}
                 position={position}
                 launcherIconName={launcherIconName}
@@ -403,7 +474,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
             />
             <WidgetShell
                 isOpen={isOpen}
-                isLoggedIn={isLoggedIn}
+                isLoggedIn={isMember}
                 customerName={customerName}
                 points={points}
                 position={position}
@@ -433,76 +504,86 @@ export function App({ initialData, bridgeRef, hostEl }) {
                 }
             >
                 {isLoggedIn ? (
-                    <>
-                        <TabPanel tabKey="home" activeTab={activeTab}>
-                            <HomeTab
-                                showRewardsSection={widgetConfig.showHomeRewardsSection !== false}
-                                showPrizeRequestsSection={widgetConfig.showHomePrizeRequestsSection !== false}
-                                showActivitiesSection={widgetConfig.showHomeActivitiesSection !== false}
-                                customerRewards={customerRewards}
-                                prizeClaims={prizeClaims}
-                                physicalPrizes={physicalPrizes}
-                                transactions={transactions}
-                                homeRewardsPerPage={widgetConfig.homeRewardsPerPage || 5}
-                                homePrizeRequestsPerPage={widgetConfig.homePrizeRequestsPerPage || 5}
-                                homeActivitiesPerPage={widgetConfig.homeActivitiesPerPage || 5}
-                                paginationMode={paginationMode}
-                                onNavigate={setActiveNavigation}
-                                onOpenVoucher={openReward}
-                                onOpenClaim={openPrizeClaim}
-                                onViewImage={openImagePreview}
-                                lbl={lbl}
-                            />
-                        </TabPanel>
-                        <TabPanel tabKey="points" activeTab={activeTab}>
-                            <EarnTab pointRules={pointRules} currencySymbol={currencySymbol} onOpenInfo={openInfo} />
-                        </TabPanel>
-                        <TabPanel tabKey="rewards" activeTab={activeTab}>
-                            <RewardsTab
-                                rewardRules={rewardRules}
-                                points={points}
-                                customerRewards={customerRewards}
-                                perPage={widgetConfig.homeRewardsPerPage || 5}
-                                paginationMode={paginationMode}
-                                lbl={lbl}
-                                onOpenInfo={openInfo}
-                                onOpenVoucher={openReward}
-                            />
-                        </TabPanel>
-                        <TabPanel tabKey="prizes" activeTab={activeTab}>
-                            <PrizesTab
-                                physicalPrizes={physicalPrizes}
-                                points={points}
-                                prizeClaims={prizeClaims}
-                                perPage={widgetConfig.homePrizeRequestsPerPage || 5}
-                                paginationMode={paginationMode}
-                                lbl={lbl}
-                                onOpenInfo={openInfo}
-                                onOpenClaim={openPrizeClaim}
-                                onViewImage={openImagePreview}
-                            />
-                        </TabPanel>
-                        <TabPanel tabKey="referral" activeTab={activeTab}>
-                            <ReferralTab pointRules={pointRules} referralLink={referralLink} currencySymbol={currencySymbol} onOpenInfo={openInfo} />
-                        </TabPanel>
-                        <TabPanel tabKey="activities" activeTab={activeTab}>
-                            <ActivitiesTab transactions={transactions} perPage={10} paginationMode={paginationMode} lbl={lbl} />
-                        </TabPanel>
-                        <TabPanel tabKey="active-rewards" activeTab={activeTab}>
-                            <ActiveRewardsTab customerRewards={customerRewards} perPage={8} paginationMode={paginationMode} lbl={lbl} onOpenVoucher={openReward} />
-                        </TabPanel>
-                        <TabPanel tabKey="my-prizes" activeTab={activeTab}>
-                            <MyPrizesTab
-                                prizeClaims={prizeClaims}
-                                physicalPrizes={physicalPrizes}
-                                perPage={widgetConfig.myPrizesPerPage || 5}
-                                paginationMode={paginationMode}
-                                lbl={lbl}
-                                onOpenClaim={openPrizeClaim}
-                                onViewImage={openImagePreview}
-                            />
-                        </TabPanel>
-                    </>
+                    needsJoin ? (
+                        <JoinProgramPanel
+                            joining={joinProgram.joining}
+                            error={joinProgram.error}
+                            onJoin={joinProgram.join}
+                            fromAutoFailure={joinFromAutoFailure}
+                            lbl={lbl}
+                        />
+                    ) : (
+                        <>
+                            <TabPanel tabKey="home" activeTab={activeTab}>
+                                <HomeTab
+                                    showRewardsSection={widgetConfig.showHomeRewardsSection !== false}
+                                    showPrizeRequestsSection={widgetConfig.showHomePrizeRequestsSection !== false}
+                                    showActivitiesSection={widgetConfig.showHomeActivitiesSection !== false}
+                                    customerRewards={customerRewards}
+                                    prizeClaims={prizeClaims}
+                                    physicalPrizes={physicalPrizes}
+                                    transactions={transactions}
+                                    homeRewardsPerPage={widgetConfig.homeRewardsPerPage || 5}
+                                    homePrizeRequestsPerPage={widgetConfig.homePrizeRequestsPerPage || 5}
+                                    homeActivitiesPerPage={widgetConfig.homeActivitiesPerPage || 5}
+                                    paginationMode={paginationMode}
+                                    onNavigate={setActiveNavigation}
+                                    onOpenVoucher={openReward}
+                                    onOpenClaim={openPrizeClaim}
+                                    onViewImage={openImagePreview}
+                                    lbl={lbl}
+                                />
+                            </TabPanel>
+                            <TabPanel tabKey="points" activeTab={activeTab}>
+                                <EarnTab pointRules={pointRules} currencySymbol={currencySymbol} onOpenInfo={openInfo} />
+                            </TabPanel>
+                            <TabPanel tabKey="rewards" activeTab={activeTab}>
+                                <RewardsTab
+                                    rewardRules={rewardRules}
+                                    points={points}
+                                    customerRewards={customerRewards}
+                                    perPage={widgetConfig.homeRewardsPerPage || 5}
+                                    paginationMode={paginationMode}
+                                    lbl={lbl}
+                                    onOpenInfo={openInfo}
+                                    onOpenVoucher={openReward}
+                                />
+                            </TabPanel>
+                            <TabPanel tabKey="prizes" activeTab={activeTab}>
+                                <PrizesTab
+                                    physicalPrizes={physicalPrizes}
+                                    points={points}
+                                    prizeClaims={prizeClaims}
+                                    perPage={widgetConfig.homePrizeRequestsPerPage || 5}
+                                    paginationMode={paginationMode}
+                                    lbl={lbl}
+                                    onOpenInfo={openInfo}
+                                    onOpenClaim={openPrizeClaim}
+                                    onViewImage={openImagePreview}
+                                />
+                            </TabPanel>
+                            <TabPanel tabKey="referral" activeTab={activeTab}>
+                                <ReferralTab pointRules={pointRules} referralLink={referralLink} currencySymbol={currencySymbol} onOpenInfo={openInfo} />
+                            </TabPanel>
+                            <TabPanel tabKey="activities" activeTab={activeTab}>
+                                <ActivitiesTab transactions={transactions} perPage={10} paginationMode={paginationMode} lbl={lbl} />
+                            </TabPanel>
+                            <TabPanel tabKey="active-rewards" activeTab={activeTab}>
+                                <ActiveRewardsTab customerRewards={customerRewards} perPage={8} paginationMode={paginationMode} lbl={lbl} onOpenVoucher={openReward} />
+                            </TabPanel>
+                            <TabPanel tabKey="my-prizes" activeTab={activeTab}>
+                                <MyPrizesTab
+                                    prizeClaims={prizeClaims}
+                                    physicalPrizes={physicalPrizes}
+                                    perPage={widgetConfig.myPrizesPerPage || 5}
+                                    paginationMode={paginationMode}
+                                    lbl={lbl}
+                                    onOpenClaim={openPrizeClaim}
+                                    onViewImage={openImagePreview}
+                                />
+                            </TabPanel>
+                        </>
+                    )
                 ) : (
                     <GuestPanel loginUrl={loginUrl} signupUrl={signupUrl} lbl={lbl} />
                 )}

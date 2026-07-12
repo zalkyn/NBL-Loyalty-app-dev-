@@ -1,3 +1,4 @@
+import prisma from "db-server";
 import createTransaction from "@controller/transaction/createTransaction";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig";
 import { logger } from "app/utils/logger.js";
@@ -112,5 +113,112 @@ export async function handleAdjustPoints({ formData, session, admin }) {
             amount,
         });
         return { message: err.message || "Failed to adjust points.", status: "error", submitType };
+    }
+}
+
+/**
+ * Cancels a customer's redeemed reward voucher and refunds the points it
+ * cost — admin-only control from the customer details page.
+ *
+ * Only rewards that are still ACTIVE and NOT yet used at checkout
+ * (discountUsed === false) can be cancelled this way. A voucher the
+ * customer already applied at checkout is blocked from cancellation here —
+ * refunding points for a discount that's already been spent would be a
+ * free giveaway, and the voucher code itself can't be un-applied from a
+ * completed order anyway. Already-cancelled rewards are also blocked to
+ * avoid double refunds.
+ *
+ * Mirrors the (now-fixed) refund pattern in
+ * physical-prizes-claims-manage/_data.server.js: only the Reward's own
+ * status is updated directly — customer.points and lifetimePoints are
+ * updated exactly once, atomically, inside createTransaction() itself.
+ * Manually incrementing points here AND then also calling createTransaction
+ * with a positive ADJUST would double-credit the refund.
+ *
+ * @param {Object} params
+ * @param {FormData} params.formData - Expected field: rewardId (numeric string, required)
+ * @param {Object} params.session - Current auth/session object; used to verify
+ *   the reward belongs to this shop and passed through to createTransaction.
+ * @param {Object} params.admin - Shopify Admin API client, used for metafield sync.
+ * @returns {Promise<{ message: string, status: "success"|"error", submitType: string, rewardId?: number }>}
+ */
+export async function handleCancelReward({ formData, session, admin }) {
+    const submitType = "cancelReward";
+    const rewardId = formData.get("rewardId");
+
+    if (!rewardId) {
+        return { message: "Reward ID is required.", status: "error", submitType };
+    }
+
+    const rewardIdInt = parseInt(rewardId, 10);
+    if (!Number.isFinite(rewardIdInt)) {
+        return { message: "Invalid reward ID.", status: "error", submitType };
+    }
+
+    try {
+        // Verify the reward belongs to a customer in THIS shop's session —
+        // Reward rows are keyed by an auto-increment id shared across all
+        // shops in the database, so this check is essential, not optional.
+        const reward = await prisma.reward.findFirst({
+            where: { id: rewardIdInt },
+            include: { customer: { select: { id: true, shopifyId: true, sessionId: true } } },
+        });
+
+        if (!reward || reward.customer.sessionId !== session.id) {
+            return { message: "Reward not found or access denied.", status: "error", submitType };
+        }
+
+        if (reward.status === "CANCELLED") {
+            return { message: "This reward is already cancelled.", status: "error", submitType };
+        }
+        if (reward.discountUsed === true || reward.status === "USED") {
+            return {
+                message: "This reward has already been used at checkout and can't be cancelled.",
+                status: "error", submitType,
+            };
+        }
+
+        const pointsCost = Math.abs(Number(reward.pointsCost) || 0);
+        const title = reward.title || "Voucher";
+
+        await prisma.reward.update({
+            where: { id: rewardIdInt },
+            data: { status: "CANCELLED" },
+        });
+
+        const transaction = await createTransaction({
+            customerId: reward.customer.id,
+            type: "ADJUST",
+            rewardId: rewardIdInt,
+            reason: `Points refunded — reward cancelled: ${title}`,
+            activity: `+${pointsCost.toLocaleString()} points refunded for cancelled reward: ${title}`,
+            points: pointsCost,
+            status: "COMPLETED",
+        }, session);
+
+        if (!transaction) {
+            // Reward is already marked CANCELLED at this point — that part
+            // succeeded and shouldn't be rolled back (the voucher must stay
+            // unusable either way). Only the refund itself failed, so say so
+            // clearly rather than reporting a clean success.
+            logger.error("Reward cancelled but points refund failed", {
+                module: MODULE, rewardId: rewardIdInt, customerId: reward.customer.id, pointsCost,
+            });
+            return {
+                message: "Reward cancelled, but the points refund failed. Please adjust points manually.",
+                status: "error", submitType, rewardId: rewardIdInt,
+            };
+        }
+
+        await syncCustomerConfig(admin, reward.customer.shopifyId);
+
+        return {
+            message: `Reward cancelled. ${pointsCost.toLocaleString()} points refunded.`,
+            status: "success", submitType, rewardId: rewardIdInt,
+            balanceAfter: transaction.balanceAfter,
+        };
+    } catch (err) {
+        logger.error("Cancel reward failed", { module: MODULE, error: err?.message, rewardId: rewardIdInt });
+        return { message: err.message || "Failed to cancel reward.", status: "error", submitType };
     }
 }
