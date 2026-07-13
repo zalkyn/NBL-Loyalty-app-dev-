@@ -17,18 +17,23 @@ export const StatCard = ({ label, value }) => (
 
 // ─── StatCardNew ──────────────────────────────────────────────────────────────
 
-export const StatCardNew = ({ label, value, color }) => (
+export const StatCardNew = ({ label, value, color, detail }) => (
     <div style={{
-        background:    "var(--p-color-bg-surface-secondary)",
-        borderRadius:  "var(--p-border-radius-200)",
-        padding:       "1rem",
-        borderTop:     `3px solid ${color}`,
+        background: "var(--p-color-bg-surface-secondary)",
+        borderRadius: "var(--p-border-radius-200)",
+        padding: "1rem",
+        borderTop: `3px solid ${color}`,
     }}>
         <s-heading tone="subdued">{label}</s-heading>
         <s-box paddingBlockEnd="small" />
         <p style={{ fontSize: "22px", fontWeight: 500, margin: 0, color }}>
             {value}
         </p>
+        {detail && (
+            <p style={{ fontSize: "12px", margin: "4px 0 0", opacity: 0.65 }}>
+                {detail}
+            </p>
+        )}
     </div>
 );
 

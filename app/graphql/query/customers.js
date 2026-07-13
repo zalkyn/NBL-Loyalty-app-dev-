@@ -1,12 +1,10 @@
 import { normalizeCustomerGid } from "../../controller/customers/normalizeCustomerGid.js";
 import { logger } from "../../utils/logger.js";
 import { withRetry } from "../../utils/retry/withRetry.js";
+import { callShopifyGraphql, shopifyGraphqlWithRetry, SHOPIFY_RETRYABLE_ERRORS } from "../../utils/shopifyGraphql.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "graphql/query/customers";
-
-/** @constant {Array<string>} Transient errors safe to retry on any Shopify GraphQL call in this file */
-const TRANSIENT_ERRORS = ["fetch failed", "ECONNRESET", "ETIMEDOUT"];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared Fields
@@ -61,7 +59,8 @@ export default async function customers(admin) {
             // discard every page already fetched and fail the whole sync.
             const data = await withRetry(
                 async () => {
-                    const response = await admin.graphql(
+                    const json = await callShopifyGraphql(
+                        admin,
                         `#graphql
                         query CustomerList($cursor: String) {
                             customers(first: 250, after: $cursor) {
@@ -74,10 +73,9 @@ export default async function customers(admin) {
                                 }
                             }
                         }`,
-                        { variables: { cursor } }
+                        { cursor }
                     );
 
-                    const json = await response.json();
                     const page = json.data?.customers;
                     if (!page) throw new Error("Invalid response from Shopify API");
                     return page;
@@ -85,7 +83,7 @@ export default async function customers(admin) {
                 {
                     maxAttempts: 3,
                     baseDelayMs: 800,
-                    retryableErrors: TRANSIENT_ERRORS,
+                    retryableErrors: SHOPIFY_RETRYABLE_ERRORS,
                     context: { module: MODULE, fetchedSoFar: allCustomers.length },
                 }
             );
@@ -121,25 +119,16 @@ export const customer = async (admin, id) => {
         if (!id) throw new Error("Valid customer ID required");
 
         const gid = normalizeCustomerGid(id);
-        const json = await withRetry(
-            async () => {
-                const response = await admin.graphql(
-                    `#graphql
-                    query CustomerById($id: ID!) {
-                        customer(id: $id) {
-                            ${CUSTOMER_FIELDS}
-                        }
-                    }`,
-                    { variables: { id: gid } }
-                );
-                return response.json();
-            },
-            {
-                maxAttempts: 3,
-                baseDelayMs: 800,
-                retryableErrors: TRANSIENT_ERRORS,
-                context: { module: MODULE, id },
-            }
+        const json = await shopifyGraphqlWithRetry(
+            admin,
+            `#graphql
+            query CustomerById($id: ID!) {
+                customer(id: $id) {
+                    ${CUSTOMER_FIELDS}
+                }
+            }`,
+            { id: gid },
+            { context: { module: MODULE, id } }
         );
 
         return json.data?.customer ?? null;
@@ -211,26 +200,17 @@ export const customerOrderCount = async (admin, id) => {
         ? String(id).split("/").pop()
         : String(id);
 
-    const json = await withRetry(
-        async () => {
-            const response = await admin.graphql(
-                `#graphql
-                query CustomerOrderCount($query: String!) {
-                    ordersCount(query: $query) {
-                        count
-                        precision
-                    }
-                }`,
-                { variables: { query: `customer_id:${numericId}` } }
-            );
-            return response.json();
-        },
-        {
-            maxAttempts: 3,
-            baseDelayMs: 800,
-            retryableErrors: TRANSIENT_ERRORS,
-            context: { module: MODULE, id },
-        }
+    const json = await shopifyGraphqlWithRetry(
+        admin,
+        `#graphql
+        query CustomerOrderCount($query: String!) {
+            ordersCount(query: $query) {
+                count
+                precision
+            }
+        }`,
+        { query: `customer_id:${numericId}` },
+        { context: { module: MODULE, id } }
     );
     const result = json?.data?.ordersCount;
 

@@ -3,6 +3,7 @@ import shopId from "../../graphql/query/shop/shopId.js";
 import configMetafieldSyncMutation from "../../graphql/mutation/metafieldsSync/config.js";
 import { logger } from "../../utils/logger.js";
 import { withRetry } from "../../utils/retry/withRetry.js";
+import { SHOPIFY_RETRYABLE_ERRORS } from "../../utils/shopifyGraphql.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "controller/metafieldsSync/syncAppConfig.js";
@@ -116,7 +117,7 @@ export default async function syncAppConfig(admin, session) {
             {
                 maxAttempts: 3,
                 baseDelayMs: 800,
-                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
+                retryableErrors: SHOPIFY_RETRYABLE_ERRORS,
                 context: { module: MODULE, shop: session?.shop },
             }
         );

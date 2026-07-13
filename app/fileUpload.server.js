@@ -292,6 +292,9 @@ const CONTENT_TYPE_RULES = [
     ["image/", "IMAGE"],
 ];
 
+import { shopifyGraphqlWithRetry } from "./utils/shopifyGraphql.js";
+import { logger } from "./utils/logger.js";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ERROR CODES
 // ─────────────────────────────────────────────────────────────────────────────
@@ -572,8 +575,27 @@ async function getStagedTargets(admin, files) {
         httpMethod: "POST",   // GCS signed-POST — applies to ALL resource types
     }));
 
-    const response = await admin.graphql(STAGED_UPLOADS_CREATE_MUTATION, { variables: { input } });
-    const json = await response.json();
+    let json;
+    try {
+        json = await shopifyGraphqlWithRetry(
+            admin,
+            STAGED_UPLOADS_CREATE_MUTATION,
+            { input },
+            { context: { module: "fileUpload.server.js", fn: "getStagedTargets" } }
+        );
+    } catch (err) {
+        // Network failure or Shopify rate-limit (Throttled), even after
+        // shopifyGraphqlWithRetry's built-in retries — converted to the same
+        // { targets: [], userErrors } shape returned below for any other
+        // failure, so every caller (runPipeline, shopifyUploadFiles,
+        // shopifyUploadMultipleFields) keeps working exactly as before
+        // without needing its own try/catch around this call.
+        logger.error("getStagedTargets failed", { module: "fileUpload.server.js", error: err?.message });
+        return {
+            targets: [],
+            userErrors: [{ field: null, message: "Something went wrong contacting Shopify. Please try again." }],
+        };
+    }
 
     return {
         targets: json.data?.stagedUploadsCreate?.stagedTargets ?? [],
@@ -635,8 +657,26 @@ async function registerFilesInShopify(admin, targets, files, options = {}) {
         alt: options.altText ?? files[i]?.name ?? "",
     }));
 
-    const response = await admin.graphql(FILE_CREATE_MUTATION, { variables: { files: fileInputs } });
-    const json = await response.json();
+    let json;
+    try {
+        json = await shopifyGraphqlWithRetry(
+            admin,
+            FILE_CREATE_MUTATION,
+            { files: fileInputs },
+            { context: { module: "fileUpload.server.js", fn: "registerFilesInShopify" } }
+        );
+    } catch (err) {
+        // Network failure or Shopify rate-limit (Throttled), even after
+        // shopifyGraphqlWithRetry's built-in retries — same rationale as
+        // getStagedTargets() above: convert to the { registeredFiles: [],
+        // userErrors } shape every caller already checks for, instead of
+        // throwing out of this "never throw" utility file.
+        logger.error("registerFilesInShopify failed", { module: "fileUpload.server.js", error: err?.message });
+        return {
+            registeredFiles: [],
+            userErrors: [{ field: null, message: "Something went wrong contacting Shopify. Please try again." }],
+        };
+    }
 
     const rawFiles = json.data?.fileCreate?.files ?? [];
     const userErrors = json.data?.fileCreate?.userErrors ?? [];

@@ -18,6 +18,16 @@ const MODULE = "jobManager";
  * the configured lockTimeout), acquisition is skipped to prevent
  * concurrent execution of the same job across multiple processes.
  *
+ * Atomic by construction — see the two-step claim below. The previous
+ * version read the lock row (`findUnique`) and then separately wrote it
+ * (`upsert`), which is a classic check-then-act race: two app instances
+ * (e.g. Railway replicas in different regions, or just two processes whose
+ * cron ticks land within the same DB round-trip) could both read
+ * "not running" before either one's write landed, both conclude they'd
+ * acquired the lock, and both run the same job concurrently — for
+ * order-paid processing specifically, that means double-awarding points or
+ * double-generating discount codes for the same order.
+ *
  * @param {string} name - The unique job name (must exist in JOB_CONFIGS)
  * @returns {Promise<boolean>} true if the lock was acquired, false if skipped or errored
  */
@@ -27,26 +37,55 @@ async function lockJob(name) {
     if (!cfg) throw new Error(`Job config not found: "${name}"`);
 
     const timeout = cfg.lockTimeout ?? DEFAULTS.lockTimeout;
+    const staleBefore = new Date(now.getTime() - timeout);
 
     try {
-        const lock = await prisma.jobLock.findUnique({ where: { jobName: name } });
-
-        // Skip if the job is running and the lock has not yet expired
-        if (lock?.isRunning && now - lock.updatedAt < timeout) {
-            logger.info(MODULE, `Job "${name}" is locked — skipping this cycle`, {
-                lockedAt: lock.updatedAt,
-                timeoutMs: timeout,
-            });
-            return false;
-        }
-
-        await prisma.jobLock.upsert({
-            where: { jobName: name },
-            create: { jobName: name, isRunning: true, updatedAt: now },
-            update: { isRunning: true, updatedAt: now },
+        // Step 1: the common case — a lock row already exists for this job.
+        // Claim it with ONE conditional UPDATE: only rows that are
+        // currently free (isRunning: false) OR whose lock has gone stale
+        // (updatedAt older than staleBefore) match the WHERE clause, so the
+        // read-and-decide happens as part of the same atomic write instead
+        // of a separate earlier query. If two instances race this at the
+        // same instant, the database itself serializes the two UPDATEs —
+        // only one can match a still-free row; whichever runs second sees
+        // isRunning already true (the first one's write already landed) and
+        // the WHERE clause simply matches zero rows for it.
+        const claimed = await prisma.jobLock.updateMany({
+            where: {
+                jobName: name,
+                OR: [
+                    { isRunning: false },
+                    { updatedAt: { lt: staleBefore } },
+                ],
+            },
+            data: { isRunning: true, updatedAt: now },
         });
 
-        return true;
+        if (claimed.count > 0) {
+            return true;
+        }
+
+        // Step 2: updateMany matched zero rows. Two possibilities:
+        //   (a) the lock row exists and is genuinely held by someone else
+        //       (not stale) — correctly not our turn, fall through to false.
+        //   (b) no lock row exists yet at all for this job name (its very
+        //       first run) — updateMany has nothing to match either way, so
+        //       we need to create it. The @unique constraint on jobName is
+        //       what makes THIS step atomic in turn: if another instance's
+        //       create() wins the same race, ours throws P2002 and we
+        //       correctly back off instead of both proceeding.
+        try {
+            await prisma.jobLock.create({
+                data: { jobName: name, isRunning: true, updatedAt: now },
+            });
+            return true;
+        } catch (createErr) {
+            if (createErr?.code === "P2002") {
+                logger.info(MODULE, `Job "${name}" is locked — skipping this cycle`, { timeoutMs: timeout });
+                return false;
+            }
+            throw createErr;
+        }
     } catch (err) {
         logger.error(MODULE, `Failed to acquire lock for job "${name}"`, { error: err.message });
         return false;

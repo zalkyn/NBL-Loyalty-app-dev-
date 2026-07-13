@@ -261,6 +261,41 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
                 rewardRuleId: rewardRule.id,
                 originalTransactionId: transaction.id,
             });
+        } else {
+            // Mark the original REDEEM transaction as reversed now that it's
+            // been refunded. Left as "COMPLETED" forever, it would keep
+            // counting toward "Points redeemed" on the dashboard (see
+            // _hooks.js's pointsRedeemed sum) with nothing offsetting it —
+            // the refund is a separate ADJUST-type row that dashboard sum
+            // never looks at, since ADJUST also covers unrelated manual
+            // admin corrections and can't be assumed to always mean "this
+            // cancels a redemption". Best-effort: if this update itself
+            // fails, the customer's balance is still correct (the refund
+            // transaction already restored it) — only the redeemed-total
+            // stat would stay slightly overstated until fixed manually.
+            const reversed = await dbRetry(
+                () =>
+                    prisma.transaction.update({
+                        where: { id: transaction.id },
+                        data: { status: "REVERSED" },
+                    }),
+                { module: MODULE, transactionId: transaction.id }
+            ).catch((err) => {
+                logger.error("Failed to mark original transaction as REVERSED after refund", {
+                    module: MODULE,
+                    originalTransactionId: transaction.id,
+                    refundTransactionId: refund.id,
+                    error: err?.message,
+                });
+                return null;
+            });
+
+            if (!reversed) {
+                logger.warn("Original transaction left as COMPLETED despite being refunded — dashboard totals may overstate redemptions until reconciled", {
+                    module: MODULE,
+                    originalTransactionId: transaction.id,
+                });
+            }
         }
 
         throw new AppError("Voucher generation failed. Your points were refunded — please try again.", 500);
