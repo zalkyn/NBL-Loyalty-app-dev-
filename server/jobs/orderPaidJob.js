@@ -11,6 +11,7 @@ import { syncCustomerConfig } from "../../app/controller/metafieldsSync/syncCust
 import { getCustomerRewardByCode } from "../../app/controller/customerReward/getCustomerReward.js";
 import { updateCustomerReward } from "../../app/controller/customerReward/updateCustomerReward.js";
 import { updateReferral } from "../../app/controller/referral/updateReferral.js";
+import { callShopifyGraphql, SHOPIFY_RETRYABLE_ERRORS } from "../../app/utils/shopifyGraphql.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "orderPaidJob";
@@ -177,10 +178,28 @@ async function processJob(job) {
     const { orderId, customerId } = payload;
 
     // ── 1. Claim ──────────────────────────────────────────────────────────────
-    await dbRetry(
-        () => prisma.job.update({ where: { id }, data: { status: "PROCESSING", lockedAt: new Date() } }),
+    // Conditional on status still being PENDING — the previous unconditional
+    // `update({ where: { id } })` always "succeeds" even if another replica
+    // already claimed and started this same job a moment earlier (both
+    // replicas' findMany in runOrderPaidJob can return the same PENDING row
+    // before either one's claim lands). Checking the affected row count
+    // makes this the actual point of truth for "did *we* get this job" —
+    // count === 0 means someone else already claimed it, so we back off
+    // instead of both processing the same order (double points, double
+    // discount codes).
+    const claim = await dbRetry(
+        () =>
+            prisma.job.updateMany({
+                where: { id, status: "PENDING" },
+                data: { status: "PROCESSING", lockedAt: new Date() },
+            }),
         { module: MODULE, jobId: id }
     );
+
+    if (claim.count === 0) {
+        logger.info(MODULE, `Job #${id} already claimed by another process — skipping`, { shop, orderId });
+        return;
+    }
 
     logger.info(MODULE, `Processing job #${id}`, { shop, orderId, attempt: attempts + 1, maxAttempts });
 
@@ -271,7 +290,8 @@ async function processJob(job) {
  * @returns {Promise<{ order: object, appstle: object|null }|null>}
  */
 async function fetchFullOrder(admin, orderId) {
-    const res = await admin.graphql(
+    const json = await callShopifyGraphql(
+        admin,
         `#graphql
         query GetOrderWithAppstle($id: ID!) {
             order(id: $id) {
@@ -302,10 +322,8 @@ async function fetchFullOrder(admin, orderId) {
                 }
             }
         }`,
-        { variables: { id: orderId } }
+        { id: orderId }
     );
-
-    const json = await res.json();
 
     const raw = json?.data?.order ?? null;
 
@@ -394,7 +412,7 @@ async function mainHandler({ admin, session, shop, orderId, customerId }) {
             {
                 maxAttempts: 3,
                 baseDelayMs: 800,
-                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
+                retryableErrors: SHOPIFY_RETRYABLE_ERRORS,
                 context: { shop, orderId, module: MODULE },
             }
         ),

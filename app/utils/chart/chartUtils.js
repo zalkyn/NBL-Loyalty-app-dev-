@@ -194,7 +194,11 @@ export const makeChartOptions = (colors, labels) => ({
     yaxis: { labels: { style: { fontSize: "11px" } } },
     dataLabels: { enabled: false },
     grid: { borderColor: "#e8e8e8", strokeDashArray: 4 },
-    tooltip: { shared: true, intersect: false },
+    tooltip: {
+        shared: true,
+        intersect: false,
+        y: { formatter: (val) => (typeof val === "number" ? val.toLocaleString() : val) },
+    },
     legend: { position: "top", fontSize: "13px" },
     stroke: { curve: "smooth", width: 2 },
 });

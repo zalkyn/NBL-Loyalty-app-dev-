@@ -1,5 +1,5 @@
 import { logger } from "../../../utils/logger.js";
-import { withRetry } from "../../../utils/retry/withRetry.js";
+import { shopifyGraphqlWithRetry } from "../../../utils/shopifyGraphql.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "graphql/order/getAppstleMetafield.js";
@@ -95,25 +95,22 @@ export const getAppstleMetafield = async (admin, appstle, orderId) => {
         // request permanently misclassifies the order as non-subscription
         // (the outer catch swallows the error and returns `fallback`), since
         // this is a one-shot call during order-webhook processing, not re-run later.
-        const planJson = await withRetry(
-            async () => {
-                const planRes = await admin.graphql(
-                    `#graphql
-                    query GetSellingPlanInterval($productId: ID!) {
-                        product(id: $productId) {
-                            sellingPlanGroups(first: 10) {
-                                edges {
-                                    node {
-                                        sellingPlans(first: 20) {
-                                            edges {
-                                                node {
-                                                    id
-                                                    billingPolicy {
-                                                        ... on SellingPlanRecurringBillingPolicy {
-                                                            interval
-                                                            intervalCount
-                                                        }
-                                                    }
+        const planJson = await shopifyGraphqlWithRetry(
+            admin,
+            `#graphql
+            query GetSellingPlanInterval($productId: ID!) {
+                product(id: $productId) {
+                    sellingPlanGroups(first: 10) {
+                        edges {
+                            node {
+                                sellingPlans(first: 20) {
+                                    edges {
+                                        node {
+                                            id
+                                            billingPolicy {
+                                                ... on SellingPlanRecurringBillingPolicy {
+                                                    interval
+                                                    intervalCount
                                                 }
                                             }
                                         }
@@ -121,17 +118,11 @@ export const getAppstleMetafield = async (admin, appstle, orderId) => {
                                 }
                             }
                         }
-                    }`,
-                    { variables: { productId: productGid } }
-                );
-                return planRes.json();
-            },
-            {
-                maxAttempts: 3,
-                baseDelayMs: 800,
-                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
-                context: { module: MODULE, orderId, productGid },
-            }
+                    }
+                }
+            }`,
+            { productId: productGid },
+            { context: { module: MODULE, orderId, productGid } }
         );
 
         // Flatten all plans across all groups, then match by GID

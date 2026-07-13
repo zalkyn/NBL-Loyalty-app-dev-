@@ -2,6 +2,7 @@ import { logger } from "app/utils/logger.js";
 import { normalizeCustomerGid } from "../../../controller/customers/normalizeCustomerGid";
 import { generateDiscountCode } from "../../../utils/generateDiscountCode.js";
 import { getPointRuleByEvent } from "../../../controller/pointsRule/getPointRuleByEvent";
+import { callShopifyGraphql } from "../../../utils/shopifyGraphql.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "graphql/mutation/discounts/generateReferralDiscountCode.js";
@@ -10,9 +11,12 @@ const MODULE = "graphql/mutation/discounts/generateReferralDiscountCode.js";
  * Generates a referral-based discount code for a customer via Shopify GraphQL.
  *
  * Validation and business-rule failures throw customer-safe messages directly.
- * Transport failures (network drop, timeout) are converted to a single known
- * message so the caller's `withRetry` layer can match and retry them — see
- * `retryableErrors` at the call site in referral-claim.jsx.
+ * Transport failures (network drop, timeout) AND Shopify rate-limit
+ * (Throttled) responses are converted to a single known message so the
+ * caller's `withRetry` layer can match and retry them — see
+ * `retryableErrors` at the call site in referral-claim.jsx. The Throttled
+ * detection itself lives in callShopifyGraphql() (shopifyGraphql.js),
+ * shared with every other Shopify Admin API call in the app.
  *
  * @param {Object}        admin        - Shopify Admin GraphQL client
  * @param {string|number} customerId   - Shopify customer ID
@@ -138,7 +142,8 @@ function buildDiscountValue({ discountType, discountValue }) {
  * @returns {Promise<Object>} Raw Shopify GraphQL JSON response
  */
 async function runDiscountMutation(admin, { code, title, customerGid, discountValue, referralTrigger }) {
-    const response = await admin.graphql(
+    return callShopifyGraphql(
+        admin,
         `#graphql
         mutation CreateDiscountCode($basicCodeDiscount: DiscountCodeBasicInput!) {
             discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
@@ -157,25 +162,21 @@ async function runDiscountMutation(admin, { code, title, customerGid, discountVa
             }
         }`,
         {
-            variables: {
-                basicCodeDiscount: {
-                    title,
-                    code,
-                    startsAt: new Date().toISOString(),
-                    endsAt: null,
-                    customerSelection: { customers: { add: [customerGid] } },
-                    customerGets: {
-                        appliesOnOneTimePurchase: referralTrigger === "oneTime" || referralTrigger === "both",
-                        appliesOnSubscription: referralTrigger === "subscription" || referralTrigger === "both",
-                        value: discountValue,
-                        items: { all: true },
-                    },
-                    usageLimit: 1,
-                    appliesOncePerCustomer: true,
+            basicCodeDiscount: {
+                title,
+                code,
+                startsAt: new Date().toISOString(),
+                endsAt: null,
+                customerSelection: { customers: { add: [customerGid] } },
+                customerGets: {
+                    appliesOnOneTimePurchase: referralTrigger === "oneTime" || referralTrigger === "both",
+                    appliesOnSubscription: referralTrigger === "subscription" || referralTrigger === "both",
+                    value: discountValue,
+                    items: { all: true },
                 },
+                usageLimit: 1,
+                appliesOncePerCustomer: true,
             },
         }
     );
-
-    return response.json();
 }
