@@ -33,10 +33,10 @@ const DEFAULT_TRANSACTION_SELECT = {
  * Creates a points transaction and updates the customer's balance atomically.
  *
  * Transaction types:
- * - EARN / REFERRAL   → adds points, increases lifetimePoints
- * - REDEEM / EXPIRE   → deducts points (throws if insufficient balance)
- * - ADJUST            → signed value (+/-), balance floored at 0, adjusts lifetimePoints
- * - REVERSAL          → signed value (+/-), balance NOT floored — can go
+ * - EARN / REFERRAL   -> adds points, increases lifetimePoints
+ * - REDEEM / EXPIRE   -> deducts points (throws if insufficient balance)
+ * - ADJUST            -> signed value (+/-), balance floored at 0, adjusts lifetimePoints
+ * - REVERSAL          -> signed value (+/-), balance NOT floored — can go
  *                        negative (a real "debt" if the customer already
  *                        spent points a cancelled/refunded order earned;
  *                        see the REVERSAL case below), lifetimePoints untouched
@@ -122,114 +122,114 @@ export default async function createTransaction(input, session, select = DEFAULT
             () =>
                 prisma.$transaction(
                     async (tx) => {
-                        const customer = await tx.customer.findUnique({
-                            where: { id: input.customerId },
-                            select: {
-                                points: true,
-                                lifetimePoints: true,
-                                sessionId: true,
-                            },
-                        });
+                    const customer = await tx.customer.findUnique({
+                        where: { id: input.customerId },
+                        select: {
+                            points: true,
+                            lifetimePoints: true,
+                            sessionId: true,
+                        },
+                    });
 
-                        if (!customer) {
-                            throw new Error("Customer not found");
-                        }
+                    if (!customer) {
+                        throw new Error("Customer not found");
+                    }
 
-                        if (customer.sessionId !== session.id) {
-                            throw new Error("Unauthorized: customer does not belong to this shop");
-                        }
+                    if (customer.sessionId !== session.id) {
+                        throw new Error("Unauthorized: customer does not belong to this shop");
+                    }
 
-                        const amount = Number(input.points);
-                        let signedPoints;
-                        let newBalance;
-                        let newLifetimePoints = customer.lifetimePoints;
+                    const amount = Number(input.points);
+                    let signedPoints;
+                    let newBalance;
+                    let newLifetimePoints = customer.lifetimePoints;
 
-                        switch (input.type) {
-                            case "EARN":
-                            case "REFERRAL":
-                                signedPoints = amount;
-                                newBalance = customer.points + amount;
-                                newLifetimePoints += amount;
-                                break;
+                    switch (input.type) {
+                        case "EARN":
+                        case "REFERRAL":
+                            signedPoints = amount;
+                            newBalance = customer.points + amount;
+                            newLifetimePoints += amount;
+                            break;
 
-                            case "REDEEM":
-                            case "EXPIRE":
-                                if (amount > customer.points) {
-                                    throw new Error(
-                                        `Insufficient points: has ${customer.points.toLocaleString()}, attempted ${amount.toLocaleString()}`
-                                    );
-                                }
-                                signedPoints = -amount;
-                                newBalance = customer.points - amount;
-                                break;
+                        case "REDEEM":
+                        case "EXPIRE":
+                            if (amount > customer.points) {
+                                throw new Error(
+                                    `Insufficient points: has ${customer.points.toLocaleString()}, attempted ${amount.toLocaleString()}`
+                                );
+                            }
+                            signedPoints = -amount;
+                            newBalance = customer.points - amount;
+                            break;
 
-                            case "ADJUST":
-                                signedPoints = amount;
-                                newBalance = Math.max(0, customer.points + amount);
-                                newLifetimePoints += amount;
-                                break;
-                            case "REVERSAL":
-                                // Signed value passed directly from caller (+/-).
-                                // Deliberately NOT floored at 0 like ADJUST above:
-                                // a REVERSAL fires when an order is cancelled or
-                                // refunded, reversing points the customer earned
-                                // from it. If they already spent those points on
-                                // a reward/prize before the cancellation/refund,
-                                // flooring at 0 would silently forgive that
-                                // shortfall — letting a customer buy something,
-                                // immediately redeem the points it earned, then
-                                // cancel the order and keep the reward for free.
-                                // Instead the balance is allowed to go negative,
-                                // recording a real "debt" that blocks new reward/
-                                // prize claims (their pointsCost > any negative
-                                // balance) until it's paid down by future earning
-                                // or a manual admin adjustment.
-                                signedPoints = amount;
-                                newBalance = customer.points + amount;
-                                break;
+                        case "ADJUST":
+                            signedPoints = amount;
+                            newBalance = Math.max(0, customer.points + amount);
+                            newLifetimePoints += amount;
+                            break;
+                        case "REVERSAL":
+                            // Signed value passed directly from caller (+/-).
+                            // Deliberately NOT floored at 0 like ADJUST above:
+                            // a REVERSAL fires when an order is cancelled or
+                            // refunded, reversing points the customer earned
+                            // from it. If they already spent those points on
+                            // a reward/prize before the cancellation/refund,
+                            // flooring at 0 would silently forgive that
+                            // shortfall — letting a customer buy something,
+                            // immediately redeem the points it earned, then
+                            // cancel the order and keep the reward for free.
+                            // Instead the balance is allowed to go negative,
+                            // recording a real "debt" that blocks new reward/
+                            // prize claims (their pointsCost > any negative
+                            // balance) until it's paid down by future earning
+                            // or a manual admin adjustment.
+                            signedPoints = amount;
+                            newBalance = customer.points + amount;
+                            break;
 
-                            default:
-                                throw new Error(`Unknown transaction type: ${input.type}`);
-                        }
+                        default:
+                            throw new Error(`Unknown transaction type: ${input.type}`);
+                    }
 
-                        const transaction = await tx.transaction.create({
-                            data: {
-                                customerId: input.customerId,
-                                type: input.type,
-                                points: signedPoints,
-                                balanceAfter: newBalance,
-                                status: input.status ?? "COMPLETED",
-                                reason: input.reason ?? null,
-                                activity: input.activity ?? null,
-                                eventId: input.eventId ?? null,
-                                rewardId: input.rewardId ?? null,
-                                referralId: input.referralId ?? null,
-                                pointsRuleId: input.pointsRuleId ?? null,
-                                expiresAt: input.expiresAt ?? null,
-                                metadata: input.metadata ?? {},
-                                notifiedAt: input.notifiedAt ?? null,
-                            },
-                            select,
-                        });
-
-                        await tx.customer.update({
-                            where: { id: input.customerId },
-                            data: {
-                                points: newBalance,
-                                lifetimePoints: newLifetimePoints,
-                            },
-                        });
-
-                        logger.info("Transaction created", {
-                            transactionId: transaction.id,
+                    const transaction = await tx.transaction.create({
+                        data: {
                             customerId: input.customerId,
                             type: input.type,
                             points: signedPoints,
                             balanceAfter: newBalance,
-                        });
+                            status: input.status ?? "COMPLETED",
+                            reason: input.reason ?? null,
+                            activity: input.activity ?? null,
+                            eventId: input.eventId ?? null,
+                            rewardId: input.rewardId ?? null,
+                            referralId: input.referralId ?? null,
+                            pointsRuleId: input.pointsRuleId ?? null,
+                            expiresAt: input.expiresAt ?? null,
+                            metadata: input.metadata ?? {},
+                            notifiedAt: input.notifiedAt ?? null,
+                        },
+                        select,
+                    });
 
-                        return transaction;
-                    },
+                    await tx.customer.update({
+                        where: { id: input.customerId },
+                        data: {
+                            points: newBalance,
+                            lifetimePoints: newLifetimePoints,
+                        },
+                    });
+
+                    logger.info("Transaction created", {
+                        transactionId: transaction.id,
+                        customerId: input.customerId,
+                        type: input.type,
+                        points: signedPoints,
+                        balanceAfter: newBalance,
+                    });
+
+                    return transaction;
+                },
                     { isolationLevel: "Serializable" }
                 ),
             { customerId: input.customerId, type: input.type }

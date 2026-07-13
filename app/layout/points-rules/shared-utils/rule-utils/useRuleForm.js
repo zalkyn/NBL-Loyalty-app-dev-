@@ -15,9 +15,9 @@ import { useFormState } from "@app/hooks/useFormState";
  * @property {Function} updateItem    - Update a single field on an array item
  *                                      @example fs.updateItem("order.groups", 0, "name", "Premium")
  * @property {Function} errorFor      - Get the validation error message for a field path
- *                                      @example fs.errorFor("order.fixedPoints") → "Must be greater than 0"
+ *                                      @example fs.errorFor("order.fixedPoints") -> "Must be greater than 0"
  * @property {boolean}  isDirty       - True if any field has changed from the initial value
- * @property {Function} submit        - Trigger form submission (runs validate → onSubmit)
+ * @property {Function} submit        - Trigger form submission (runs validate -> onSubmit)
  * @property {Function} reset         - Reset all fields back to initial values
  */
 

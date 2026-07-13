@@ -110,7 +110,7 @@ export async function action({ request }) {
             );
         }
 
-        const { voucherCode, pointsCost, rewardTitle, activity, createdAt } = await redeemReward({
+        const { voucherCode, pointsCost, rewardTitle, activity, createdAt, balanceAfter } = await redeemReward({
             admin,
             session,
             customer,
@@ -119,14 +119,27 @@ export async function action({ request }) {
             customerId: shopifyId,
         });
 
-        // Sync updated customer config back to metafields — non-critical.
-        const updatedCustomer = await syncCustomerConfig(admin, shopifyId);
-        if (!updatedCustomer) {
-            logger.error("Metafield sync failed after all retries — redemption is still valid", {
-                module: MODULE,
-                shopifyId,
-            });
-        }
+        // Sync updated customer config back to metafields — non-critical,
+        // and deliberately NOT awaited. This is a second, separate Shopify
+        // Admin API call (on top of the voucher-generation call inside
+        // redeemReward above) whose only purpose is refreshing the
+        // customer's metafield cache for their NEXT full page load; the
+        // response below already has everything the customer needs
+        // (voucherCode, fresh balanceAfter) without waiting on it. Letting
+        // it run in the background roughly halves this endpoint's response
+        // time. syncCustomerConfig always resolves (never rejects, even on
+        // failure — see its own try/catch) so no unhandled-rejection risk;
+        // the narrow tradeoff is that a full-page-reload within the ~1-3s
+        // this takes could briefly show a stale points/rewards list — the
+        // voucher code itself is unaffected either way.
+        syncCustomerConfig(admin, shopifyId).then((updatedCustomer) => {
+            if (!updatedCustomer) {
+                logger.error("Metafield sync failed after all retries — redemption is still valid", {
+                    module: MODULE,
+                    shopifyId,
+                });
+            }
+        });
 
         logger.info("Reward redeemed successfully", {
             module: MODULE,
@@ -140,7 +153,7 @@ export async function action({ request }) {
                 shop: session.shop,
                 voucherCode,
                 title: title || rewardTitle,
-                points: updatedCustomer?.points ?? null,
+                points: balanceAfter,
                 pointsCost: -pointsCost,
                 activity,
                 createdAt,
@@ -280,6 +293,7 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
         rewardTitle: rewardRule.title,
         activity: `-${pointsCost.toLocaleString()} points redeemed for reward: ${rewardRule.title}`,
         createdAt: newReward?.createdAt ?? new Date(),
+        balanceAfter: transaction.balanceAfter,
     };
 }
 

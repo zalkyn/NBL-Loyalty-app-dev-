@@ -15,6 +15,9 @@ export function getConfigValue(widgetConfig, configKey, fallback) {
     if (configKey.startsWith("prize.")) {
         return widgetConfig.prize?.[configKey.slice(6)] ?? fallback;
     }
+    if (configKey.startsWith("referral.")) {
+        return widgetConfig.referral?.[configKey.slice(9)] ?? fallback;
+    }
     return widgetConfig[configKey] ?? fallback;
 }
 
@@ -25,6 +28,9 @@ export function getConfigDefault(configKey) {
     }
     if (configKey.startsWith("prize.")) {
         return WIDGET_CONFIG_DEFAULTS.prize?.[configKey.slice(6)];
+    }
+    if (configKey.startsWith("referral.")) {
+        return WIDGET_CONFIG_DEFAULTS.referral?.[configKey.slice(9)];
     }
     return WIDGET_CONFIG_DEFAULTS[configKey];
 }

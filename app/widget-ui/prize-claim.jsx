@@ -72,17 +72,21 @@ export async function action({ request }) {
             );
         }
 
-        const { claim, pointsCost } = await claimPrize({ session, customer, prize });
+        const { claim, pointsCost, balanceAfter } = await claimPrize({ session, customer, prize });
 
-        // Sync metafields — non-critical. See reward-claim.jsx for the same
-        // pattern/rationale.
-        const updatedCustomer = await syncCustomerConfig(admin, shopifyId);
-        if (!updatedCustomer) {
-            logger.error("Metafield sync failed after all retries — claim is still valid", {
-                module: MODULE,
-                claimId: claim.id,
-            });
-        }
+        // Sync metafields — non-critical, deliberately not awaited. See
+        // reward-claim.jsx for the full rationale: this is a second,
+        // separate Shopify Admin API call whose only purpose is refreshing
+        // the customer's metafield cache for their next full page load —
+        // the response below already has everything needed without it.
+        syncCustomerConfig(admin, shopifyId).then((updatedCustomer) => {
+            if (!updatedCustomer) {
+                logger.error("Metafield sync failed after all retries — claim is still valid", {
+                    module: MODULE,
+                    claimId: claim.id,
+                });
+            }
+        });
 
         logger.info("Prize claimed successfully", {
             module: MODULE,
@@ -98,7 +102,7 @@ export async function action({ request }) {
                 prizeId: prize.id,
                 status: claim.status,
                 title: prize.title,
-                points: updatedCustomer?.points ?? null,
+                points: balanceAfter,
                 pointsCost: -pointsCost,
                 createdAt: claim.createdAt,
             },
@@ -165,7 +169,7 @@ async function claimPrize({ session, customer, prize }) {
         { module: MODULE, claimId: claim.id, transactionId: transaction.id }
     );
 
-    return { claim, pointsCost };
+    return { claim, pointsCost, balanceAfter: transaction.balanceAfter };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -205,7 +205,7 @@ export const customerOrderCount = async (admin, id) => {
     }
 
     // Extract the numeric ID from GID if needed:
-    // "gid://shopify/Customer/9441305526522" → "9441305526522"
+    // "gid://shopify/Customer/9441305526522" -> "9441305526522"
     // ordersCount query filter requires numeric customer_id, not GID format
     const numericId = String(id).includes("gid://")
         ? String(id).split("/").pop()

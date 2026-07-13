@@ -236,7 +236,7 @@ export async function handleRevertClaim({ formData, session, admin }) {
             await syncCustomerConfig(admin, claim.customer.shopifyId);
         };
 
-        // COMPLETED → FULFILLED
+        // COMPLETED -> FULFILLED
         if (claim.status === "COMPLETED") {
             await prisma.physicalPrizeClaim.update({
                 where: { id: claimIdInt },
@@ -244,12 +244,12 @@ export async function handleRevertClaim({ formData, session, admin }) {
             });
             await logRevert(
                 `Prize claim reverted to fulfilled: ${claim.prize.title}`,
-                `Prize "${claim.prize.title}" reverted from completed → fulfilled — no points changed`,
+                `Prize "${claim.prize.title}" reverted from completed -> fulfilled — no points changed`,
             );
             return { message: "Claim reverted to fulfilled.", status: "success", submitType, claimId: claimIdInt, newStatus: "FULFILLED" };
         }
 
-        // FULFILLED → PENDING
+        // FULFILLED -> PENDING
         if (claim.status === "FULFILLED") {
             await prisma.physicalPrizeClaim.update({
                 where: { id: claimIdInt },
@@ -257,12 +257,12 @@ export async function handleRevertClaim({ formData, session, admin }) {
             });
             await logRevert(
                 `Prize claim reverted to pending: ${claim.prize.title}`,
-                `Prize "${claim.prize.title}" reverted from fulfilled → pending — no points changed`,
+                `Prize "${claim.prize.title}" reverted from fulfilled -> pending — no points changed`,
             );
             return { message: "Claim reverted to pending.", status: "success", submitType, claimId: claimIdInt, newStatus: "PENDING" };
         }
 
-        // CANCELLED → PENDING (re-deduct points)
+        // CANCELLED -> PENDING (re-deduct points)
         if (claim.status === "CANCELLED") {
             const pointsCost = Math.abs(Number(claim.pointsCost) || 0);
 

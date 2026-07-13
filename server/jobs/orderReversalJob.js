@@ -31,8 +31,8 @@ const STALE_LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
  * Main entry point called by jobManager on each cron cycle.
  *
  * Handles ORDER_REVERSED jobs, enqueued by:
- *   - webhooks/orders/cancelled  → reversalType: "CANCEL" (reverse everything left)
- *   - webhooks/refunds/create    → reversalType: "REFUND" (reverse a proportional slice)
+ *   - webhooks/orders/cancelled  -> reversalType: "CANCEL" (reverse everything left)
+ *   - webhooks/refunds/create    -> reversalType: "REFUND" (reverse a proportional slice)
  *
  * Same crash-recovery + batching + backoff shape as orderPaidJob.js.
  *
@@ -161,7 +161,7 @@ async function processJob(job) {
         const nextAttempt = attempts + 1;
         const exhausted = nextAttempt >= maxAttempts;
 
-        // ── 3b. Failure — exponential backoff: 2min → 4min → 8min ────────────
+        // ── 3b. Failure — exponential backoff: 2min -> 4min -> 8min ────────────
         const backoffMs = exhausted
             ? 0
             : Math.min(2 ** nextAttempt * 60 * 1000, 30 * 60 * 1000);
@@ -205,8 +205,8 @@ async function processJob(job) {
  *   1. totalEarned    = sum of all EARN transactions tagged with this orderId
  *   2. alreadyReversed = sum of all REVERSAL transactions already tagged with this orderId
  *   3. remaining       = totalEarned - alreadyReversed  (nothing to do if <= 0)
- *   4. CANCEL  → reverse `remaining` in full
- *      REFUND  → reverse round(totalEarned * (refundAmount / orderTotal)), capped at `remaining`
+ *   4. CANCEL  -> reverse `remaining` in full
+ *      REFUND  -> reverse round(totalEarned * (refundAmount / orderTotal)), capped at `remaining`
  *                (orderTotal is read from the original EARN transaction's metadata,
  *                 so no extra Shopify API call is needed)
  *   5. Balance is floored at 0 by createTransaction's REVERSAL case — a customer

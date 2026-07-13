@@ -14,11 +14,11 @@
  *   ?page=1&perPage=10&status=ALL&sortBy=date_desc&dateFrom=&dateTo=
  *
  * Layout follows the app.points-rules.* module pattern:
- *   route.jsx        → loader, thin action dispatcher, page composition
- *   _data.js         → client-safe constants + pure helpers (loader and client both import this)
- *   _data.server.js  → server-only per-submitType handlers (prisma, transactions)
- *   _hooks.js        → all client-side state + handlers
- *   components/      → presentational pieces
+ *   route.jsx        -> loader, thin action dispatcher, page composition
+ *   _data.js         -> client-safe constants + pure helpers (loader and client both import this)
+ *   _data.server.js  -> server-only per-submitType handlers (prisma, transactions)
+ *   _hooks.js        -> all client-side state + handlers
+ *   components/      -> presentational pieces
  */
 
 import { useLoaderData, useActionData } from "react-router";

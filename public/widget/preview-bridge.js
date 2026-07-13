@@ -50,7 +50,7 @@
         );
     };
 
-    // ── 2. scene name → bridge method call ───────────────────────────────────
+    // ── 2. scene name -> bridge method call ───────────────────────────────────
     // New Preact widget-e kono bus nei. App.jsx boot-er pore
     // window.NBL_v1.__bridge object-e imperative functions inject kore.
     // Amra shei functions call kori.

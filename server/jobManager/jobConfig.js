@@ -46,7 +46,7 @@ export const DEFAULTS = {
  *   - Schedules the job via node-cron using the cron expression
  *
  * Job execution order per cycle:
- *   preHooks (parallel) → handlers (sequential) → postHooks (parallel)
+ *   preHooks (parallel) -> handlers (sequential) -> postHooks (parallel)
  *
  * @type {Array<{
  *   name:        string,

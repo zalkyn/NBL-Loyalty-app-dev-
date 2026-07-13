@@ -64,7 +64,7 @@ export function useCustomizePage(loaderData, actionData) {
     // React Router's actionData never goes back to null after first
     // response, so a simple [actionData] effect fires only on the *first* save.
     // Subsequent saves with the same object reference are silently ignored,
-    // leaving persistedVars stale → hasChanges stays true forever.
+    // leaving persistedVars stale -> hasChanges stays true forever.
     //
     // track the last-processed response by reference. When actionData is a
     // new object (every successful POST creates a new one) we run the sync.
@@ -146,6 +146,10 @@ export function useCustomizePage(loaderData, actionData) {
                 const prizeKey = f.configKey.slice(6);
                 return widgetConfig.prize?.[prizeKey] !== persistedWidgetConfig.prize?.[prizeKey];
             }
+            if (f.configKey.startsWith("referral.")) {
+                const referralKey = f.configKey.slice(9);
+                return widgetConfig.referral?.[referralKey] !== persistedWidgetConfig.referral?.[referralKey];
+            }
             return widgetConfig[f.configKey] !== persistedWidgetConfig[f.configKey];
         }).length;
     }, [widgetConfig, persistedWidgetConfig]);
@@ -168,6 +172,9 @@ export function useCustomizePage(loaderData, actionData) {
         } else if (key.startsWith("prize.")) {
             const prizeKey = key.slice(6);
             setWidgetConfig((prev) => ({ ...prev, prize: { ...prev.prize, [prizeKey]: value } }));
+        } else if (key.startsWith("referral.")) {
+            const referralKey = key.slice(9);
+            setWidgetConfig((prev) => ({ ...prev, referral: { ...prev.referral, [referralKey]: value } }));
         } else {
             setWidgetConfig((prev) => ({ ...prev, [key]: value }));
         }

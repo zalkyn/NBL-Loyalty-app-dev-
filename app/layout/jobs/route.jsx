@@ -12,9 +12,9 @@
  * modal before actually submitting — nothing here fires on a single
  * accidental click.
  *
- *   _loader.server.js  → prisma queries (filtered list, full set)
- *   _action.server.js  → handleCancel / handleRetry / handleForceReset / handleDelete
- *   components/JobsTable.jsx → table markup + per-row single actions
+ *   _loader.server.js  -> prisma queries (filtered list, full set)
+ *   _action.server.js  -> handleCancel / handleRetry / handleForceReset / handleDelete
+ *   components/JobsTable.jsx -> table markup + per-row single actions
  *
  * Bulk/group actions are scoped to whatever `status` filter is active,
  * since bulk-selecting across mixed statuses would be ambiguous. When

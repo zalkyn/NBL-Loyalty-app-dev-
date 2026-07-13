@@ -59,7 +59,7 @@ export function SetupSteps({ webhookUrl }) {
             <Step number="1" title="Open Shopify Flow">
                 <s-paragraph>
                     From your Shopify admin, go to{" "}
-                    <strong>Settings → Apps and sales channels</strong>, then open{" "}
+                    <strong>Settings {"->"} Apps and sales channels</strong>, then open{" "}
                     <strong>Shopify Flow</strong>. If you don't see it listed, search
                     for "Flow" in your Shopify admin search bar — it's a free app by
                     Shopify and installs in one click.
@@ -70,7 +70,7 @@ export function SetupSteps({ webhookUrl }) {
                 <s-paragraph>
                     Inside Flow, click <strong>Create workflow</strong> (top right).
                     Give it a name you'll recognize later, e.g.{" "}
-                    <strong>"Loox review → Loyalty points"</strong>.
+                    <strong>"Loox review {"->"} Loyalty points"</strong>.
                 </s-paragraph>
             </Step>
 

@@ -9,11 +9,11 @@
  *   - Modal   : delete confirmation
  *
  * Layout follows the app.physical-prizes-rules module pattern:
- *   route.jsx        → loader, thin action dispatcher, page composition
- *   _data.js         → client-safe constants, buildFormShape, validate, pure helpers
- *   _data.server.js  → server-only per-submitType handlers (prisma)
- *   _hooks.js        → all client-side state + handlers (via useFormState)
- *   components/      → presentational pieces
+ *   route.jsx        -> loader, thin action dispatcher, page composition
+ *   _data.js         -> client-safe constants, buildFormShape, validate, pure helpers
+ *   _data.server.js  -> server-only per-submitType handlers (prisma)
+ *   _hooks.js        -> all client-side state + handlers (via useFormState)
+ *   components/      -> presentational pieces
  *
  * Uses useFormState for form state, dirty tracking, and validation.
  *   - `useNavigation` drives loading / disabled states (no manual loading booleans)

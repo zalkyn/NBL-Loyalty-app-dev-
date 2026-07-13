@@ -28,7 +28,7 @@ export function FieldWrapper({ isDirty, children, onRevert, disabled }) {
                             cursor: disabled ? "default" : "pointer", fontWeight: 500,
                             display: "flex", alignItems: "center", gap: 4,
                         }}
-                    >↩ Revert to default</button>
+                    >Revert to default</button>
                 </div>
             )}
         </div>

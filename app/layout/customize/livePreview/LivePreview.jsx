@@ -58,7 +58,7 @@ const LivePreviewPanel = memo(function LivePreviewPanel({
         );
     };
 
-    // ── cssVars → debounced postMessage (slider drags fire fast) ──────────
+    // ── cssVars -> debounced postMessage (slider drags fire fast) ──────────
     useEffect(() => {
         if (!iframeReady) return;
         if (cssVarsDebounceRef.current) clearTimeout(cssVarsDebounceRef.current);
@@ -68,13 +68,13 @@ const LivePreviewPanel = memo(function LivePreviewPanel({
         return () => clearTimeout(cssVarsDebounceRef.current);
     }, [cssVars, iframeReady]);
 
-    // ── widgetConfig → immediate postMessage (label edits aren't high-frequency) ─
+    // ── widgetConfig -> immediate postMessage (label edits aren't high-frequency) ─
     useEffect(() => {
         if (!iframeReady) return;
         post("widgetConfig", widgetConfig);
     }, [widgetConfig, iframeReady]);
 
-    // ── previewScene → immediate postMessage ───────────────────────────────
+    // ── previewScene -> immediate postMessage ───────────────────────────────
     useEffect(() => {
         if (!iframeReady) return;
         post("scene", previewScene);

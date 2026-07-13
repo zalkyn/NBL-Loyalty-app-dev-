@@ -7,10 +7,10 @@
  * Image is sent as multipart with form data on submit (no pre-upload).
  *
  * Layout follows the app.points-rules.* module pattern:
- *   route.jsx   → loader, action, thin page composition
- *   _data.js    → server-side helpers (form shape, validation, image upload)
- *   _hooks.js   → client-side state + handlers
- *   components/ → presentational pieces
+ *   route.jsx   -> loader, action, thin page composition
+ *   _data.js    -> server-side helpers (form shape, validation, image upload)
+ *   _hooks.js   -> client-side state + handlers
+ *   components/ -> presentational pieces
  */
 
 import { useActionData, useLoaderData } from "react-router";

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import prisma from "../db.server.js";
 import { logger } from "./logger.js";
 
-/** @constant {number} Random bytes of entropy per token (→ 48 hex chars) */
+/** @constant {number} Random bytes of entropy per token (-> 48 hex chars) */
 const TOKEN_BYTES = 24;
 
 /** @constant {number} Maximum attempts before throwing on collision */

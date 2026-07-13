@@ -7,7 +7,7 @@ const MODAL_ID = "adjust-points-modal";
  *
  * UX:
  *   - Add / Remove toggle — merchant always enters a positive number
- *   - Live preview: "4,610,365 → 4,610,465 pts"
+ *   - Live preview: "4,610,365 -> 4,610,465 pts"
  *   - Validation: amount must be > 0; Remove blocked if insufficient balance
  */
 export function AdjustPointsModal({ customer, isAdjusting, onConfirm }) {
@@ -113,7 +113,7 @@ export function AdjustPointsModal({ customer, isAdjusting, onConfirm }) {
                         <strong style={{ color: "var(--p-color-text)" }}>
                             {currentPoints.toLocaleString()}
                         </strong>
-                        {" → "}
+                        {" -> "}
                         <strong style={{ color: mode === "add" ? "#1D9E75" : "#E24B4A" }}>
                             {previewBalance.toLocaleString()} pts
                         </strong>

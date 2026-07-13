@@ -11,14 +11,6 @@ const LEVELS = {
     error: 40
 };
 
-const EMOJIS = {
-    debug: '🔍',
-    info: 'ℹ️',
-    success: '✅',
-    warn: '⚠️',
-    error: '❌'
-};
-
 // ---------------------------
 // Utils
 // ---------------------------
@@ -95,11 +87,10 @@ function logMessage(level, ...args) {
         ...extras
     };
 
-    // 👉 Dev = pretty log
+    // Dev = pretty log
     if (isDev) {
-        const emoji = EMOJIS[level] || '→';
         console[level === 'error' ? 'error' : 'log'](
-            `## [${APP_NAME}] ${emoji} [${level.toUpperCase()}] ${shop ? `[${shop}] ` : ''}${message}`
+            `## [${APP_NAME}] [${level.toUpperCase()}] ${shop ? `[${shop}] ` : ''}${message}`
         );
 
         if (Object.keys(extras).length) {
@@ -107,7 +98,7 @@ function logMessage(level, ...args) {
         }
     }
 
-    // 👉 Prod = structured JSON (VERY IMPORTANT)
+    // Prod = structured JSON (VERY IMPORTANT)
     else {
         const method =
             level === 'error' ? 'error' :

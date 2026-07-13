@@ -20,8 +20,8 @@ export function usePagination(items, perPage = 5, mode = 'pagination') {
     // (one per mode) with an early return in between — a Rules-of-Hooks
     // violation. It "worked" as long as `mode` never changed after mount,
     // but `mode` comes from the dashboard's "Pagination style" setting,
-    // which the live preview CAN change at runtime (bridge → setWidgetConfig
-    // → paginationMode) without a remount. Switching modes there would flip
+    // which the live preview CAN change at runtime (bridge -> setWidgetConfig
+    // -> paginationMode) without a remount. Switching modes there would flip
     // which useMemo call site runs on a given render, desyncing Preact's
     // hook-slot bookkeeping for this component. A single call site sidesteps
     // that entirely.

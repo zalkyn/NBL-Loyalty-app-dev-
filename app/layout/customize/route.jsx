@@ -10,19 +10,19 @@
  *               across tab switches
  *
  * Layout follows the app.points-events module pattern:
- *   route.jsx          → loader, thin action dispatcher, page composition
- *   constants/         → widgetPresetsV3.js — CSS_DEFAULTS, LABEL_DEFAULTS, DS,
+ *   route.jsx          -> loader, thin action dispatcher, page composition
+ *   constants/         -> cssVarsConfig.js — CSS_DEFAULTS, LABEL_DEFAULTS, DS,
  *                         WIDGET_CONFIG_*, PRESETS, SIMPLE_SECTIONS, helpers
  *                         (shared by this page AND the livePreview/ panel below)
- *   livePreview/        → LivePreviewPanel — standalone phone-frame mock,
+ *   livePreview/        -> LivePreviewPanel — standalone phone-frame mock,
  *                         customize-exclusive, kept separate from components/
  *                         because it's a self-contained rendering surface,
  *                         not a form field
- *   _data.js            → getConfigValue, getConfigDefault (pure helpers)
- *   _loader.server.js   → prisma style lookup
- *   _action.server.js   → per-intent handlers (prisma + syncAppConfig)
- *   _hooks.js            → useCustomizePage() — all state, dirty-tracking, handlers
- *   components/          → presentational pieces (fields, section panels, tabs)
+ *   _data.js            -> getConfigValue, getConfigDefault (pure helpers)
+ *   _loader.server.js   -> prisma style lookup
+ *   _action.server.js   -> per-intent handlers (prisma + syncAppConfig)
+ *   _hooks.js            -> useCustomizePage() — all state, dirty-tracking, handlers
+ *   components/          -> presentational pieces (fields, section panels, tabs)
  */
 
 import { useActionData, useLoaderData } from "react-router";

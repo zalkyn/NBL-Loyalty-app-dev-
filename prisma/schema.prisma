@@ -185,7 +185,7 @@ model Transaction {
   // When this transaction's toast notification was shown/acknowledged to
   // the customer on the storefront. null = not yet shown. Set by
   // POST /apps/widget/notifications/mark-seen.
-  notifiedAt   DateTime?
+  notifiedAt DateTime?
 
   customer     Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
   event        Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
@@ -282,12 +282,12 @@ model WebhookEvent {
 }
 
 model AppSettings {
-  id            Int      @id @default(autoincrement())
-  shop          String
-  settings      Json
-  updatedAt     DateTime @updatedAt
-  sessionId     String
-  session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id        Int      @id @default(autoincrement())
+  shop      String
+  settings  Json
+  updatedAt DateTime @updatedAt
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   // Per-shop secret embedded in the URL the merchant pastes into their
   // "Loox new review trigger" Shopify Flow workflow (Send HTTP request
@@ -296,7 +296,7 @@ model AppSettings {
   // Flow's HTTP action has no built-in signing, and the review payload
   // itself carries no shop identifier. Nullable/lazily generated: existing
   // rows predate this field: see app/layout/loox-setup/_loader.server.js.
-  looxFlowToken String?  @unique
+  looxFlowToken String? @unique
 
   @@unique([sessionId])
   @@unique([shop])
@@ -401,9 +401,9 @@ model Job {
 
   // ── Payload ───────────────────────────────────────────
   // Structure varies by job type:
-  //   ORDER_PAID      → { shop, orderId, customerId, webhookId }
-  //   METAFIELD_SYNC  → { shop, customerId }
-  //   REFERRAL_EXPIRE → { shop, referralId }
+  //   ORDER_PAID      -> { shop, orderId, customerId, webhookId }
+  //   METAFIELD_SYNC  -> { shop, customerId }
+  //   REFERRAL_EXPIRE -> { shop, referralId }
   payload Json
 
   // ── Idempotency ───────────────────────────────────────
@@ -428,7 +428,7 @@ model Job {
   runAt DateTime @default(now())
 
   // ── Stale lock detection ──────────────────────────────
-  // Set to now() when the poller claims the job (status → PROCESSING).
+  // Set to now() when the poller claims the job (status -> PROCESSING).
   // If the job is still PROCESSING after 5 minutes, it is considered stale
   // (e.g. server crash mid-execution) and the poller will re-queue it.
   lockedAt DateTime?

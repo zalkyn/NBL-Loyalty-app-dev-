@@ -164,10 +164,10 @@ async function requeueStaleJobs() {
  * Processes a single ORDER_PAID job end-to-end.
  *
  * Flow:
- *   1. Claim the job → PROCESSING + lockedAt
+ *   1. Claim the job -> PROCESSING + lockedAt
  *   2. Authenticate shop + run mainHandler
- *   3a. Success → COMPLETED
- *   3b. Failure → increment attempts; exponential backoff retry or FAILED
+ *   3a. Success -> COMPLETED
+ *   3b. Failure -> increment attempts; exponential backoff retry or FAILED
  *
  * @param {{ id: number, shop: string, payload: object, attempts: number, maxAttempts: number }} job
  * @returns {Promise<void>}
@@ -212,7 +212,7 @@ async function processJob(job) {
         const nextAttempt = attempts + 1;
         const exhausted = nextAttempt >= maxAttempts;
 
-        // ── 3b. Failure — exponential backoff: 2min → 4min → 8min ────────────
+        // ── 3b. Failure — exponential backoff: 2min -> 4min -> 8min ────────────
         const backoffMs = exhausted
             ? 0
             : Math.min(2 ** nextAttempt * 60 * 1000, 30 * 60 * 1000);
@@ -257,8 +257,8 @@ async function processJob(job) {
  *
  * Combining the metafield fetch with the order fetch means the caller
  * (mainHandler) can run this and getAppstleMetafield in parallel:
- *   - fetchFullOrder  → order fields + raw Appstle metafield value
- *   - getAppstleMetafield → product.sellingPlanGroups (interval resolution)
+ *   - fetchFullOrder  -> order fields + raw Appstle metafield value
+ *   - getAppstleMetafield -> product.sellingPlanGroups (interval resolution)
  *
  * Both run simultaneously, reducing total latency from 3 sequential calls
  * to 2 parallel calls.
@@ -311,7 +311,7 @@ async function fetchFullOrder(admin, orderId) {
 
     if (!raw) return null;
 
-    // Normalize GraphQL shape → REST-style shape expected by handlers
+    // Normalize GraphQL shape -> REST-style shape expected by handlers
     const order = {
         name: raw.name,
         order_number: raw.orderNumber,
@@ -532,9 +532,9 @@ const detectReferralOrder = ({ order, customer, contract }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Resolves points for a single line item using the P1→P4 priority chain.
+ * Resolves points for a single line item using the P1->P4 priority chain.
  *
- * Priority (highest → lowest):
+ * Priority (highest -> lowest):
  *   P4 — product is in a group AND interval matches
  *   P3 — product is in a group, no interval match
  *   P2 — product not in any group, interval matches
@@ -619,7 +619,7 @@ const resolveOrderPoints = (order, conditions, interval, isSubscription) => {
 };
 
 /**
- * Resolves referrer + referred points using the P1→P4 priority chain.
+ * Resolves referrer + referred points using the P1->P4 priority chain.
  *
  * For RECURRING (renewal):
  *   - Uses renewalPoints instead of points
@@ -709,7 +709,7 @@ const resolveReferralPoints = (conditions, lineItems, interval, isRenewal) => {
 
 /**
  * Awards points for a standard (non-referral) order.
- * Uses per-product P1→P4 priority resolution.
+ * Uses per-product P1->P4 priority resolution.
  *
  * @param {Object}      params
  * @param {Object}      params.admin
