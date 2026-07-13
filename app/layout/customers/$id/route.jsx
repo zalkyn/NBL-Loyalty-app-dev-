@@ -2,15 +2,15 @@
  * @file layout/customers/$id/route.jsx
  * @description Customer details page — thin composition layer.
  *
- *   _loader.server.js  → prisma + Shopify GraphQL queries
- *   _action.server.js  → adjustPoints handler
- *   _hooks.js          → page state (no jotai)
+ *   _loader.server.js  -> prisma + Shopify GraphQL queries
+ *   _action.server.js  -> adjustPoints handler
+ *   _hooks.js          -> page state (no jotai)
  *   components/
- *     SummaryCard.jsx        → left summary panel
- *     StatsGrid.jsx          → 6 stat boxes
- *     AdjustPointsModal.jsx  → add/remove toggle + live preview
- *     TransactionsTable.jsx  → paginated transaction history
- *     RewardsTable.jsx       → paginated rewards history
+ *     SummaryCard.jsx        -> left summary panel
+ *     StatsGrid.jsx          -> 6 stat boxes
+ *     AdjustPointsModal.jsx  -> add/remove toggle + live preview
+ *     TransactionsTable.jsx  -> paginated transaction history
+ *     RewardsTable.jsx       -> paginated rewards history
  */
 
 import { useLoaderData, useActionData } from "react-router";

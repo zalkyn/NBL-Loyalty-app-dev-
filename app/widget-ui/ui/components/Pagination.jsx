@@ -44,7 +44,7 @@ export function Pagination({ pagination, lbl }) {
                             <span></span><span></span><span></span>
                         </span>
                     ) : (
-                        <Text as="span" bare extraClass="nbl-pagination__loadmore-done">✓ {lbl('loadMoreDone') || 'All loaded'}</Text>
+                        <Text as="span" bare extraClass="nbl-pagination__loadmore-done">{lbl('loadMoreDone') || 'All loaded'}</Text>
                     )}
                 </Button>
             </div>

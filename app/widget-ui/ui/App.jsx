@@ -113,7 +113,8 @@ export function App({ initialData, bridgeRef, hostEl }) {
     const shopifyCustomerId = customer && customer.id;
 
     const { provisioning, provisionNeeded, inFlight, failed: provisionFailed } = useCustomerProvision({ isLoggedIn, customer, appConfig, proxyPath });
-    const refModal = useReferralModal({ isLoggedIn, proxyPath, provisioning: inFlight, provisionNeeded, customerId: shopifyCustomerId });
+    const referralConfig = widgetConfig.referral || {};
+    const refModal = useReferralModal({ isLoggedIn, proxyPath, provisioning: inFlight, provisionNeeded, customerId: shopifyCustomerId, redirectUrl: referralConfig.redirectUrl });
 
     // ── Explicit "Join our program" step ──────────────────────────────────────
     // Two distinct ways to land here:
@@ -207,7 +208,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
     useEffect(function () {
         if (!bridgeRef) return;
 
-        // Scene switch: launcher(close) / home / earn→points / rewards /
+        // Scene switch: launcher(close) / home / earn->points / rewards /
         //               prizes / referral / activities / modal / notification-*
         bridgeRef.setScene = function (scene) {
             // Any non-toast scene clears the dummy toast preview.
@@ -244,7 +245,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
                 });
                 return;
             }
-            // Customize panel-er scene name → data-tab value map
+            // Customize panel-er scene name -> data-tab value map
             var TAB_MAP = {
                 home: 'home',
                 earn: 'points',
@@ -290,7 +291,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
         };
 
         // widgetConfig update — labels, show*Section flags, perPage etc.
-        // setWidgetConfig() → Preact re-render, lbl() automatically nতুন labels pabe.
+        // setWidgetConfig() -> Preact re-render, lbl() automatically nতুন labels pabe.
         bridgeRef.setWidgetConfig = function (cfg) {
             if (!cfg) return;
             setWidgetConfig(cfg);
@@ -343,6 +344,25 @@ export function App({ initialData, bridgeRef, hostEl }) {
         if (claimState === 'loading') return;
         setNotification(null);
     }
+
+    // Opt-in auto-close — only notifications that explicitly set
+    // `autoCloseMs` (e.g. the referral "Link copied!" toast, see
+    // ReferralTab.jsx) get dismissed automatically. Every other
+    // notification (rewards, claims, errors) has no such field and stays
+    // open until the customer closes it themselves, exactly as before.
+    useEffect(() => {
+        if (!notification || !notification.autoCloseMs) return;
+        const timer = setTimeout(() => {
+            // Re-check claimState at fire time, not just at schedule time —
+            // a claim could start loading during the window and closing out
+            // from under it would be jarring.
+            setClaimState((cs) => {
+                if (cs !== 'loading') setNotification(null);
+                return cs;
+            });
+        }, notification.autoCloseMs);
+        return () => clearTimeout(timer);
+    }, [notification]);
 
     // ── Image preview control ─────────────────────────────────────────────────
 

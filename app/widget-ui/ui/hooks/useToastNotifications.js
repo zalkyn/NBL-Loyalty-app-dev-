@@ -2,11 +2,11 @@
 // modules/hooks/useToastNotifications.js
 // Toast notification list — DERIVED CLIENT-SIDE from `transactions`, which
 // already arrived for free on this page load via the customer metafield
-// (see loyalty.liquid → NBL_v1.customer.config.transactions →
-// main.preact.jsx → initialData.transactions). No /notifications GET here.
+// (see loyalty.liquid -> NBL_v1.customer.config.transactions ->
+// main.preact.jsx -> initialData.transactions). No /notifications GET here.
 //
 // Why not just fetch(): the metafield sync that populates `transactions` is
-// async (webhook → job queue → Admin API write), and "mark-seen" only
+// async (webhook -> job queue -> Admin API write), and "mark-seen" only
 // updates Postgres, not the metafield JSON. So a server round-trip that
 // re-checks notifiedAt=null right after marking things seen would find
 // those same rows already flipped and return nothing — that was the actual
@@ -125,8 +125,8 @@ export function useToastNotifications({ isLoggedIn, enabled, transactions, custo
 
     function markNotificationsSeen(ids) {
         if (isPreview) return;
-        // Fire-and-forget, idempotent. ids omitted → server marks ALL unseen
-        // rows for the customer. ids: [id] → only that one (toast's own
+        // Fire-and-forget, idempotent. ids omitted -> server marks ALL unseen
+        // rows for the customer. ids: [id] -> only that one (toast's own
         // close button). Only ever writes to Postgres — never touches the
         // metafield JSON, which is why the read side above doesn't depend
         // on this having finished.

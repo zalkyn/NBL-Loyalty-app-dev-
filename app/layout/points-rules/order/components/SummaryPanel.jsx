@@ -73,7 +73,9 @@ export function SummaryPanel({ event, order, isActive, onActiveChange, busy }) {
                 <s-box paddingBlockEnd="small" />
                 <s-text>
                     <strong>Status:</strong>{" "}
-                    {isActive ? "Active ✅" : "Inactive ❌"}
+                    <s-badge tone={isActive ? "success" : "critical"}>
+                        {isActive ? "Active" : "Inactive"}
+                    </s-badge>
                 </s-text>
             </s-section>
 

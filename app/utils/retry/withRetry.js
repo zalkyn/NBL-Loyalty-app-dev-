@@ -43,7 +43,7 @@ export const withRetry = async (fn, options = {}) => {
         try {
             const result = await fn();
 
-            // ✅ success after retry — log recovery
+            // Success after retry — log recovery
             if (attempt > 1) {
                 logger.success(
                     context.shop,
@@ -58,7 +58,7 @@ export const withRetry = async (fn, options = {}) => {
             lastError = error;
             const message = error?.message || 'Unknown error';
 
-            // ❌ skip retry if error is not in retryableErrors list
+            // Skip retry if error is not in retryableErrors list
             // retryableErrors entries can be strings (message.includes check)
             // or constructors/classes (instanceof check)
             if (
@@ -77,7 +77,7 @@ export const withRetry = async (fn, options = {}) => {
                 throw error;
             }
 
-            // ❌ last attempt exhausted → throw
+            // Last attempt exhausted -> throw
             if (attempt === maxAttempts) {
                 logger.error(
                     context.shop,
@@ -87,7 +87,7 @@ export const withRetry = async (fn, options = {}) => {
                 throw error;
             }
 
-            // ⏳ calculate delay with exponential backoff + jitter
+            // Calculate delay with exponential backoff + jitter
             let delay = baseDelayMs * (backoffFactor ** (attempt - 1));
             delay = Math.min(delay, maxDelayMs);
             if (jitterFactor) {

@@ -74,6 +74,11 @@ export const WIDGET_CONFIG_DEFAULTS = {
         showRequestDate: true,
         showFulfilledDate: true,
     },
+    referral: {
+        // Empty = default to the storefront homepage ("/"). See
+        // handleLogin() in useReferralModal.js for how this is consumed.
+        redirectUrl: "",
+    },
 };
 
 export const WIDGET_CONFIG_SECTIONS = [
@@ -221,6 +226,21 @@ export const WIDGET_CONFIG_SECTIONS = [
                 type: "toggle",
                 configKey: "prize.showTrackingInfo",
                 default: true,
+            },
+        ],
+    },
+    {
+        key: "referral",
+        label: "Referral",
+        description: "Control what happens after a customer signs in to claim a referral discount.",
+        fields: [
+            {
+                key: "referral_redirectUrl",
+                label: "Post-login redirect URL",
+                hint: "Where a new customer lands after signing in or registering from the referral popup, so they can come back and see their discount code. Leave empty to use the storefront homepage. E.g. /pages/welcome. Only takes effect on stores using Shopify's newer Customer Accounts — see the note on the Referral tab of the widget for details.",
+                type: "text",
+                configKey: "referral.redirectUrl",
+                default: "",
             },
         ],
     },
@@ -1173,11 +1193,12 @@ export function buildInitialVars(savedCssVars) {
 }
 
 export function buildInitialWidgetConfig(saved) {
-    const base = { ...WIDGET_CONFIG_DEFAULTS, labels: { ...LABEL_DEFAULTS }, prize: { ...WIDGET_CONFIG_DEFAULTS.prize } };
+    const base = { ...WIDGET_CONFIG_DEFAULTS, labels: { ...LABEL_DEFAULTS }, prize: { ...WIDGET_CONFIG_DEFAULTS.prize }, referral: { ...WIDGET_CONFIG_DEFAULTS.referral } };
     if (!saved || typeof saved !== "object") return base;
     const merged = { ...base, ...saved };
     merged.labels = { ...LABEL_DEFAULTS, ...(saved.labels || {}) };
     merged.prize = { ...WIDGET_CONFIG_DEFAULTS.prize, ...(saved.prize || {}) };
+    merged.referral = { ...WIDGET_CONFIG_DEFAULTS.referral, ...(saved.referral || {}) };
     return merged;
 }
 export const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;

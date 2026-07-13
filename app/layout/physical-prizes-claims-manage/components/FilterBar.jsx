@@ -33,7 +33,6 @@ export function FilterBar({
                             onClick={() => onTabChange(value)}
                         >
                             {label} ({countFor(value)})
-                            {value === "NEW" && stats.new > 0 && activeTab !== "NEW" && " 🔵"}
                         </s-button>
                     ))}
                 </s-stack>

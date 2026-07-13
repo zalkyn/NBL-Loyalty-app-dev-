@@ -134,7 +134,7 @@ export function RewardRuleForm({ fs, busy, titlePreview }) {
                             <s-box paddingBlockEnd="small" />
                             <s-text><strong>Cost:</strong> {form.pointsCost} points</s-text>
                             <s-box paddingBlockEnd="small" />
-                            <s-text><strong>Status:</strong> {form.isActive ? "Active ✅" : "Inactive ❌"}</s-text>
+                            <s-text><strong>Status:</strong> <s-badge tone={form.isActive ? "success" : "critical"}>{form.isActive ? "Active" : "Inactive"}</s-badge></s-text>
                         </>
                     ) : (
                         <s-text tone="subdued">Select a reward type to see a summary.</s-text>

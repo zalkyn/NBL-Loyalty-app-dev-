@@ -44,7 +44,7 @@ export function RulesTable({
                                     <s-text tone="subdued">{getAppliestoSummary(r)}</s-text>
                                 </s-table-cell>
                                 <s-table-cell>
-                                    {r.isActive ? "✅ Yes" : "❌ No"}
+                                    <s-badge tone={r.isActive ? "success" : "critical"}>{r.isActive ? "Yes" : "No"}</s-badge>
                                 </s-table-cell>
                                 <s-table-cell>
                                     <s-stack direction="inline" gap="small">
@@ -86,7 +86,7 @@ export function RulesTable({
                         disabled={currentPage === 1 || isDeleting}
                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     >
-                        ← Prev
+                        Previous
                     </s-button>
                     <s-text>Page {currentPage} of {totalPages}</s-text>
                     <s-button
@@ -94,7 +94,7 @@ export function RulesTable({
                         disabled={currentPage === totalPages || isDeleting}
                         onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                     >
-                        Next →
+                        Next
                     </s-button>
                 </s-stack>
             )}
