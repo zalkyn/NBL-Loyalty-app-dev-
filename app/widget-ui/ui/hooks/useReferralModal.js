@@ -40,7 +40,15 @@ function friendlyMessage(data) {
 // the customer should never see the word "timeout". Only once every retry
 // is exhausted do we show a friendly error, with a manual Try Again action.
 const MAX_ATTEMPTS = 3;
-const ATTEMPT_TIMEOUT_MS = 8000;
+// A first-time referral claim needs two sequential Shopify Admin API calls
+// server-side (an eligibility check, then discount code generation) before
+// it can respond — each one can individually take several seconds under
+// normal Shopify API latency, so 8s was frequently too tight and produced
+// false "please try again" failures on a request that was actually still
+// legitimately in progress server-side. 15s gives real headroom for that
+// two-call chain while still failing fast enough that a genuinely stuck
+// request doesn't leave the customer staring at a spinner indefinitely.
+const ATTEMPT_TIMEOUT_MS = 15000;
 const RETRY_DELAY_MS = 1200;
 
 function isTransientError(err) {
@@ -73,10 +81,18 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
     // successful copy would wrongly block closing the modal.
     const copiedOnceRef = useRef(false);
 
-    // Tracks the in-flight submission so a stale response (or a stale retry
-    // loop) can never clobber state after the user has moved on (closed the
-    // modal, submitted a different code, etc).
-    const requestIdRef = useRef(0);
+    // Two SEPARATE counters — one per operation. Previously these shared a
+    // single requestIdRef, which meant a revalidateClaim() call firing while
+    // submitCode()'s own retry loop was still in flight would bump the same
+    // counter out from under it. When the loop then finished (success OR all
+    // attempts exhausted), its "is this still the current request?" check
+    // would see a mismatch and silently `return` — WITHOUT ever calling
+    // setLoading(false) — leaving the "Verifying your referral code..."
+    // spinner stuck forever, recoverable only by a full page reload. Fully
+    // independent counters make that cross-interference impossible: each
+    // operation can only ever be invalidated by a newer call to itself.
+    const submitRequestIdRef = useRef(0);
+    const revalidateRequestIdRef = useRef(0);
 
     async function submitCode(rawCode) {
         const code = (rawCode || '').trim();
@@ -120,14 +136,14 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
             return;
         }
 
-        const requestId = ++requestIdRef.current;
+        const requestId = ++submitRequestIdRef.current;
         setLoading(true);
 
         let lastError = null;
         for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
             // A newer submission has started (or the user navigated away) —
             // abandon this retry loop instead of racing it.
-            if (requestId !== requestIdRef.current) return;
+            if (requestId !== submitRequestIdRef.current) return;
 
             try {
                 let signal;
@@ -142,7 +158,7 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
 
                 const data = await requestReferralDiscount({ proxyPath, referralCode: code, signal });
 
-                if (requestId !== requestIdRef.current) return;
+                if (requestId !== submitRequestIdRef.current) return;
 
                 cache.setCache(customerId, code, data);
                 applyResponse(code, data);
@@ -157,7 +173,7 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
             }
         }
 
-        if (requestId !== requestIdRef.current) return;
+        if (requestId !== submitRequestIdRef.current) return;
 
         // eslint-disable-next-line no-console
         console.error('[NBL Referral] all attempts exhausted:', lastError);
@@ -203,14 +219,15 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
     // error over what's already a perfectly good optimistic view. Its only job
     // is to catch the one state transition that matters — `discountUsed` having
     // flipped to true at checkout since we last cached this claim — and correct
-    // the UI/cache if so. Uses the same requestIdRef guard as submitCode() so a
-    // genuine newer user action (submitting a different code, etc.) always wins
-    // over a slow background reconciliation call.
+    // the UI/cache if so. Uses its own revalidateRequestIdRef guard (separate
+    // from submitCode()'s submitRequestIdRef — see the comment where both are
+    // declared above) so a newer revalidateClaim() call always wins over a
+    // slow/stale one, without ever affecting submitCode()'s own tracking.
     function revalidateClaim(code) {
-        const requestId = ++requestIdRef.current;
+        const requestId = ++revalidateRequestIdRef.current;
         requestReferralDiscount({ proxyPath, referralCode: code })
             .then((data) => {
-                if (requestId !== requestIdRef.current) return;
+                if (requestId !== revalidateRequestIdRef.current) return;
                 if (data.code === 'DISCOUNT_ALREADY_USED') {
                     cache.markClaimUsed(customerId);
                     setStep('locked');
@@ -271,15 +288,26 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
     }, []);
 
     // ── Watcher: fire the deferred boot-time submit once provisioning clears ──
-    // Only matters on the failure path — success reloads the page before this
-    // would ever run. Guards against double-submitting by checking that a
-    // pending code is still sitting in codeInput with nothing already in flight.
+    // Fires on !provisioning alone (not !provisionNeeded too, which used to be
+    // required here) — useCustomerProvision's inFlight (passed in as
+    // `provisioning`) is guaranteed to resolve to false within its own 7s hard
+    // cutoff either way, but provisionNeeded specifically does NOT reliably
+    // flip to false on the failure path: it's computed from customer.config,
+    // which a failed provisioning attempt never updates. Requiring it here
+    // meant that on failure — exactly the path this watcher's comment always
+    // said it existed for — the condition could never be satisfied, so
+    // submitCode() was never called and the boot effect's setLoading(true)
+    // was never followed by any setLoading(false), leaving the modal stuck on
+    // "Verifying your referral code..." indefinitely. On the success path this
+    // is moot regardless (a page reload happens first); on failure, letting
+    // submitCode() run anyway is correct — the backend's own CUSTOMER_NOT_FOUND
+    // handling (already a friendly, mapped error message) takes it from there.
     const prevProvisioningRef = useRef(provisioning);
     useEffect(() => {
         const wasProvisioning = prevProvisioningRef.current;
         prevProvisioningRef.current = provisioning;
 
-        if (wasProvisioning && !provisioning && !provisionNeeded && codeInput && step === 'form') {
+        if (wasProvisioning && !provisioning && codeInput && step === 'form') {
             submitCode(codeInput);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps

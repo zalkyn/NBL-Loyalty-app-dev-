@@ -126,10 +126,24 @@ async function processJob(job) {
     const { orderId, reversalType, refundId, refundAmount } = payload;
 
     // ── 1. Claim ──────────────────────────────────────────────────────────────
-    await dbRetry(
-        () => prisma.job.update({ where: { id }, data: { status: "PROCESSING", lockedAt: new Date() } }),
+    // Conditional on status still being PENDING — see the matching comment in
+    // orderPaidJob.js's processJob() for the full race this closes (two
+    // replicas' findMany both returning the same PENDING row before either
+    // one's claim lands, both then unconditionally "succeeding" at claiming
+    // it and processing the same reversal twice).
+    const claim = await dbRetry(
+        () =>
+            prisma.job.updateMany({
+                where: { id, status: "PENDING" },
+                data: { status: "PROCESSING", lockedAt: new Date() },
+            }),
         { module: MODULE, jobId: id }
     );
+
+    if (claim.count === 0) {
+        logger.info(MODULE, `Job #${id} already claimed by another process — skipping`, { shop, orderId });
+        return;
+    }
 
     logger.info(MODULE, `Processing job #${id}`, { shop, orderId, reversalType, attempt: attempts + 1, maxAttempts });
 

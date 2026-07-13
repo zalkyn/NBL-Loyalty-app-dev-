@@ -1,6 +1,7 @@
 import { logger } from "app/utils/logger";
 import { normalizeCustomerGid } from "../../../controller/customers/normalizeCustomerGid";
 import { generateDiscountCode } from "../../../utils/generateDiscountCode";
+import { callShopifyGraphql } from "../../../utils/shopifyGraphql.js";
 
 /**
  * Generates a reward voucher/discount code for a customer via Shopify GraphQL.
@@ -100,7 +101,8 @@ function buildDiscountValue({ discountType, rewardValue }) {
  * @returns {Promise<Object>} Raw Shopify GraphQL JSON response
  */
 async function runDiscountMutation(admin, { code, customerGid, discountValue }) {
-    const response = await admin.graphql(
+    return callShopifyGraphql(
+        admin,
         `#graphql
         mutation CreateDiscountCode($basicCodeDiscount: DiscountCodeBasicInput!) {
             discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
@@ -119,25 +121,21 @@ async function runDiscountMutation(admin, { code, customerGid, discountValue }) 
             }
         }`,
         {
-            variables: {
-                basicCodeDiscount: {
-                    title: code,
-                    code,
-                    startsAt: new Date().toISOString(),
-                    endsAt: null,
-                    customerSelection: { customers: { add: [customerGid] } },
-                    customerGets: {
-                        appliesOnOneTimePurchase: true,
-                        appliesOnSubscription: true,
-                        value: discountValue,
-                        items: { all: true },
-                    },
-                    usageLimit: 1,
-                    appliesOncePerCustomer: true,
+            basicCodeDiscount: {
+                title: code,
+                code,
+                startsAt: new Date().toISOString(),
+                endsAt: null,
+                customerSelection: { customers: { add: [customerGid] } },
+                customerGets: {
+                    appliesOnOneTimePurchase: true,
+                    appliesOnSubscription: true,
+                    value: discountValue,
+                    items: { all: true },
                 },
+                usageLimit: 1,
+                appliesOncePerCustomer: true,
             },
         }
     );
-
-    return response.json();
 }

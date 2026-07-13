@@ -3,16 +3,17 @@ import prisma from "../../db.server.js";
 import { normalizeCustomerGid } from "../customers/normalizeCustomerGid.js";
 import { logger } from "../../utils/logger.js";
 import { withRetry } from "../../utils/retry/withRetry.js";
+import { SHOPIFY_RETRYABLE_ERRORS } from "../../utils/shopifyGraphql.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "controller/metafieldsSync/syncCustomerConfig.js";
 
-/** @constant {Array<string>} Transient errors safe to retry — matches configMetafieldSyncMutation's transport-error messages */
-const TRANSIENT_ERRORS = ["fetch failed", "ECONNRESET", "ETIMEDOUT"];
-
 /** @constant {object} Shared retry options for a single metafield sync. Both exported functions below always
- *  retry internally, so callers never need to wrap them in `withRetry` themselves. */
-const SYNC_RETRY_OPTIONS = { maxAttempts: 3, baseDelayMs: 800, retryableErrors: TRANSIENT_ERRORS };
+ *  retry internally, so callers never need to wrap them in `withRetry` themselves. Includes "Throttled" —
+ *  configMetafieldSyncMutation (config.js) preserves Shopify's own error text verbatim when it re-throws a
+ *  GraphQL-level error, so a rate-limited response reaches here as e.g. "metafieldsSet GraphQL error: Throttled",
+ *  which this list's substring match still catches. */
+const SYNC_RETRY_OPTIONS = { maxAttempts: 3, baseDelayMs: 800, retryableErrors: SHOPIFY_RETRYABLE_ERRORS };
 
 // Only fields the storefront widget (app/widget-ui/ui/*) actually reads off
 // this metafield. Everything else here is dead weight in every sync job and
