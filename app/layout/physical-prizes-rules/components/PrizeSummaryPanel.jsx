@@ -23,15 +23,17 @@ export function PrizeSummaryPanel({ fs, imageFile, busy }) {
                 <s-text>
                     <strong>Image:</strong>{" "}
                     {imageFile
-                        ? `✅ ${imageFile.name}`
+                        ? imageFile.name
                         : fs.form.imageUrl
-                            ? "✅ Uploaded"
-                            : "❌ None"}
+                            ? "Uploaded"
+                            : "None"}
                 </s-text>
                 <s-box paddingBlockEnd="small" />
                 <s-text>
                     <strong>Status:</strong>{" "}
-                    {fs.form.isActive ? "Active ✅" : "Inactive ❌"}
+                    <s-badge tone={fs.form.isActive ? "success" : "critical"}>
+                        {fs.form.isActive ? "Active" : "Inactive"}
+                    </s-badge>
                 </s-text>
             </s-section>
 

@@ -251,13 +251,19 @@ export async function action({ request }) {
         });
 
         // ── 9. Sync customer metafields ──────────────────────────────────────
-        const synced = await syncCustomerConfig(admin, shopifyId);
-        if (!synced) {
-            logger.error("Metafield sync failed after all retries — referral is still valid", {
-                module: MODULE,
-                shopifyId,
-            });
-        }
+        // Non-critical, deliberately not awaited — see reward-claim.jsx for
+        // the full rationale. The response below doesn't use anything from
+        // this call's result, so there's no reason to make the customer
+        // wait for a second, separate Shopify Admin API round-trip on top
+        // of the discount-code-generation call above.
+        syncCustomerConfig(admin, shopifyId).then((synced) => {
+            if (!synced) {
+                logger.error("Metafield sync failed after all retries — referral is still valid", {
+                    module: MODULE,
+                    shopifyId,
+                });
+            }
+        });
 
         logger.success("Referral discount generated", {
             referrerId: referrer.id,

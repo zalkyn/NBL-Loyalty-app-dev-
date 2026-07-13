@@ -212,8 +212,8 @@ export async function requestClaimPrize({ prizeId, proxyPath }) {
 // =============================================================================
 
 /**
- * Fire-and-forget, idempotent. `ids` omitted → server marks ALL unseen rows
- * for the customer. `ids: [id]` → only that one (toast's own close button).
+ * Fire-and-forget, idempotent. `ids` omitted -> server marks ALL unseen rows
+ * for the customer. `ids: [id]` -> only that one (toast's own close button).
  *
  * @param {Object} params
  * @param {string} params.proxyPath

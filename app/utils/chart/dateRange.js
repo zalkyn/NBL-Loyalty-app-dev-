@@ -146,7 +146,7 @@ export const USER_TIMEZONE =
  * @example
  * // DB row: { created_at: "2026-05-07T08:30:00Z" }
  * const label = formatLocalLabel(new Date("2026-05-07T08:30:00Z"), "hour");
- * // Asia/Dhaka → "May 7, 14:00"  (UTC+6)
+ * // Asia/Dhaka -> "May 7, 14:00"  (UTC+6)
  */
 export const formatLocalLabel = (utcDate, granularity, tz = USER_TIMEZONE) => {
     /** @type {Intl.DateTimeFormatOptions} */
@@ -179,7 +179,7 @@ export const formatLocalLabel = (utcDate, granularity, tz = USER_TIMEZONE) => {
  *
  * @example
  * const parts = toLocalDateParts(new Date("2026-05-07T20:00:00Z")); // UTC 20:00
- * // Asia/Dhaka (UTC+6) → { year: 2026, month: 5, day: 8, hour: 2, weekday: "Fri" }
+ * // Asia/Dhaka (UTC+6) -> { year: 2026, month: 5, day: 8, hour: 2, weekday: "Fri" }
  */
 export const toLocalDateParts = (utcDate, tz = USER_TIMEZONE) => {
     const fmt = (opts) =>
@@ -213,7 +213,7 @@ export const toLocalDateParts = (utcDate, tz = USER_TIMEZONE) => {
  *
  * @example
  * const grouped = groupByLocalTime(dbRows, "day", (r) => r.event_count);
- * // → [{ label: "May 1", value: 42 }, { label: "May 2", value: 38 }, ...]
+ * // -> [{ label: "May 1", value: 42 }, { label: "May 2", value: 38 }, ...]
  */
 export const groupByLocalTime = (rows, granularity, valueFn, tz = USER_TIMEZONE) => {
     const map = new Map();

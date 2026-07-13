@@ -2572,7 +2572,7 @@ input:not([type=checkbox], [type=radio]) {
     vertical-align: -2px;
 }
 
-/* Loading state — keep button height stable, only swap text → dots */
+/* Loading state — keep button height stable, only swap text -> dots */
 .nbl-pagination__loadmore-btn.loading {
     cursor: wait;
     pointer-events: none;
@@ -3191,6 +3191,11 @@ input:not([type=checkbox], [type=radio]) {
     border: 1px solid var(--nbl-modal-input-border);
     border-radius: 8px;
     padding: 8px 11px;
+}
+
+.nbl-refer-modal__login-note {
+    margin: 4px 0 14px;
+    line-height: 1.5;
 }
 
 .nbl-refer-modal__reward-row strong {

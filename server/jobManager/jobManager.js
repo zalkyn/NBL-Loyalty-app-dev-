@@ -249,7 +249,7 @@ export default async function initJobs() {
 
         try {
             cron.schedule(cfg.cron, () => runJob(cfg));
-            logger.info(MODULE, `Scheduled job "${cfg.name}" → cron: "${cfg.cron}"`);
+            logger.info(MODULE, `Scheduled job "${cfg.name}" -> cron: "${cfg.cron}"`);
         } catch (err) {
             logger.error(MODULE, `Failed to schedule job "${cfg.name}"`, { error: err.message });
         }

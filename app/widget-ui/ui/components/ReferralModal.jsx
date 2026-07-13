@@ -51,10 +51,9 @@ function RewardSummary({ rows }) {
 
 function Message({ msg, onRetry }) {
     if (!msg) return null;
-    const prefix = msg.type === 'error' ? '❌' : msg.type === 'success' ? '✅' : 'ℹ️';
     return (
         <div class={`nbl-refer-modal__message nbl-refer-modal__message--${msg.type}`}>
-            <div>{prefix} {msg.text}</div>
+            <div>{msg.text}</div>
             {msg.retry && onRetry && (
                 <Button bare extraClass="nbl-refer-modal__btn nbl-refer-modal__btn--retry" onClick={onRetry}>
                     Try Again
@@ -89,6 +88,9 @@ export function ReferralModal({ refModal, pointRules, currencySymbol }) {
                             <Heading as="h3" bare extraClass="nbl-refer-modal__title" id="nbl-modal-title">Login to Claim Your Referral Discount</Heading>
                             <Text as="p" bare extraClass="nbl-refer-modal__subtitle">Log into your account to unlock your referral discount.</Text>
                             <RewardSummary rows={rewardRows} />
+                            <Text as="p" size="sm" color="muted" extraClass="nbl-refer-modal__login-note">
+                                Almost there! After you sign in, just head back to our store — your discount code will be waiting for you right here.
+                            </Text>
                             <Button bare extraClass="nbl-refer-modal__btn nbl-refer-modal__btn--primary" onClick={handleLogin}>
                                 Login / Register
                             </Button>
@@ -133,7 +135,7 @@ export function ReferralModal({ refModal, pointRules, currencySymbol }) {
                             <div class="nbl-refer-modal__code-box">
                                 <div class="nbl-refer-modal__code">{discountCode}</div>
                                 <Button bare extraClass="nbl-refer-modal__copy-btn" disabled={copied} onClick={handleCopy}>
-                                    {copied ? 'Copied ✓' : 'Copy Code'}
+                                    {copied ? 'Copied' : 'Copy Code'}
                                 </Button>
                             </div>
                             <RewardSummary rows={rewardRows} />

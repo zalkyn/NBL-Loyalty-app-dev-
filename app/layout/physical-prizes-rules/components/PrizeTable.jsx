@@ -42,8 +42,16 @@ export function PrizeTable({
                                         <div style={{
                                             width: "48px", height: "48px", borderRadius: "6px",
                                             background: "#f0f0f0", display: "flex",
-                                            alignItems: "center", justifyContent: "center", fontSize: "20px",
-                                        }}>🎁</div>
+                                            alignItems: "center", justifyContent: "center",
+                                        }}>
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="20 12 20 22 4 22 4 12" />
+                                                <rect x="2" y="7" width="20" height="5" />
+                                                <line x1="12" y1="22" x2="12" y2="7" />
+                                                <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+                                                <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+                                            </svg>
+                                        </div>
                                     )}
                                 </s-table-cell>
                                 <s-table-cell>
@@ -60,7 +68,7 @@ export function PrizeTable({
                                 <s-table-cell>
                                     <strong>{Number(p.pointsCost).toLocaleString()} pts</strong>
                                 </s-table-cell>
-                                <s-table-cell>{p.isActive ? "✅ Yes" : "❌ No"}</s-table-cell>
+                                <s-table-cell><s-badge tone={p.isActive ? "success" : "critical"}>{p.isActive ? "Yes" : "No"}</s-badge></s-table-cell>
                                 <s-table-cell>
                                     <s-stack gap="small" direction="inline">
                                         <s-button
@@ -86,12 +94,12 @@ export function PrizeTable({
                     <s-button
                         variant="plain" disabled={currentPage === 1 || isAnyBusy}
                         onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-                    >← Prev</s-button>
+                    >Previous</s-button>
                     <s-text>Page {currentPage} of {totalPages}</s-text>
                     <s-button
                         variant="plain" disabled={currentPage === totalPages || isAnyBusy}
                         onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-                    >Next →</s-button>
+                    >Next</s-button>
                 </s-stack>
             )}
         </s-section>

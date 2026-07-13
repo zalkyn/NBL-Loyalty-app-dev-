@@ -51,7 +51,7 @@ function wait(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisionNeeded, customerId }) {
+export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisionNeeded, customerId, redirectUrl }) {
     // NOTE: `provisioning` here is expected to be useCustomerProvision's
     // `inFlight` value (always accurate), not its `provisioning` (overlay-only,
     // can stay false even while a call is pending if the overlay is disabled
@@ -296,7 +296,27 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
     function handleLogin() {
         const code = cache.getURLCode();
         if (code) cache.savePendingCode(code);
-        window.location.href = '/account/login';
+        // /customer_authentication/login is Shopify's unified passwordless
+        // sign-in/register entry point (Customer Accounts — the default
+        // system since 2026). Its return_to param sends the customer back
+        // to a chosen storefront page after a successful login OR
+        // registration, with no theme changes needed on the merchant's
+        // side — see https://shopify.dev/docs/storefronts/themes/sign-in.
+        //
+        // redirectUrl is merchant-configurable (Customize > Referral in the
+        // admin — see cssVarsConfig.js's referral.redirectUrl field).
+        // return_to only accepts relative paths, so anything that isn't one
+        // (empty, or a full https:// URL entered by mistake) falls back to
+        // the homepage rather than silently breaking the redirect.
+        const target = typeof redirectUrl === 'string' && redirectUrl.startsWith('/') ? redirectUrl : '/';
+        // On stores still using the older Legacy Customer Accounts system,
+        // return_to has no effect there (that system needs a hidden form
+        // field added directly to the merchant's theme templates, which an
+        // app can't do) — customers land on the default order-history page
+        // instead. That's exactly why the modal shows an explicit "come
+        // back to our store" message right before this button — see
+        // ReferralModal.jsx's login step.
+        window.location.href = '/customer_authentication/login?return_to=' + encodeURIComponent(target);
     }
     function handleFinish() {
         if (step === 'success' && !copiedOnceRef.current) {

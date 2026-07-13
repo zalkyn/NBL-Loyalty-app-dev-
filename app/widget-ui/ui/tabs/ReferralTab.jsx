@@ -88,7 +88,7 @@ export function ReferralTab({ pointRules, referralLink, currencySymbol, onOpenIn
         const afterCopy = () => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
-            onOpenInfo({ text: '🎉 Referral link copied! Share it with your friends' });
+            onOpenInfo({ text: 'Referral link copied! Share it with your friends', autoCloseMs: 3000 });
         };
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(referralLink).then(afterCopy).catch(afterCopy);
@@ -135,7 +135,7 @@ export function ReferralTab({ pointRules, referralLink, currencySymbol, onOpenIn
                 <label>Your Referral Link</label>
                 <div class="nbl-referral__input-group">
                     <input class="nbl-referral__input" type="text" value={referralLink} readonly />
-                    <Button bare extraClass="nbl-referral__copy-btn" onClick={handleCopy}>{copied ? 'Copied ✓' : 'Copy'}</Button>
+                    <Button bare extraClass="nbl-referral__copy-btn" onClick={handleCopy}>{copied ? 'Copied' : 'Copy'}</Button>
                 </div>
             </div>
 

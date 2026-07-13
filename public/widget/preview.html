@@ -78,7 +78,7 @@
          so the widget renders a populated, realistic state. -->
     <script src="/widget/preview-moc-config.js"></script>
 
-    <!-- 2. Bridge — fetch() intercept + postMessage → __bridge wiring.
+    <!-- 2. Bridge — fetch() intercept + postMessage -> __bridge wiring.
          Must load BEFORE preview.min.js so:
            a) The very first api.js fetch() call is already mocked.
            b) whenBridgeReady() polling starts before App mounts, so the

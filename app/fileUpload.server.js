@@ -7,7 +7,7 @@
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
  *   API Version : 2026-04  (latest stable — June 2026)
- *   Mutations   : stagedUploadsCreate  →  S3 direct upload  →  fileCreate
+ *   Mutations   : stagedUploadsCreate  ->  S3 direct upload  ->  fileCreate
  *   Docs        : https://shopify.dev/docs/api/admin-graphql/latest/mutations/stageduploadscreate
  *                 https://shopify.dev/docs/api/admin-graphql/latest/mutations/fileCreate
  *
@@ -16,7 +16,7 @@
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
  *   [access_scopes]
- *   scopes = "write_files"          ← image / video / pdf / any file সব এক scope-এ
+ *   scopes = "write_files"          <- image / video / pdf / any file সব এক scope-এ
  *
  *   ┌──────────────┬─────────────────────────────────────────────────────────┐
  *   │ Scope        │ কী cover করে                                            │
@@ -27,7 +27,7 @@
  *   │ read_files   │ শুধু files query করতে হলে add করো (optional)             │
  *   └──────────────┴─────────────────────────────────────────────────────────┘
  *
- *   ⚠️  IMPORTANT: Shopify docs-এ "write_images" scope mention থাকলেও সেটা
+ *   IMPORTANT: Shopify docs-এ "write_images" scope mention থাকলেও সেটা
  *   INVALID এবং TOML validation fail করে। এটা একটা confirmed Shopify docs bug
  *   (May 2026). শুধু write_files ব্যবহার করো।
  *   Ref: https://community.shopify.dev/t/write-images-access-scope-problem/33881
@@ -39,30 +39,30 @@
  *   formData file(s)
  *       │
  *       ▼
- *   ① stagedUploadsCreate  ──→  Shopify Admin GraphQL
+ *   1. stagedUploadsCreate  ──->  Shopify Admin GraphQL
  *                                (pre-signed S3 URL + auth parameters পাওয়া)
  *       │
  *       ▼
- *   ② S3 direct upload     ──→  fetch(target.url, ...)
- *        ALL types  →  multipart POST  (GCS signed-POST flow)
+ *   2. S3 direct upload     ──->  fetch(target.url, ...)
+ *        ALL types  ->  multipart POST  (GCS signed-POST flow)
  *                        parameters from stagedUploadsCreate MUST come before file
  *       │
  *       ▼
- *   ③ fileCreate           ──→  Shopify Admin GraphQL
+ *   3. fileCreate           ──->  Shopify Admin GraphQL
  *                                (file register, permanent CDN URL পাওয়া)
  *       │
  *       ▼
- *   result.file.url  →  "https://cdn.shopify.com/s/files/..."
+ *   result.file.url  ->  "https://cdn.shopify.com/s/files/..."
  *
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * ASYNC FILE PROCESSING  ⚠️
+ * ASYNC FILE PROCESSING
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
  *   fileCreate mutation complete হলেই file সাথে সাথে ready হয় না।
  *   Shopify background-এ process করে। fileStatus lifecycle:
  *
- *     UPLOADED  →  PROCESSING  →  READY   (সফল হলে)
- *                              →  FAILED  (কোনো কারণে ব্যর্থ হলে)
+ *     UPLOADED  ->  PROCESSING  ->  READY   (সফল হলে)
+ *                              ->  FAILED  (কোনো কারণে ব্যর্থ হলে)
  *
  *   এই utility সরাসরি url + fileStatus return করে। Production-এ READY
  *   confirm করতে চাইলে shopifyPollFileStatus() helper ব্যবহার করো।
@@ -74,19 +74,19 @@
  *   atomic: false  (default — partial save)
  *   ┌──────────────────────────────────────────────────────────────────────┐
  *   │ ৫টা file পাঠালে ৩টা valid, ২টা invalid হলে:                         │
- *   │   → ৩টা valid file Shopify-তে upload হয়ে যাবে                       │
- *   │   → ২টা invalid গুলো result.errors[] array-এ থাকবে                  │
- *   │   → result.ok = false (কারণ কিছু error ছিল)                          │
- *   │   → result.files = [uploaded 3 files]                                │
+ *   │   -> ৩টা valid file Shopify-তে upload হয়ে যাবে                       │
+ *   │   -> ২টা invalid গুলো result.errors[] array-এ থাকবে                  │
+ *   │   -> result.ok = false (কারণ কিছু error ছিল)                          │
+ *   │   -> result.files = [uploaded 3 files]                                │
  *   │ Use case: gallery upload যেখানে partial success acceptable            │
  *   └──────────────────────────────────────────────────────────────────────┘
  *
  *   atomic: true  (all-or-nothing)
  *   ┌──────────────────────────────────────────────────────────────────────┐
  *   │ ৫টা file-এর যেকোনো একটাও invalid হলে:                               │
- *   │   → কোনো file-ই Shopify-তে upload হবে না                            │
- *   │   → সব validation error একসাথে result.errors[] array-এ আসবে         │
- *   │   → result.ok = false, result.files = []                             │
+ *   │   -> কোনো file-ই Shopify-তে upload হবে না                            │
+ *   │   -> সব validation error একসাথে result.errors[] array-এ আসবে         │
+ *   │   -> result.ok = false, result.files = []                             │
  *   │ Use case: product variant set যেখানে সব না হলে কোনোটাই চাই না,      │
  *   │           অথবা required form যেখানে সব fields mandatory               │
  *   └──────────────────────────────────────────────────────────────────────┘
@@ -96,29 +96,29 @@
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
  *   shopifyUploadFile(admin, file, options?)
- *     → SingleUploadResult          result.file / result.error shortcut সহ
- *     → formData.get("field") থেকে single file
+ *     -> SingleUploadResult          result.file / result.error shortcut সহ
+ *     -> formData.get("field") থেকে single file
  *
  *   shopifyUploadFiles(admin, files, options?)
- *     → UploadResult                batch upload, partial অথবা atomic
- *     → formData.getAll("field") থেকে multiple files
+ *     -> UploadResult                batch upload, partial অথবা atomic
+ *     -> formData.getAll("field") থেকে multiple files
  *
  *   shopifyUploadMultipleFields(admin, fieldMap, sharedOptions?)
- *     → MultiFieldUploadResult      multiple form fields, group-wise atomic
- *     → প্রতিটা field আলাদা group — একটার error অন্যটাকে affect করে না
+ *     -> MultiFieldUploadResult      multiple form fields, group-wise atomic
+ *     -> প্রতিটা field আলাদা group — একটার error অন্যটাকে affect করে না
  *
  *   shopifyUploadFromRequest(admin, request, field?, options?)
- *     → SingleUploadResult | UploadResult
- *     → maxFiles: 1 হলে SingleUploadResult (result.file / result.error সহ)
- *     → maxFiles > 1 হলে UploadResult (result.files / result.errors)
- *     → one-liner action wrapper — formData parse নিজেই করে
+ *     -> SingleUploadResult | UploadResult
+ *     -> maxFiles: 1 হলে SingleUploadResult (result.file / result.error সহ)
+ *     -> maxFiles > 1 হলে UploadResult (result.files / result.errors)
+ *     -> one-liner action wrapper — formData parse নিজেই করে
  *
  *   shopifyPollFileStatus(admin, fileId, options?)
- *     → { ok, fileStatus, url, attempts }
- *     → fileCreate-এর পরে READY হওয়া পর্যন্ত poll করে
+ *     -> { ok, fileStatus, url, attempts }
+ *     -> fileCreate-এর পরে READY হওয়া পর্যন্ত poll করে
  *
  *   SHOPIFY_UPLOAD_ERROR_CODES
- *     → machine-readable error code constants
+ *     -> machine-readable error code constants
  *
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * UploadOptions  (all optional)
@@ -147,7 +147,7 @@
  * QUICK EXAMPLES
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- * ① Single image — shopifyUploadFile:
+ * 1. Single image — shopifyUploadFile:
  *
  *    import { shopifyUploadFile } from "~/utils/shopifyFileUpload.server";
  *    const { admin } = await authenticate.admin(request);
@@ -157,25 +157,25 @@
  *    const result = await shopifyUploadFile(admin, formData.get("avatar"), {
  *        allowedTypes: ["image/jpeg", "image/png", "image/webp"],
  *        maxSize: 2 * 1024 * 1024,
- *        // waitForReady: true,       ← default, no need to set explicitly
- *        // pollMaxAttempts: 15,      ← optional, default 15 (~22s max wait)
- *        // pollIntervalMs:  1500,    ← optional, default 1500ms
+ *        // waitForReady: true,       <- default, no need to set explicitly
+ *        // pollMaxAttempts: 15,      <- optional, default 15 (~22s max wait)
+ *        // pollIntervalMs:  1500,    <- optional, default 1500ms
  *    });
  *    if (!result.ok) return Response.json({ error: result.error.message }, { status: 422 });
  *    return Response.json({ url: result.file.url });
- *    // result.file.url        → "https://cdn.shopify.com/s/files/..." (confirmed READY)
- *    // result.file.fileStatus → "READY"
- *    // result.file.id         → "gid://shopify/MediaImage/..."
+ *    // result.file.url        -> "https://cdn.shopify.com/s/files/..." (confirmed READY)
+ *    // result.file.fileStatus -> "READY"
+ *    // result.file.id         -> "gid://shopify/MediaImage/..."
  *
  *    // waitForReady: false — returns immediately, url may be null
  *    const result2 = await shopifyUploadFile(admin, formData.get("avatar"), {
  *        allowedTypes: ["image/"],
- *        waitForReady: false,         // ← fire-and-forget
+ *        waitForReady: false,         // <- fire-and-forget
  *    });
- *    // result2.file.fileStatus → "UPLOADED" | "PROCESSING" (not yet ready)
- *    // result2.file.url        → null  (Shopify still processing)
+ *    // result2.file.fileStatus -> "UPLOADED" | "PROCESSING" (not yet ready)
+ *    // result2.file.url        -> null  (Shopify still processing)
  *
- * ② Multiple images — shopifyUploadFiles:
+ * 2. Multiple images — shopifyUploadFiles:
  *
  *    import { shopifyUploadFiles } from "~/utils/shopifyFileUpload.server";
  *    const result = await shopifyUploadFiles(admin, formData.getAll("gallery"), {
@@ -186,7 +186,7 @@
  *    if (!result.ok) return Response.json({ errors: result.errors }, { status: 400 });
  *    return Response.json({ files: result.files });
  *
- * ③ Video upload:
+ * 3. Video upload:
  *
  *    const result = await shopifyUploadFile(admin, formData.get("video"), {
  *        allowedTypes: ["video/mp4", "video/webm", "video/quicktime"],
@@ -195,7 +195,7 @@
  *    if (!result.ok) return Response.json({ error: result.error.message }, { status: 422 });
  *    return Response.json({ url: result.file.url });
  *
- * ④ Multiple fields — shopifyUploadMultipleFields:
+ * 4. Multiple fields — shopifyUploadMultipleFields:
  *
  *    import { shopifyUploadMultipleFields } from "~/utils/shopifyFileUpload.server";
  *    const result = await shopifyUploadMultipleFields(admin, {
@@ -207,9 +207,9 @@
  *    // একটা field-এ error হলেও বাকি fields-এর upload চলতে থাকে
  *    if (!result.ok) return Response.json({ errors: result.errors }, { status: 422 });
  *    return Response.json({ files: result.files });
- *    // result.files[n].field → কোন field থেকে এসেছে
+ *    // result.files[n].field -> কোন field থেকে এসেছে
  *
- * ⑤ One-liner single — shopifyUploadFromRequest (maxFiles: 1):
+ * 5. One-liner single — shopifyUploadFromRequest (maxFiles: 1):
  *
  *    import { shopifyUploadFromRequest } from "~/utils/shopifyFileUpload.server";
  *    const result = await shopifyUploadFromRequest(admin, request, "avatar", {
@@ -219,9 +219,9 @@
  *    });
  *    if (!result.ok) return Response.json({ error: result.error.message }, { status: 422 });
  *    return Response.json({ url: result.file.url });
- *    // maxFiles: 1 → result.file / result.error shortcut available
+ *    // maxFiles: 1 -> result.file / result.error shortcut available
  *
- * ⑥ One-liner multiple — shopifyUploadFromRequest (maxFiles > 1):
+ * 6. One-liner multiple — shopifyUploadFromRequest (maxFiles > 1):
  *
  *    const result = await shopifyUploadFromRequest(admin, request, "gallery", {
  *        maxFiles: 8,
@@ -229,9 +229,9 @@
  *    });
  *    if (!result.ok) return Response.json({ errors: result.errors }, { status: 422 });
  *    return Response.json({ files: result.files });
- *    // maxFiles > 1 → result.files / result.errors (array form)
+ *    // maxFiles > 1 -> result.files / result.errors (array form)
  *
- * ⑦ Atomic upload — all-or-nothing:
+ * 7. Atomic upload — all-or-nothing:
  *
  *    const result = await shopifyUploadFiles(admin, formData.getAll("images"), {
  *        atomic: true,
@@ -241,7 +241,7 @@
  *    });
  *    if (!result.ok) return Response.json({ errors: result.errors }, { status: 422 });
  *
- * ⑧ Poll until READY — shopifyPollFileStatus:
+ * 8. Poll until READY — shopifyPollFileStatus:
  *
  *    import { shopifyUploadFile, shopifyPollFileStatus } from "~/utils/shopifyFileUpload.server";
  *    const upload = await shopifyUploadFile(admin, formData.get("image"), { allowedTypes: ["image/"] });
@@ -250,7 +250,7 @@
  *    const poll = await shopifyPollFileStatus(admin, upload.file.id);
  *    if (!poll.ok) return Response.json({ error: "File processing failed." }, { status: 500 });
  *    return Response.json({ url: poll.url });
- *    // poll.url → confirmed ready CDN URL
+ *    // poll.url -> confirmed ready CDN URL
  *
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -269,7 +269,7 @@ const DEFAULT_MAX_TOTAL_SIZE = 100 * 1024 * 1024;
 const DEFAULT_MAX_FILES = 10;
 
 /**
- * MIME prefix → Shopify stagedUploadsCreate resource type
+ * MIME prefix -> Shopify stagedUploadsCreate resource type
  * Ref: https://shopify.dev/docs/api/admin-graphql/latest/enums/StagedUploadTargetGenerateUploadResource
  *
  * @type {Array<[string, string]>}  ordered — more specific entries first
@@ -283,11 +283,11 @@ const RESOURCE_TYPE_RULES = [
 ];
 
 /**
- * MIME prefix → Shopify fileCreate contentType
+ * MIME prefix -> Shopify fileCreate contentType
  * IMAGE | VIDEO | FILE  (GenericFile for everything else)
  */
 const CONTENT_TYPE_RULES = [
-    ["model/", "FILE"],   // 3D models → GenericFile in fileCreate
+    ["model/", "FILE"],   // 3D models -> GenericFile in fileCreate
     ["video/", "VIDEO"],
     ["image/", "IMAGE"],
 ];
@@ -363,7 +363,7 @@ const STAGED_UPLOADS_CREATE_MUTATION = `#graphql
 const FILE_CREATE_MUTATION = `#graphql
     # API: 2026-04 | Scope: write_files
     # https://shopify.dev/docs/api/admin-graphql/latest/mutations/fileCreate
-    # ⚠️  Files are processed ASYNC. Poll fileStatus until READY before use.
+    # Files are processed ASYNC. Poll fileStatus until READY before use.
     mutation fileCreate($files: [FileCreateInput!]!) {
         fileCreate(files: $files) {
             files {
@@ -438,7 +438,7 @@ const FILE_STATUS_QUERY = `#graphql
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * MIME type → Shopify stagedUploadsCreate resource enum string.
+ * MIME type -> Shopify stagedUploadsCreate resource enum string.
  * @param {string} mimeType
  * @returns {string}
  */
@@ -450,7 +450,7 @@ function resolveResourceType(mimeType) {
 }
 
 /**
- * MIME type → Shopify fileCreate contentType enum string.
+ * MIME type -> Shopify fileCreate contentType enum string.
  * @param {string} mimeType
  * @returns {string}
  */
@@ -462,7 +462,7 @@ function resolveContentType(mimeType) {
 }
 
 /**
- * MIME type → S3 HTTP method.
+ * MIME type -> S3 HTTP method.
  *
  * Despite common misconceptions, Shopify uses multipart POST for ALL file types
  * (image, video, 3D model, PDF). The stagedUploadsCreate response always includes
@@ -584,9 +584,9 @@ async function getStagedTargets(admin, files) {
 /**
  * Step 2: Upload a file directly to the S3 pre-signed URL.
  *
- *   Image/PDF/generic → multipart POST
+ *   Image/PDF/generic -> multipart POST
  *     Shopify's `parameters` MUST come before the "file" field in the FormData.
- *   Video/3D model    → binary PUT with Content-Type header
+ *   Video/3D model    -> binary PUT with Content-Type header
  *
  * @param {File}   file
  * @param {object} target   Single stagedTarget from getStagedTargets
@@ -668,7 +668,7 @@ async function registerFilesInShopify(admin, targets, files, options = {}) {
 
 /**
  * Full 3-step pipeline for a single validated file.
- * validate → staged target → S3 upload → Shopify register
+ * validate -> staged target -> S3 upload -> Shopify register
  *
  * @param {object}  admin
  * @param {File}    file
@@ -881,8 +881,8 @@ export async function shopifyUploadFile(admin, file, options = {}) {
  *     maxFiles: 10,
  *     maxSize: 5 * 1024 * 1024,
  * });
- * // result.files  → successfully uploaded files
- * // result.errors → failed files (with code + message)
+ * // result.files  -> successfully uploaded files
+ * // result.errors -> failed files (with code + message)
  * if (!result.ok) return Response.json({ errors: result.errors }, { status: 400 });
  * return Response.json({ files: result.files.map(f => ({ url: f.url, id: f.id })) });
  *
@@ -1027,7 +1027,7 @@ export async function shopifyUploadFiles(admin, files, options = {}) {
  *
  * Group-wise atomic behaviour:
  *   • Each field is an independent group.
- *   • ANY error in a field → that field is entirely rejected (nothing uploaded for it).
+ *   • ANY error in a field -> that field is entirely rejected (nothing uploaded for it).
  *   • Other fields proceed normally — one field's failure doesn't block others.
  *
  * Options merging:
@@ -1069,7 +1069,7 @@ export async function shopifyUploadFiles(admin, files, options = {}) {
  *
  * // result.errors shape:
  * // {
- * //   thumbnail: [],           ← empty = uploaded OK
+ * //   thumbnail: [],           <- empty = uploaded OK
  * //   gallery:   [{ file: "big.jpg", code: "FILE_TOO_LARGE", ... }],
  * //   video:     [],
  * //   brochure:  [],
@@ -1184,11 +1184,11 @@ export async function shopifyUploadMultipleFields(admin, fieldMap, sharedOptions
  * One-liner convenience wrapper — parses formData internally, then delegates.
  *
  * Behaviour based on maxFiles option:
- *   maxFiles: 1  →  delegates to shopifyUploadFile
+ *   maxFiles: 1  ->  delegates to shopifyUploadFile
  *                   result.file + result.error shortcuts are available
- *   maxFiles > 1 →  delegates to shopifyUploadFiles
+ *   maxFiles > 1 ->  delegates to shopifyUploadFiles
  *                   result.files + result.errors arrays
- *   maxFiles not set → defaults to shopifyUploadFiles (array form)
+ *   maxFiles not set -> defaults to shopifyUploadFiles (array form)
  *
  * @param {object}   admin
  * @param {Request}  request
@@ -1198,7 +1198,7 @@ export async function shopifyUploadMultipleFields(admin, fieldMap, sharedOptions
  * @returns {Promise<SingleUploadResult|UploadResult>}
  *
  * @example
- * // Single — maxFiles: 1 → result.file / result.error
+ * // Single — maxFiles: 1 -> result.file / result.error
  * export const action = async ({ request }) => {
  *     const { admin } = await authenticate.admin(request);
  *     const result = await shopifyUploadFromRequest(admin, request, "avatar", {
@@ -1211,7 +1211,7 @@ export async function shopifyUploadMultipleFields(admin, fieldMap, sharedOptions
  * };
  *
  * @example
- * // Multiple — maxFiles > 1 → result.files / result.errors
+ * // Multiple — maxFiles > 1 -> result.files / result.errors
  * export const action = async ({ request }) => {
  *     const { admin } = await authenticate.admin(request);
  *     const result = await shopifyUploadFromRequest(admin, request, "gallery", {
@@ -1227,11 +1227,11 @@ export async function shopifyUploadFromRequest(admin, request, field = "files", 
     const formData = await request.formData();
 
     if (options.maxFiles === 1) {
-        // Single-file path → result.file / result.error shortcuts
+        // Single-file path -> result.file / result.error shortcuts
         return shopifyUploadFile(admin, formData.get(field), options);
     }
 
-    // Multi-file path → result.files / result.errors arrays
+    // Multi-file path -> result.files / result.errors arrays
     return shopifyUploadFiles(admin, formData.getAll(field), options);
 }
 

@@ -30,6 +30,12 @@ function humanize(varName) {
 
 const ALL_VAR_NAMES = Object.keys(CSS_DEFAULTS).sort();
 
+// Set to true to show the raw `--nbl-x-y-z` CSS variable name under each
+// field's human-readable label (useful for debugging/power users). Off by
+// default — most merchants have no use for the raw variable name and it
+// was just visual noise under every single row.
+const SHOW_RAW_VAR_NAME = false;
+
 function AdvancedRow({ varName, cssVars, onChange, disabled }) {
     const rawValue = cssVars[varName] ?? CSS_DEFAULTS[varName] ?? "";
     const isDirty = cssVars[varName] !== CSS_DEFAULTS[varName];
@@ -88,7 +94,9 @@ function AdvancedRow({ varName, cssVars, onChange, disabled }) {
                         }}>Modified</span>
                     )}
                 </div>
-                <div style={{ fontSize: 10, color: DS.textHint, fontFamily: "monospace" }}>{varName}</div>
+                {SHOW_RAW_VAR_NAME && (
+                    <div style={{ fontSize: 10, color: DS.textHint, fontFamily: "monospace" }}>{varName}</div>
+                )}
             </div>
 
             {/* Value input */}
@@ -114,7 +122,7 @@ function AdvancedRow({ varName, cssVars, onChange, disabled }) {
                     cursor: disabled || !isDirty ? "default" : "pointer",
                     opacity: isDirty ? 1 : 0.4,
                 }}
-            >↩</button>
+            >Revert</button>
         </div>
     );
 }

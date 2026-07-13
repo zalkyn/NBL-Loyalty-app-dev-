@@ -9,11 +9,11 @@
  * per-shop token — see ensureLooxFlowToken.js) for the merchant to paste
  * into their own Flow workflow's "Send HTTP request" action.
  *
- *   route.jsx        → loader, action, page composition
+ *   route.jsx        -> loader, action, page composition
  *   components/
- *     SetupSteps.jsx        → the click-by-click instructions
- *     CopyField.jsx         → read-only value + Copy button
- *     RegenerateUrlCard.jsx → "Generate a new URL" danger-zone action
+ *     SetupSteps.jsx        -> the click-by-click instructions
+ *     CopyField.jsx         -> read-only value + Copy button
+ *     RegenerateUrlCard.jsx -> "Generate a new URL" danger-zone action
  */
 
 import { useEffect } from "react";

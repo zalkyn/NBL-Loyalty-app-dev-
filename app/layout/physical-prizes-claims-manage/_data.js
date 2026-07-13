@@ -9,10 +9,10 @@ export const DEFAULT_PER_PAGE = 10;
 export const MAX_PER_PAGE = 50;
 
 export const STATUS_CONFIG = {
-    PENDING: { label: "Pending", tone: "warning", icon: "🕐" },
-    FULFILLED: { label: "Fulfilled", tone: "info", icon: "📦" },
-    COMPLETED: { label: "Completed", tone: "success", icon: "✅" },
-    CANCELLED: { label: "Cancelled", tone: "critical", icon: "❌" },
+    PENDING: { label: "Pending", tone: "warning" },
+    FULFILLED: { label: "Fulfilled", tone: "info" },
+    COMPLETED: { label: "Completed", tone: "success" },
+    CANCELLED: { label: "Cancelled", tone: "critical" },
 };
 
 export const FILTER_TABS = [
