@@ -8,7 +8,7 @@
 import { h, Fragment } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { icon } from './icons.js';
-import { formatNumber } from './utils.js';
+import { formatNumber, buildReferralLink } from './utils.js';
 import { LauncherButton } from './components/LauncherButton.jsx';
 import { WidgetShell } from './components/WidgetShell.jsx';
 import { GuestPanel } from './components/GuestPanel.jsx';
@@ -114,7 +114,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
 
     const { provisioning, provisionNeeded, inFlight, failed: provisionFailed } = useCustomerProvision({ isLoggedIn, customer, appConfig, proxyPath });
     const referralConfig = widgetConfig.referral || {};
-    const refModal = useReferralModal({ isLoggedIn, proxyPath, provisioning: inFlight, provisionNeeded, customerId: shopifyCustomerId, redirectUrl: referralConfig.redirectUrl });
+    const refModal = useReferralModal({ isLoggedIn, proxyPath, provisioning: inFlight, provisionNeeded, customerId: shopifyCustomerId, redirectUrl: referralConfig.redirectUrl, redirectEnabled: referralConfig.redirectEnabled });
 
     // ── Explicit "Join our program" step ──────────────────────────────────────
     // Two distinct ways to land here:
@@ -169,7 +169,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
             if (Array.isArray(config.prizeClaims)) setPrizeClaims(config.prizeClaims);
             if (Array.isArray(config.transactions)) setTransactions(config.transactions);
             if (config.referralCode) {
-                setReferralLink(shopUrl + '/?nbl-referral=' + config.referralCode);
+                setReferralLink(buildReferralLink(shopUrl, referralConfig.linkPath, config.referralCode));
             }
         },
     });

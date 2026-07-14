@@ -78,6 +78,17 @@ export const WIDGET_CONFIG_DEFAULTS = {
         // Empty = default to the storefront homepage ("/"). See
         // handleLogin() in useReferralModal.js for how this is consumed.
         redirectUrl: "",
+        // Whether the app forces a post-login/register return_to redirect
+        // at all. When false, handleLogin() sends the customer to Shopify's
+        // login/register page with no return_to param — Shopify's own
+        // default behaviour decides where they land (redirectUrl above is
+        // ignored in that case). See handleLogin() in useReferralModal.js.
+        redirectEnabled: true,
+        // Path (relative, must start with "/") that the referral link
+        // itself points to — i.e. where a friend lands when they click a
+        // shared referral link. Empty/invalid falls back to the storefront
+        // homepage ("/"). See buildReferralLink() in App.jsx / main.preact.jsx.
+        linkPath: "/",
     },
 };
 
@@ -232,12 +243,28 @@ export const WIDGET_CONFIG_SECTIONS = [
     {
         key: "referral",
         label: "Referral",
-        description: "Control what happens after a customer signs in to claim a referral discount.",
+        description: "Control the referral link customers share, and what happens after a customer signs in to claim a referral discount.",
         fields: [
+            {
+                key: "referral_linkPath",
+                label: "Referral link page",
+                hint: "The page a friend lands on when they open a shared referral link (the widget then opens the referral popup there automatically). Leave empty to use the storefront homepage. E.g. /pages/referral. Must be a relative path starting with /.",
+                type: "text",
+                configKey: "referral.linkPath",
+                default: "/",
+            },
+            {
+                key: "referral_redirectEnabled",
+                label: "Redirect after sign-in / registration",
+                hint: "When on, a new customer is sent back to a chosen page after signing in or registering from the referral popup (see the URL field below), so they can come back and see their discount code. When off, the app doesn't force a redirect — Shopify's own default sign-in behaviour applies instead.",
+                type: "toggle",
+                configKey: "referral.redirectEnabled",
+                default: true,
+            },
             {
                 key: "referral_redirectUrl",
                 label: "Post-login redirect URL",
-                hint: "Where a new customer lands after signing in or registering from the referral popup, so they can come back and see their discount code. Leave empty to use the storefront homepage. E.g. /pages/welcome. Only takes effect on stores using Shopify's newer Customer Accounts — see the note on the Referral tab of the widget for details.",
+                hint: "Where a new customer lands after signing in or registering from the referral popup, so they can come back and see their discount code. Leave empty to use the storefront homepage. E.g. /pages/welcome. Only used when 'Redirect after sign-in / registration' above is on, and only takes effect on stores using Shopify's newer Customer Accounts — see the note on the Referral tab of the widget for details.",
                 type: "text",
                 configKey: "referral.redirectUrl",
                 default: "",
