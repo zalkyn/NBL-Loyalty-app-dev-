@@ -4,6 +4,7 @@
 
 import { h, render } from 'preact';
 import { App } from './App.jsx';
+import { buildReferralLink } from './utils.js';
 
 function onReady(fn) {
     if (window.NBL_v1) { fn(); return; }
@@ -35,7 +36,8 @@ function boot() {
         ? Number(loyaltyApp.points)
         : (customerConfig.points || 0);
 
-    var referralLink = (liquidData.shopUrl || '') + '/?nbl-referral=' + (liquidData.referralCode || '');
+    var referralConfig = widgetConfig.referral || {};
+    var referralLink = buildReferralLink(liquidData.shopUrl, referralConfig.linkPath, liquidData.referralCode);
 
     // ── Guest auth links — purono html.js guestBodyHTML()-er loginUrl/signupUrl
     //    derivation-er shathe match kore (shop-er account routes, fallback shadharon path).

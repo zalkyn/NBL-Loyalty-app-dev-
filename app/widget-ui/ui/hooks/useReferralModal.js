@@ -59,7 +59,7 @@ function wait(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisionNeeded, customerId, redirectUrl }) {
+export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisionNeeded, customerId, redirectUrl, redirectEnabled }) {
     // NOTE: `provisioning` here is expected to be useCustomerProvision's
     // `inFlight` value (always accurate), not its `provisioning` (overlay-only,
     // can stay false even while a call is pending if the overlay is disabled
@@ -331,6 +331,16 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
         // registration, with no theme changes needed on the merchant's
         // side — see https://shopify.dev/docs/storefronts/themes/sign-in.
         //
+        // redirectEnabled is merchant-configurable (Customize > Referral in
+        // the admin — see cssVarsConfig.js's referral.redirectEnabled
+        // field). When off, the app deliberately omits return_to and lets
+        // Shopify's own default sign-in behaviour decide where the customer
+        // lands — redirectUrl below is irrelevant in that case.
+        if (redirectEnabled === false) {
+            window.location.href = '/customer_authentication/login';
+            return;
+        }
+
         // redirectUrl is merchant-configurable (Customize > Referral in the
         // admin — see cssVarsConfig.js's referral.redirectUrl field).
         // return_to only accepts relative paths, so anything that isn't one
