@@ -69,9 +69,11 @@ export function useCustomersPage(loaderData, actionData) {
         && navigatingTo === null
         && nav.location?.pathname === window.location.pathname;
 
-    // ── Search with debounce ──────────────────────────────────────────────────
+    // ── Search — manual, not auto-search ─────────────────────────────────────
+    // Typing only updates localSearch (the input's own displayed value) —
+    // the URL/loader only updates when the customer explicitly submits
+    // (Search button click or Enter key), via handleSearchSubmit below.
     const [localSearch, setLocalSearch] = useState(search);
-    const debounceRef = useRef(null);
     useEffect(() => { setLocalSearch(search); }, [search]);
 
     // ── URL updater ───────────────────────────────────────────────────────────
@@ -87,11 +89,19 @@ export function useCustomersPage(loaderData, actionData) {
 
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleSearch = useCallback((e) => {
-        const val = e.target.value;
-        setLocalSearch(val);
-        clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => updateURL({ search: val, page: 1 }), 400);
-    }, [updateURL]);
+        setLocalSearch(e.target.value);
+    }, []);
+
+    // Fires the actual search — Search button click, or Enter key in the
+    // field (see handleSearchKeyDown). Always resets to page 1, same as the
+    // old debounced version did.
+    const handleSearchSubmit = useCallback(() => {
+        updateURL({ search: localSearch, page: 1 });
+    }, [updateURL, localSearch]);
+
+    const handleSearchKeyDown = useCallback((e) => {
+        if (e.key === "Enter") handleSearchSubmit();
+    }, [handleSearchSubmit]);
 
     const handleSortChange     = useCallback((e) => updateURL({ sortBy: e.target.value, page: 1 }), [updateURL]);
     const handlePageChange     = useCallback((p)  => updateURL({ page: p }), [updateURL]);
@@ -113,7 +123,7 @@ export function useCustomersPage(loaderData, actionData) {
         page, pageSize, search, sortBy,
         localSearch, loaderError: error,
         isSyncRunning, isLoading, navigatingTo,
-        handleSearch, handleSortChange,
+        handleSearch, handleSearchSubmit, handleSearchKeyDown, handleSortChange,
         handlePageChange, handlePageSizeChange,
         handleSync, handleDetails,
     };

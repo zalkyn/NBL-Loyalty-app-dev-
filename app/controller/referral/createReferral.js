@@ -13,6 +13,7 @@ import { DEFAULT_REFERRAL_SELECT } from "./referralSelect.js";
  * @param {string}        [input.orderId]
  * @param {string}        [input.status]                - "ACTIVE" | "PENDING" | "USED" | "CANCELLED" | "EXPIRED"
  * @param {string}        [input.discountCode]
+ * @param {string}        [input.discountNodeId]        - Shopify GID of the codeDiscountNode behind discountCode (see Referral.discountNodeId's schema comment).
  * @param {string}        [input.discountInfo]
  * @param {boolean}       [input.discountUsed]
  * @param {boolean}       [input.rewardGiven]
@@ -47,6 +48,7 @@ export const createReferral = async (input, select = DEFAULT_REFERRAL_SELECT) =>
                         orderId: input.orderId ?? null,
                         status: input.status ?? "PENDING",
                         discountCode: input.discountCode ?? null,
+                        discountNodeId: input.discountNodeId ?? null,
                         discountInfo: input.discountInfo ?? null,
                         discountUsed: input.discountUsed ?? false,
                         rewardGiven: input.rewardGiven ?? false,

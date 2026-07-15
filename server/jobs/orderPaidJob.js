@@ -11,6 +11,7 @@ import { syncCustomerConfig } from "../../app/controller/metafieldsSync/syncCust
 import { getCustomerRewardByCode } from "../../app/controller/customerReward/getCustomerReward.js";
 import { updateCustomerReward } from "../../app/controller/customerReward/updateCustomerReward.js";
 import { updateReferral } from "../../app/controller/referral/updateReferral.js";
+import enqueueDiscountDeleteJob from "../../app/controller/jobs/enqueueDiscountDeleteJob.js";
 import { callShopifyGraphql, SHOPIFY_RETRYABLE_ERRORS } from "../../app/utils/shopifyGraphql.js";
 
 /** @constant {string} Module identifier for structured logging */
@@ -1050,7 +1051,7 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
                         code: { in: [...discountCodeSet] },
                         status: { notIn: ["USED", "EXPIRED", "CANCELLED", "REDEEMED"] },
                     },
-                    select: { id: true, code: true, title: true },
+                    select: { id: true, code: true, title: true, discountNodeId: true },
                 }),
             { module: MODULE, shop, customerId: customer.id }
         );
@@ -1060,8 +1061,20 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
         const orderLabel = getOrderLabel(order);
 
         await Promise.all(
-            rewards.map((reward) =>
-                Promise.all([
+            rewards.map((reward) => {
+                // Non-critical, fire-and-forget — see the matching comment
+                // in customers/$id/_action.server.js's handleCancelReward.
+                // Deliberately NOT part of the Promise.all below: order
+                // processing must never wait on this hygiene step.
+                enqueueDiscountDeleteJob({
+                    shop,
+                    discountNodeId: reward.discountNodeId,
+                    source: "reward_used",
+                    entityType: "reward",
+                    entityId: reward.id,
+                });
+
+                return Promise.all([
                     updateCustomerReward(reward.id, {
                         status: "USED",
                         discountUsed: true,
@@ -1080,8 +1093,8 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
                         },
                         session
                     ),
-                ])
-            )
+                ]);
+            })
         );
 
         // Non-critical — voucher status already updated. syncCustomerConfig

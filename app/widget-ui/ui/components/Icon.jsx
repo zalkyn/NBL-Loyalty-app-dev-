@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/Icon.jsx
+// app/widget-ui/ui/components/Icon.jsx
 // Generic icon wrapper — reusable everywhere an icon() SVG is rendered
 // (item leading icons, chevrons, section headers, nav, share buttons,
 // launcher icon, modal icons). Sizing is controlled via CSS classes

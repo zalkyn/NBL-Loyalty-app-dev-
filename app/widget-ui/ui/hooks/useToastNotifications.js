@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/hooks/useToastNotifications.js
+// app/widget-ui/ui/hooks/useToastNotifications.js
 // Toast notification list — DERIVED CLIENT-SIDE from `transactions`, which
 // already arrived for free on this page load via the customer metafield
 // (see loyalty.liquid -> NBL_v1.customer.config.transactions ->

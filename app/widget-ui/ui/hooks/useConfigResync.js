@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/hooks/useConfigResync.js
+// app/widget-ui/ui/hooks/useConfigResync.js
 // Periodic, silent background resync of an already-joined customer's app
 // config — heals a customer's Shopify metafield (and the widget's own
 // in-memory state) that's gone stale from a backend schema change or old
@@ -48,6 +48,12 @@ function markSyncedNow(customerId) {
     } catch (e) { /* ignore — storage unavailable/blocked, just skip caching */ }
 }
 
+// Exported so useAutoUpdateSync.js can mark this same per-customer timer
+// satisfied right after a mode="auto" version resync — otherwise the
+// periodic hygiene sync above could fire again shortly after, for a
+// customer who was just freshly synced a moment ago for a different reason.
+export { markSyncedNow };
+
 /**
  * @param {Object} params
  * @param {boolean} params.isMember  - logged in AND already joined (has a
@@ -64,8 +70,14 @@ function markSyncedNow(customerId) {
  *                                     config object on a successful resync,
  *                                     so the caller can patch its own state
  *                                     in place (points, rewards, etc.).
+ * @param {(syncing: boolean) => void} [params.onSyncingChange] - Called
+ *                                     true right before the request fires
+ *                                     and false once it settles (success or
+ *                                     failure) — drives Header.jsx's tiny,
+ *                                     non-blocking sync indicator. Optional;
+ *                                     safe to omit.
  */
-export function useConfigResync({ isMember, proxyPath, customerId, onSynced }) {
+export function useConfigResync({ isMember, proxyPath, customerId, onSynced, onSyncingChange }) {
     const ranRef = useRef(false);
 
     useEffect(() => {
@@ -82,6 +94,7 @@ export function useConfigResync({ isMember, proxyPath, customerId, onSynced }) {
         if (dueSince < SYNC_INTERVAL_MS) return; // not due yet
 
         ranRef.current = true;
+        if (onSyncingChange) onSyncingChange(true);
 
         requestConfigResync({ proxyPath })
             .then((data) => {
@@ -94,9 +107,11 @@ export function useConfigResync({ isMember, proxyPath, customerId, onSynced }) {
                 if (data && data.config) {
                     onSynced(data.config);
                 }
+                if (onSyncingChange) onSyncingChange(false);
             })
             .catch((err) => {
                 markSyncedNow(customerId);
+                if (onSyncingChange) onSyncingChange(false);
                 // eslint-disable-next-line no-console
                 console.error('[NBL ConfigResync] failed:', err);
             });

@@ -245,6 +245,25 @@ input:not([type=checkbox], [type=radio]) {
     --nbl-notify-heading-size: 16px;
     --nbl-notify-heading-weight: 600;
 
+    /* ── Update banner — theme-adaptive by default (var-references to
+       existing brand/text tokens above, same pattern as --nbl-launcher-bg /
+       --nbl-toast-icon-color), so it looks right immediately on any theme
+       even before an admin ever visits Customize > Advanced > Update Banner
+       to override it. Declaring these HERE (not just in cssVarsConfig.js's
+       CSS_DEFAULTS) matters — a shop whose saved Style.cssVars predates
+       this feature won't have these keys in its JSON at all, so without a
+       baseline declared directly in this stylesheet, var() would resolve to
+       nothing and the banner would render with invisible/blank colors. ── */
+    --nbl-update-banner-bg: var(--nbl-primary);
+    --nbl-update-banner-border-color: var(--nbl-primary);
+    --nbl-update-banner-icon-color: var(--nbl-primary);
+    --nbl-update-banner-title-color: var(--nbl-text);
+    --nbl-update-banner-desc-color: var(--nbl-text);
+    --nbl-update-banner-btn-bg: var(--nbl-primary);
+    --nbl-update-banner-btn-color: var(--nbl-btn-color);
+    --nbl-update-banner-close-color: var(--nbl-text);
+
+
     /* ── Status colors (claims, referral messages — NOT notification) ── */
     --nbl-status-success-bg: #f0fdf4;
     --nbl-status-success-border: #86efac;
@@ -903,6 +922,106 @@ input:not([type=checkbox], [type=radio]) {
     font-weight: 600;
 }
 
+/* ── Update banner — shown above tab content when an admin-announced
+       config update hasn't synced to this customer yet. Colors are all
+       admin-configurable (Customize > Advanced > Update Banner —
+       cssVarsConfig.js), independent of the notification panel's own
+       colors right above this in the file. ── */
+.nbl-update-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 12px 16px 0;
+    padding: 12px 14px;
+    border-radius: var(--nbl-radius-md);
+    background: var(--nbl-update-banner-bg);
+    border: 1px solid var(--nbl-update-banner-border-color);
+}
+
+.nbl-update-banner__icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    color: var(--nbl-update-banner-icon-color);
+}
+
+.nbl-update-banner__icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.nbl-update-banner__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.nbl-update-banner__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--nbl-update-banner-title-color);
+    line-height: 1.3;
+}
+
+.nbl-update-banner__desc {
+    font-size: 12px;
+    color: var(--nbl-update-banner-desc-color);
+    line-height: 1.35;
+}
+
+.nbl-update-banner__desc--error {
+    color: var(--nbl-status-error-color, #b91c1c);
+    font-weight: 600;
+}
+
+.nbl-update-banner__btn {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    border: none;
+    border-radius: var(--nbl-radius-sm);
+    background: var(--nbl-update-banner-btn-bg);
+    color: var(--nbl-update-banner-btn-color);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity var(--nbl-dur-fast) ease;
+}
+
+.nbl-update-banner__btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.nbl-update-banner__close {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: var(--nbl-radius-full);
+    background: none;
+    color: var(--nbl-update-banner-close-color);
+    cursor: pointer;
+}
+
+.nbl-update-banner__close svg {
+    width: 14px;
+    height: 14px;
+}
+
+.nbl-update-banner__close:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+
 @keyframes nbl-toast-entrance {
     from {
         transform: translateY(16px);
@@ -1408,10 +1527,15 @@ input:not([type=checkbox], [type=radio]) {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    HEADER
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-.nbl-header {
+.nbl-sticky-top {
     position: sticky;
     top: 0;
     z-index: 10;
+    flex-shrink: 0;
+    background: var(--nbl-surface);
+}
+
+.nbl-header {
     flex-shrink: 0;
     will-change: auto;
     contain: layout style;
@@ -2339,6 +2463,39 @@ input:not([type=checkbox], [type=radio]) {
     border: 3px solid color-mix(in srgb, var(--nbl-notify-bg) 40%, transparent);
     border-top-color: var(--nbl-modal-input-focus);
     animation-duration: 0.8s;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SYNC INDICATOR — tiny, non-blocking spinner shown next
+   to the header points balance while a background config
+   resync (periodic hygiene sync OR version auto-sync) is
+   in flight. Deliberately NOT the same as the provision
+   overlay above — this never blocks or dims the widget,
+   it's meant to be easy to miss if you're not looking for
+   it. Controlled by widgetConfig.showSyncIndicator
+   (Customize > Update Notifications), default on.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.nbl-header__sync-indicator {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 6px;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.nbl-header__sync-indicator.active {
+    opacity: 0.85;
+    transform: scale(1);
+}
+
+.nbl-spinner--sync {
+    width: 10px;
+    height: 10px;
+    border-width: 1.5px;
+    border-color: color-mix(in srgb, var(--nbl-points-color) 30%, transparent);
+    border-top-color: var(--nbl-points-color);
+    animation-duration: 0.7s;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

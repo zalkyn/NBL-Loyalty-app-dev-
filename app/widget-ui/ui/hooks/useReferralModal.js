@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/hooks/useReferralModal.js
+// app/widget-ui/ui/hooks/useReferralModal.js
 // Referral modal state machine — purono referral-modal.js-er pura replacement.
 // URL/pending code detection, fetch + cache, step management — sob ekhane.
 // =============================================================================
@@ -30,6 +30,16 @@ const ERROR_MESSAGES = {
 };
 
 function friendlyMessage(data) {
+    // UPDATE_REQUIRED's text is dynamic (the admin's announced version
+    // title/description — see checkUpdateRequired.js), unlike every other
+    // code here which maps to a fixed, hardcoded string. Every other code
+    // stays on the static ERROR_MESSAGES map on purpose — trusting
+    // data.message in general would risk surfacing a raw/unexpected
+    // backend string to the customer; UPDATE_REQUIRED is deliberately the
+    // one exception because its message is always built server-side from
+    // the version's own admin-authored title/description, never from
+    // internal error detail.
+    if (data && data.code === 'UPDATE_REQUIRED' && data.message) return data.message;
     if (data && data.code && ERROR_MESSAGES[data.code]) return ERROR_MESSAGES[data.code];
     return GENERIC_ERROR_MESSAGE;
 }
@@ -200,6 +210,13 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
         } else if (LOCKED_CODES.indexOf(data.code) > -1) {
             setStep('locked');
             setLockedMessage({ type: 'error', text: friendlyMessage(data) });
+        } else if (data.code === 'UPDATE_REQUIRED') {
+            // See checkUpdateRequired.js / reward-claim.jsx's matching guard.
+            // Message component (ReferralModal.jsx) renders an "Update"
+            // button instead of "Try Again" for this flag — retrying the
+            // same submission would just fail again the same way until the
+            // customer actually syncs.
+            setFormMessage({ type: 'error', text: friendlyMessage(data), isUpdateRequired: true });
         } else {
             setFormMessage({ type: 'error', text: friendlyMessage(data) });
         }

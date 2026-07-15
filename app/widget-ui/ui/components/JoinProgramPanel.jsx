@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/JoinProgramPanel.jsx
+// app/widget-ui/ui/components/JoinProgramPanel.jsx
 // Logged-in-but-not-yet-joined view — shown instead of the normal tabs in
 // two cases (see App.jsx's needsJoin):
 //   1. autoProvisionCustomer is turned off (merchant wants explicit opt-in).

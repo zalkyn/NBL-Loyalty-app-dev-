@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/GuestPanel.jsx
+// app/widget-ui/ui/components/GuestPanel.jsx
 // Logged-out (guest) view — hero card + perks strip + Create Account / Sign In.
 // Purono modules-main/html.js guestBodyHTML()-er Preact component replacement.
 // Renders full-bleed (no .nbl-widget-body padding) — see WidgetShell.jsx.

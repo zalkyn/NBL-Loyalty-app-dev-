@@ -25,6 +25,7 @@ import { generateRewardVoucher } from "app/graphql/mutation/discounts/generateRe
 import createTransaction from "app/controller/transaction/createTransaction";
 import { createCustomerReward } from "@app/controller/customerReward/createCustomerReward.js";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig.js";
+import checkUpdateRequired from "@controller/customers/checkUpdateRequired.js";
 import { withRetry } from "app/utils/retry/withRetry.js";
 import { dbRetry } from "app/utils/retry/dbRetry.js";
 
@@ -79,6 +80,13 @@ export async function action({ request }) {
         if (!rewardRule) throw new AppError("Reward rule not found", 404);
         if (!rewardRule.isActive) throw new AppError("Reward is no longer active", 422);
 
+        // Guard: pending update — see checkUpdateRequired.js. 409 (not 422)
+        // since this isn't a business-rule violation about the reward
+        // itself, it's a stale-client conflict; the customer can resolve it
+        // themselves (via the widget's update banner) and immediately retry.
+        const updateCheck = await checkUpdateRequired({ shop, customerDbId: customer.id });
+        if (updateCheck.blocked) throw new AppError(updateCheck.message, 409, "UPDATE_REQUIRED");
+
         // Guard: global usage cap
         if (rewardRule.usageLimit && rewardRule.usageCount >= rewardRule.usageLimit) {
             throw new AppError("Reward usage limit reached", 422);
@@ -132,7 +140,7 @@ export async function action({ request }) {
         // the narrow tradeoff is that a full-page-reload within the ~1-3s
         // this takes could briefly show a stale points/rewards list — the
         // voucher code itself is unaffected either way.
-        syncCustomerConfig(admin, shopifyId).then((updatedCustomer) => {
+        syncCustomerConfig(admin, shopifyId, { scope: ["core", "transactions", "rewards"] }).then((updatedCustomer) => {
             if (!updatedCustomer) {
                 logger.error("Metafield sync failed after all retries — redemption is still valid", {
                     module: MODULE,
@@ -163,7 +171,7 @@ export async function action({ request }) {
     } catch (err) {
         const statusCode = err instanceof AppError ? err.statusCode : 500;
         logger.error("Get voucher api error", err, { module: MODULE, shop, shopifyId });
-        return jsonResponse({ error: "Get voucher api error", details: err.message }, statusCode);
+        return jsonResponse({ error: "Get voucher api error", details: err.message, code: err.code || undefined }, statusCode);
     }
 }
 
@@ -211,8 +219,9 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
 
     // ── 2. Generate the Shopify voucher ──────────────────────────────────────
     let voucherCode;
+    let discountNodeId = null;
     try {
-        voucherCode = await withRetry(
+        const voucherResult = await withRetry(
             () => generateRewardVoucher(admin, customerId, rewardRule),
             {
                 maxAttempts: 3,
@@ -226,6 +235,8 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
                 context: { shop, module: MODULE, customerId, rewardRuleId: rewardRule.id },
             }
         );
+        voucherCode = voucherResult?.code;
+        discountNodeId = voucherResult?.discountNodeId ?? null;
         if (!voucherCode) throw new Error("Voucher generation returned no code");
     } catch (err) {
         logger.error("Voucher generation failed after points were deducted — refunding", {
@@ -313,6 +324,7 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
             title: title || rewardRule.title || "Points redemption",
             description: rewardRule.description || "Redeemed points for a discount voucher",
             code: voucherCode,
+            discountNodeId,
             pointsCost,
             status: "ACTIVE",
         }),
@@ -383,9 +395,16 @@ function jsonResponse(data, status) {
 }
 
 class AppError extends Error {
-    constructor(message, statusCode = 500) {
+    constructor(message, statusCode = 500, code = null) {
         super(message);
         this.name = "AppError";
         this.statusCode = statusCode;
+        // Optional machine-readable code (e.g. 'UPDATE_REQUIRED') — lets the
+        // frontend distinguish specific business-rule errors from a generic
+        // one without parsing the message text. Most AppErrors don't need
+        // this (their message is shown verbatim either way); only codes the
+        // frontend actually branches on should set it. See api.js's
+        // postJson and App.jsx's handleClaim.
+        this.code = code;
     }
 }
