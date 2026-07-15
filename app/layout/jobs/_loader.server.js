@@ -8,6 +8,7 @@
 
 import prisma from "db-server";
 import { logger } from "app/utils/logger.js";
+import { getDiscountDeleteSettings } from "app/controller/appSettings/discountDeleteSettings.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "layout/jobs/_loader.server.js";
@@ -39,7 +40,7 @@ export async function loadJobsData({ shop, status, type, page = 1, perPage = DEF
     };
 
     try {
-        const [jobs, total, distinctTypes] = await Promise.all([
+        const [jobs, total, distinctTypes, discountDeleteSettings] = await Promise.all([
             prisma.job.findMany({
                 where,
                 orderBy: { updatedAt: "desc" },
@@ -53,6 +54,7 @@ export async function loadJobsData({ shop, status, type, page = 1, perPage = DEF
                 select: { type: true },
                 orderBy: { type: "asc" },
             }),
+            getDiscountDeleteSettings(shop),
         ]);
 
         return {
@@ -61,9 +63,10 @@ export async function loadJobsData({ shop, status, type, page = 1, perPage = DEF
             page,
             perPage,
             types: distinctTypes.map((t) => t.type),
+            discountDeleteSettings,
         };
     } catch (err) {
         logger.error("Failed to load jobs", { module: MODULE, shop, status, type, error: err?.message });
-        return { jobs: [], total: 0, page, perPage, types: [] };
+        return { jobs: [], total: 0, page, perPage, types: [], discountDeleteSettings: { onRewardCancel: false, onRewardUsed: false } };
     }
 }

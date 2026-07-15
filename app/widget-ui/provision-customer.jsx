@@ -28,6 +28,7 @@ import { logger } from "app/utils/logger";
 import { authenticate } from "shopify-server";
 import { normalizeCustomerGid } from "@controller/customers/normalizeCustomerGid.js";
 import ensureAndSyncCustomer from "@controller/customers/ensureAndSyncCustomer.js";
+import { checkRateLimit } from "app/utils/rateLimiter.server.js";
 
 const MODULE = "widget-data.provision-customer";
 
@@ -35,6 +36,7 @@ const ERROR_CODES = {
     UNAUTHORIZED: { code: "UNAUTHORIZED", status: 401 },
     NOT_LOGGED_IN: { code: "NOT_LOGGED_IN", status: 400 },
     SHOPIFY_CUSTOMER_NOT_FOUND: { code: "SHOPIFY_CUSTOMER_NOT_FOUND", status: 404 },
+    RATE_LIMITED: { code: "RATE_LIMITED", status: 429 },
     INTERNAL_ERROR: { code: "INTERNAL_ERROR", status: 500 },
 };
 
@@ -62,6 +64,17 @@ export async function action({ request }) {
             throw createError("Not logged in.", ERROR_CODES.NOT_LOGGED_IN);
         }
         shopifyId = normalizeCustomerGid(loggedInCustomerId);
+
+        // ── Server-side rate limit ───────────────────────────────────────────
+        // Backstops useCustomerProvision.js's sessionStorage circuit breaker,
+        // which only stops the widget's own JS from retrying — not a direct,
+        // replayed request. This path is meant to fire once per genuinely
+        // new customer, so 5/min per customer is already generous; it just
+        // needs to block obvious hammering. See rateLimiter.server.js.
+        const rateCheck = checkRateLimit(`provision:${shop}:${shopifyId}`, { max: 5, windowMs: 60_000 });
+        if (!rateCheck.allowed) {
+            throw createError("Too many requests.", ERROR_CODES.RATE_LIMITED);
+        }
 
         // ── 3. Ensure record exists + sync — see ensureAndSyncCustomer.js ──────
         const { config, created } = await ensureAndSyncCustomer(admin, session, loggedInCustomerId);

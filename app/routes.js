@@ -31,8 +31,14 @@ export default [
         // point events
         route("app/points-events", "./layout/points-events/route.jsx"),
 
-        // background jobs (retry/monitor)
-        route("app/jobs", "./layout/jobs/route.jsx"),
+        // ── Developer-only tools ────────────────────────────────────────────
+        // Deliberately NOT linked from AppNav.jsx (see that file's comment) —
+        // sensitive/destructive operations (bulk customer metafield writes/
+        // deletes, raw job queue management) that only someone with direct
+        // codebase + database access should ever touch. Reachable by exact
+        // URL only.
+        route("app/dev-config/queue-jobs", "./layout/dev-config/queue-jobs/route.jsx"),
+        route("app/dev-config/version-tracking", "./layout/dev-config/version-tracking/route.jsx"),
 
         // Loox review points — Shopify Flow setup guide
         route("app/loox-setup", "./layout/loox-setup/route.jsx"),

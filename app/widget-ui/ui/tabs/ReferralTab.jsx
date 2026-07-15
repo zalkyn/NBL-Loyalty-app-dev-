@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/ReferralTab.jsx
+// app/widget-ui/ui/tabs/ReferralTab.jsx
 // Referral tab — purono html.js referralTabHTML() + tabs/referral.js-er
 // combined replacement (static shell + dynamic reward rows + copy/share).
 // =============================================================================

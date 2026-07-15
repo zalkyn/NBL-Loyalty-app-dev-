@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/Header.jsx
+// app/widget-ui/ui/components/Header.jsx
 // Header-top (title+points / guest title) + Nav — purono html.js headerTopHTML
 // + navHTML-er replacement. compact prop -> useCompactHeader hook theke ashe.
 // =============================================================================
@@ -13,7 +13,7 @@ import { Text } from './Text.jsx';
 import { usePointsBump } from '../hooks/usePointsBump.js';
 import { formatNumber } from '../utils.js';
 
-export function Header({ isLoggedIn, customerName, points, compact, activeTab, onNavChange, onClose, lbl }) {
+export function Header({ isLoggedIn, customerName, points, compact, activeTab, onNavChange, onClose, lbl, syncing }) {
     const bump = usePointsBump(points);
     const [ready, setReady] = useState(false);
 
@@ -56,6 +56,15 @@ export function Header({ isLoggedIn, customerName, points, compact, activeTab, o
                                 {ptsBefore}
                                 <Text as="span" bare extraClass="nbl-customer-points">{formatNumber(points)}</Text>
                                 {ptsAfter || ''}
+                                {/* Non-blocking — see ui.css's module comment above
+                                    .nbl-header__sync-indicator for why this is
+                                    deliberately separate from the provision
+                                    overlay. Always rendered (not conditionally
+                                    mounted) so the opacity/scale transition can
+                                    actually run instead of popping in/out. */}
+                                <span class={`nbl-header__sync-indicator${syncing ? ' active' : ''}`} aria-hidden="true">
+                                    <span class="nbl-spinner nbl-spinner--sync" />
+                                </span>
                             </div>
                         </>
                     ) : (

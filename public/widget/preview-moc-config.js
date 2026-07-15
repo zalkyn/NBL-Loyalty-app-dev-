@@ -337,6 +337,177 @@ window.NBL_v1.appConfig = {
         name: "Artic Maze",
         first_name: "Artic",
         last_name: "Maze",
+        // ─────────────────────────────────────────────────────────────────
+        // main.preact.jsx's mergeCustomerConfig() reads configCore /
+        // configTransactions / configRewards / configPrizeClaims (the split
+        // metafield shape — see syncCustomerConfig.js) — NOT the flat
+        // `config` object below. Without these, mergeCustomerConfig() finds
+        // nothing in any of its four sources, so the merged
+        // customer.config.id comes out undefined regardless of whatever is
+        // in `config` — making the widget always compute "not joined"
+        // (needsJoin=true) in preview, no matter what section/scene is
+        // selected. This was the actual cause of the Join panel always
+        // showing — nothing to do with scene wiring, build staleness, or
+        // caching, all of which were red herrings. `config` below is left
+        // in place harmlessly (nothing reads it after boot() runs — see
+        // main.preact.jsx's `customer.config = customerConfig` line, which
+        // overwrites it with mergeCustomerConfig()'s result regardless).
+        // ─────────────────────────────────────────────────────────────────
+        configCore: {
+            appName: "North Borders Loyalty App",
+            id: 1,
+            shopifyId: "gid://shopify/Customer/9441305526522",
+            points: 2563545,
+            referralCode: "NBL_3D3E3MBMOTOIN2S",
+            // null = "no active version to be behind on" in the preview,
+            // same as a real customer who's never had a version published
+            // for their shop — keeps the update banner/auto-sync scenes
+            // opt-in via their own dedicated scene rather than firing
+            // unprompted on every other section.
+            lastSyncedVersionKey: null,
+        },
+        configTransactions: {
+            // 10 entries — default homeActivitiesPerPage is 5, so this gives
+            // two full pages to actually exercise "Load More" / pagination
+            // in the preview, instead of the single entry that made it
+            // impossible to check before.
+            transactions: [
+                {
+                    id: 10, customerId: 1, type: "REDEEM", points: -90, balanceAfter: 2563545,
+                    eventId: null, expiresAt: null, reason: "90 points redeemed for reward: Voucher $7",
+                    metadata: {}, createdAt: "2026-06-21T06:58:51.810Z", status: "COMPLETED",
+                    activity: "90 points redeemed for reward: Voucher $7", pointsRuleId: null,
+                    rewardId: 123, referralId: null, reward: null,
+                },
+                {
+                    id: 9, customerId: 1, type: "EARN", points: 240, balanceAfter: 2563635,
+                    eventId: 5501, expiresAt: null, reason: "Points earned on order #5501",
+                    metadata: {}, createdAt: "2026-06-19T14:22:10.000Z", status: "COMPLETED",
+                    activity: "240 points earned on order #5501", pointsRuleId: 3,
+                    rewardId: null, referralId: null, reward: null,
+                },
+                {
+                    id: 8, customerId: 1, type: "REDEEM", points: -1000, balanceAfter: 2563395,
+                    eventId: null, expiresAt: null, reason: "1000 points redeemed for reward: Voucher $50",
+                    metadata: {}, createdAt: "2026-06-20T20:23:52.534Z", status: "COMPLETED",
+                    activity: "1000 points redeemed for reward: Voucher $50", pointsRuleId: null,
+                    rewardId: 122, referralId: null, reward: null,
+                },
+                {
+                    id: 7, customerId: 1, type: "REFERRAL", points: 200, balanceAfter: 2564395,
+                    eventId: null, expiresAt: null, reason: "Referral bonus — a friend joined using your code",
+                    metadata: {}, createdAt: "2026-06-18T09:05:33.000Z", status: "COMPLETED",
+                    activity: "200 points earned — referral bonus", pointsRuleId: null,
+                    rewardId: null, referralId: 41, reward: null,
+                },
+                {
+                    id: 6, customerId: 1, type: "EARN", points: 85, balanceAfter: 2564195,
+                    eventId: 5488, expiresAt: null, reason: "Points earned on order #5488",
+                    metadata: {}, createdAt: "2026-06-16T11:40:02.000Z", status: "COMPLETED",
+                    activity: "85 points earned on order #5488", pointsRuleId: 3,
+                    rewardId: null, referralId: null, reward: null,
+                },
+                {
+                    id: 5, customerId: 1, type: "REDEEM", points: -360000, balanceAfter: 2564110,
+                    eventId: null, expiresAt: null, reason: "360000 points redeemed for prize: Wireless Headphones",
+                    metadata: {}, createdAt: "2026-06-20T20:24:15.580Z", status: "COMPLETED",
+                    activity: "360000 points redeemed — prize claim", pointsRuleId: null,
+                    rewardId: null, referralId: null, reward: null,
+                },
+                {
+                    id: 4, customerId: 1, type: "EARN", points: 500, balanceAfter: 2924110,
+                    eventId: 5470, expiresAt: null, reason: "Points earned on order #5470",
+                    metadata: {}, createdAt: "2026-06-12T08:15:47.000Z", status: "COMPLETED",
+                    activity: "500 points earned on order #5470", pointsRuleId: 3,
+                    rewardId: null, referralId: null, reward: null,
+                },
+                {
+                    id: 3, customerId: 1, type: "EARN", points: 60, balanceAfter: 2923610,
+                    eventId: 5461, expiresAt: null, reason: "Points earned on order #5461",
+                    metadata: {}, createdAt: "2026-06-09T17:52:19.000Z", status: "COMPLETED",
+                    activity: "60 points earned on order #5461", pointsRuleId: 3,
+                    rewardId: null, referralId: null, reward: null,
+                },
+                {
+                    id: 2, customerId: 1, type: "REFERRAL", points: 200, balanceAfter: 2923550,
+                    eventId: null, expiresAt: null, reason: "Referral bonus — a friend joined using your code",
+                    metadata: {}, createdAt: "2026-06-05T13:30:00.000Z", status: "COMPLETED",
+                    activity: "200 points earned — referral bonus", pointsRuleId: null,
+                    rewardId: null, referralId: 39, reward: null,
+                },
+                {
+                    id: 1, customerId: 1, type: "EARN", points: 150, balanceAfter: 2923350,
+                    eventId: 5432, expiresAt: null, reason: "Points earned on order #5432",
+                    metadata: {}, createdAt: "2026-06-01T10:00:00.000Z", status: "COMPLETED",
+                    activity: "150 points earned on order #5432", pointsRuleId: 3,
+                    rewardId: null, referralId: null, reward: null,
+                },
+            ],
+        },
+        configRewards: {
+            rewards: [
+                {
+                    id: 1,
+                    title: "Voucher $7",
+                    event: "MANUAL",
+                    type: "REDEEM",
+                    code: "NBL_NC3BFRU",
+                    rewardKey: "MANUAL:REDEEM:1:0:NBL_NC3BFRU:Voucher $7",
+                    orderId: null,
+                    pointsCost: 90,
+                    status: "ACTIVE",
+                    discountUsed: false,
+                    usedAt: null,
+                    expiresAt: null,
+                    metadata: {},
+                    description: "Redeemed points for a discount voucher",
+                    createdAt: "2026-06-21T06:58:51.795Z",
+                    updatedAt: "2026-06-21T06:58:51.795Z",
+                    rewardRuleId: 15,
+                    customerId: 1,
+                },
+                {
+                    id: 2,
+                    title: "Voucher $50",
+                    event: "MANUAL",
+                    type: "REDEEM",
+                    code: "NBL_QOY9HFW",
+                    rewardKey: "MANUAL:REDEEM:1:0:NBL_QOY9HFW:Voucher $50",
+                    orderId: null,
+                    pointsCost: 1000,
+                    status: "ACTIVE",
+                    discountUsed: false,
+                    usedAt: null,
+                    expiresAt: null,
+                    metadata: {},
+                    description: "Redeemed points for a discount voucher",
+                    createdAt: "2026-06-20T20:23:52.534Z",
+                    updatedAt: "2026-06-20T20:23:52.534Z",
+                    rewardRuleId: 14,
+                    customerId: 1,
+                },
+            ],
+        },
+        configPrizeClaims: {
+            prizeClaims: [
+                {
+                    id: 1,
+                    status: "FULFILLED",
+                    pointsCost: 360000,
+                    physicalPrizeId: 2,
+                    createdAt: "2026-06-20T20:24:15.580Z",
+                    fulfilledAt: "2026-06-20T20:24:50.436Z",
+                },
+                {
+                    id: 2,
+                    status: "PENDING",
+                    pointsCost: 150000,
+                    physicalPrizeId: 1,
+                    createdAt: "2026-06-20T12:43:59.159Z",
+                    fulfilledAt: null,
+                },
+            ],
+        },
         config: {
             appName: "North Borders Loyalty App",
             id: 1,

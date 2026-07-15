@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/LauncherButton.jsx
+// app/widget-ui/ui/components/LauncherButton.jsx
 // Floating open/close button — purono html.js-er btnHTML replacement.
 // =============================================================================
 
@@ -10,7 +10,13 @@ import { Text } from './Text.jsx';
 import { formatNumber } from '../utils.js';
 
 export function LauncherButton({ isLoggedIn, points, position, launcherIconName, onClick, lbl }) {
-    const subtitleTemplate = lbl('launcherSubtitle') || '';
+    // Defense in depth: every other lbl() call site in the widget has a
+    // matching hardcoded fallback (see GuestPanel.jsx, JoinProgramPanel.jsx,
+    // etc.) — these two were the one place that didn't, so a widgetConfig
+    // missing/empty `labels` object (e.g. this exact class of bug — see
+    // _action.server.js's handleResetAll/handleClearAll comments) rendered
+    // a bare icon with no title text at all, and "0" with no "pts" suffix.
+    const subtitleTemplate = lbl('launcherSubtitle') || '[points] pts';
     const [subBefore, subAfter] = subtitleTemplate.split('[points]');
 
     return (
@@ -23,7 +29,7 @@ export function LauncherButton({ isLoggedIn, points, position, launcherIconName,
             >
                 <div class="nbl-launcher__icon" dangerouslySetInnerHTML={{ __html: launcherIcon(launcherIconName) }} />
                 <div class="nbl-launcher__label">
-                    <Text as="span" bare extraClass="nbl-launcher__title">{lbl('launcherTitle')}</Text>
+                    <Text as="span" bare extraClass="nbl-launcher__title">{lbl('launcherTitle') || 'Loyalty & Rewards'}</Text>
                     {isLoggedIn && (
                         <Text as="span" bare extraClass="nbl-launcher__sub">
                             {subBefore}

@@ -37,6 +37,7 @@ import {
     handleRetry,
     handleForceReset,
     handleDelete,
+    handleSaveDiscountDeleteSettings,
 } from "./_action.server";
 import { JobsTable } from "./components/JobsTable";
 
@@ -65,19 +66,21 @@ export const loader = async ({ request }) => {
     const { session } = await authenticate.admin(request);
 
     const url = new URL(request.url);
-    // has() check matters: an ABSENT "status" param (first visit) should
-    // default to FAILED, but an EXPLICITLY EMPTY "status=" (user picked
-    // "All statuses") must stay empty — `.get() || "FAILED"` would wrongly
-    // collapse both cases to FAILED.
-    const status = url.searchParams.has("status") ? url.searchParams.get("status") : "FAILED";
-    const type = url.searchParams.get("type") || "";
+    // "ALL" is an explicit sentinel for "no filter" — deliberately not an
+    // empty string. An empty-string option value round-tripping through
+    // URLSearchParams + the <s-select> web component was unreliable
+    // (selecting "All statuses"/"All types" sometimes silently failed to
+    // update the list) — a distinct non-empty value sidesteps that
+    // entirely and is what both the URL and the loader now use uniformly.
+    const status = url.searchParams.get("status") || "ALL";
+    const type = url.searchParams.get("type") || "ALL";
     const page = Number(url.searchParams.get("page")) || 1;
     const perPage = Number(url.searchParams.get("perPage")) || DEFAULT_PAGE_SIZE;
 
     const data = await loadJobsData({
         shop: session.shop,
-        status: status || undefined,
-        type: type || undefined,
+        status: status === "ALL" ? undefined : status,
+        type: type === "ALL" ? undefined : type,
         page,
         perPage,
     });
@@ -96,6 +99,7 @@ export const action = async ({ request }) => {
         case "retry": return handleRetry({ formData, session });
         case "forceReset": return handleForceReset({ formData, session });
         case "delete": return handleDelete({ formData, session });
+        case "saveDiscountDeleteSettings": return handleSaveDiscountDeleteSettings({ formData, session });
         default: return { ok: false, message: "Unknown intent." };
     }
 };
@@ -103,9 +107,20 @@ export const action = async ({ request }) => {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function JobsPage() {
-    const { jobs, total, page, perPage, types, status, type } = useLoaderData();
+    const { jobs, total, page, perPage, types, status, type, discountDeleteSettings } = useLoaderData();
     const [searchParams, setSearchParams] = useSearchParams();
     const fetcher = useFetcher();
+    const settingsFetcher = useFetcher();
+
+    const [onRewardCancel, setOnRewardCancel] = useState(discountDeleteSettings.onRewardCancel);
+    const [onRewardUsed, setOnRewardUsed] = useState(discountDeleteSettings.onRewardUsed);
+
+    function handleSaveSettings() {
+        settingsFetcher.submit(
+            { intent: "saveDiscountDeleteSettings", onRewardCancel: String(onRewardCancel), onRewardUsed: String(onRewardUsed) },
+            { method: "post" }
+        );
+    }
 
     const [selectedIds, setSelectedIds] = useState([]);
     const [pendingAction, setPendingAction] = useState(null);
@@ -212,6 +227,44 @@ export default function JobsPage() {
 
     return (
         <s-page heading="Background Jobs">
+            <s-section heading="Discount Code Cleanup">
+                <s-paragraph tone="subdued">
+                    When on, a background job (DISCOUNT_DELETE, listed below once
+                    any run) deletes the Shopify discount code for a reward in the
+                    matching situation. Off by default for both — a discount code
+                    left behind is just clutter in Shopify admin's discount list,
+                    not a functional problem, so this is opt-in.
+                </s-paragraph>
+                <s-box paddingBlockStart="base">
+                    <s-stack direction="block" gap="extra-small">
+                        <s-checkbox
+                            label="Delete when a redeemed reward is cancelled"
+                            checked={onRewardCancel}
+                            onChange={() => setOnRewardCancel((prev) => !prev)}
+                        ></s-checkbox>
+                        <s-checkbox
+                            label="Delete once a voucher is used at checkout"
+                            checked={onRewardUsed}
+                            onChange={() => setOnRewardUsed((prev) => !prev)}
+                        ></s-checkbox>
+                    </s-stack>
+                </s-box>
+                <s-box paddingBlockStart="base">
+                    <s-button
+                        variant="secondary"
+                        loading={settingsFetcher.state !== "idle" ? true : undefined}
+                        onClick={handleSaveSettings}
+                    >
+                        Save
+                    </s-button>
+                </s-box>
+                {settingsFetcher.data?.message && (
+                    <s-paragraph tone={settingsFetcher.data.ok ? "success" : "critical"}>
+                        {settingsFetcher.data.message}
+                    </s-paragraph>
+                )}
+            </s-section>
+
             <s-section heading="Filters">
                 <s-stack direction="inline" gap="base">
                     <s-select
@@ -219,7 +272,7 @@ export default function JobsPage() {
                         value={status}
                         onChange={(e) => updateParam("status", e.currentTarget.value)}
                     >
-                        <s-option value="" selected={status === ""}>All statuses</s-option>
+                        <s-option value="ALL" selected={status === "ALL"}>All statuses</s-option>
                         {STATUSES.map((s) => (
                             <s-option key={s} value={s} selected={status === s}>{s}</s-option>
                         ))}
@@ -229,14 +282,14 @@ export default function JobsPage() {
                         value={type}
                         onChange={(e) => updateParam("type", e.currentTarget.value)}
                     >
-                        <s-option value="" selected={type === ""}>All types</s-option>
+                        <s-option value="ALL" selected={type === "ALL"}>All types</s-option>
                         {types.map((t) => (
                             <s-option key={t} value={t} selected={type === t}>{t}</s-option>
                         ))}
                     </s-select>
                 </s-stack>
 
-                {!status && (
+                {status === "ALL" && (
                     <s-paragraph tone="subdued">
                         Bulk and group actions are only available when filtered to a
                         specific status — pick one above to select rows or act on a
@@ -268,7 +321,7 @@ export default function JobsPage() {
                             </s-button>
                         ))}
 
-                        {type && bulkActions.map((a) => (
+                        {type !== "ALL" && bulkActions.map((a) => (
                             <s-button
                                 key={`group-${a.intent}`}
                                 variant="secondary"

@@ -25,7 +25,12 @@
  * with provision-customer.jsx and the periodic resync in route.jsx.
  *
  * Response (200):
- *   { success: true, alreadyJoined: boolean }
+ *   { success: true, alreadyJoined: boolean, config: Object }
+ *   config is the same shape syncCustomerConfig.js writes to the customer's
+ *   metafields (id, shopifyId, points, referralCode, transactions, rewards,
+ *   prizeClaims, lastSyncedVersionKey) — included so the frontend can patch
+ *   its own state in place instead of reloading the page. See
+ *   useJoinProgram.js.
  *
  * Error responses (400 / 401 / 404 / 500):
  *   { success: false, code, message }
@@ -35,6 +40,7 @@ import { logger } from "app/utils/logger";
 import { authenticate } from "shopify-server";
 import { normalizeCustomerGid } from "@controller/customers/normalizeCustomerGid.js";
 import ensureAndSyncCustomer from "@controller/customers/ensureAndSyncCustomer.js";
+import { checkRateLimit } from "app/utils/rateLimiter.server.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "widget-data.join-program";
@@ -43,6 +49,7 @@ const ERROR_CODES = {
     UNAUTHORIZED: { code: "UNAUTHORIZED", status: 401 },
     NOT_LOGGED_IN: { code: "NOT_LOGGED_IN", status: 400 },
     SHOPIFY_CUSTOMER_NOT_FOUND: { code: "SHOPIFY_CUSTOMER_NOT_FOUND", status: 404 },
+    RATE_LIMITED: { code: "RATE_LIMITED", status: 429 },
     INTERNAL_ERROR: { code: "INTERNAL_ERROR", status: 500 },
 };
 
@@ -71,6 +78,17 @@ export async function action({ request }) {
         }
         shopifyId = normalizeCustomerGid(loggedInCustomerId);
 
+        // ── Server-side rate limit ───────────────────────────────────────────
+        // Backstops useJoinProgram.js's in-flight `joining` guard, which
+        // only stops a double-click from the widget's own JS — not a
+        // direct, replayed request. A real customer clicks this once; 5/min
+        // is already generous, it just needs to block obvious hammering.
+        // See rateLimiter.server.js.
+        const rateCheck = checkRateLimit(`join:${shop}:${shopifyId}`, { max: 5, windowMs: 60_000 });
+        if (!rateCheck.allowed) {
+            throw createError("Too many requests.", ERROR_CODES.RATE_LIMITED);
+        }
+
         // ── 3. Ensure record exists + sync — see ensureAndSyncCustomer.js ──────
         const { config, created } = await ensureAndSyncCustomer(admin, session, loggedInCustomerId);
 
@@ -87,7 +105,7 @@ export async function action({ request }) {
             });
         }
 
-        return jsonResponse({ success: true, alreadyJoined: !created }, 200);
+        return jsonResponse({ success: true, alreadyJoined: !created, config }, 200);
     } catch (err) {
         const errorDef = err?.errorDef || ERROR_CODES.INTERNAL_ERROR;
         const isClientError = errorDef.status < 500;

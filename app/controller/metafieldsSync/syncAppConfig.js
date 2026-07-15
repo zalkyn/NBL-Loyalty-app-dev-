@@ -1,6 +1,7 @@
 import prisma from "../../db.server.js";
 import shopId from "../../graphql/query/shop/shopId.js";
 import configMetafieldSyncMutation from "../../graphql/mutation/metafieldsSync/config.js";
+import getActiveConfigUpdateVersion from "../configUpdateVersion/getActiveConfigUpdateVersion.js";
 import { logger } from "../../utils/logger.js";
 import { withRetry } from "../../utils/retry/withRetry.js";
 import { SHOPIFY_RETRYABLE_ERRORS } from "../../utils/shopifyGraphql.js";
@@ -104,10 +105,29 @@ export default async function syncAppConfig(admin, session) {
             },
         });
 
+        // Widget "update available" banner — the active version's KEY ONLY
+        // (if any) for this shop. Comparing against a customer's own
+        // Customer.lastSyncedVersionKey is done entirely client-side (see
+        // main.preact.jsx's mergeCustomerConfig()), so the key is all that
+        // needs to reach the storefront for that. Deliberately NOT
+        // title/description — those are the admin's own internal notes
+        // (Version Tracking page) and must never reach the client at all,
+        // not even inspectable via devtools/network tab — the customer-
+        // facing banner text is a fixed, generic string configured once
+        // under Labels & Text (labels.updateBannerTitle/Desc), the same for
+        // every version, never derived from what a specific update
+        // actually contains. null when no version has ever been announced
+        // — the widget treats that as "nothing to compare against", never
+        // showing the banner.
+        const activeVersion = await getActiveConfigUpdateVersion(session?.shop);
+
         const metafield = {
             namespace: "app",
             key: "nbl_config_v1",
-            value: JSON.stringify({ ...shop }),
+            value: JSON.stringify({
+                ...shop,
+                updateVersion: activeVersion ? { key: activeVersion.versionKey } : null,
+            }),
             type: "json",
             ownerId: shopGid,
         };

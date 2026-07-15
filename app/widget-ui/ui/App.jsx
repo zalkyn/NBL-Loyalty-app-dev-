@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/App.jsx
+// app/widget-ui/ui/App.jsx
 // Root component — sob state ekhane. Purono widget.js + html.js + store.js +
 // bus.js + notifications.js + click-router.js (claim/prize-detail part)-er
 // shared replacement.
@@ -11,6 +11,7 @@ import { icon } from './icons.js';
 import { formatNumber, buildReferralLink } from './utils.js';
 import { LauncherButton } from './components/LauncherButton.jsx';
 import { WidgetShell } from './components/WidgetShell.jsx';
+import { UpdateBanner } from './components/UpdateBanner.jsx';
 import { GuestPanel } from './components/GuestPanel.jsx';
 import { JoinProgramPanel } from './components/JoinProgramPanel.jsx';
 import { NotificationPanel } from './components/NotificationPanel.jsx';
@@ -23,6 +24,8 @@ import { useJoinProgram } from './hooks/useJoinProgram.js';
 import { useConfigResync } from './hooks/useConfigResync.js';
 import { useApplyTheme } from './hooks/useApplyTheme.js';
 import { useToastNotifications } from './hooks/useToastNotifications.js';
+import { useUpdateBanner } from './hooks/useUpdateBanner.js';
+import { useAutoUpdateSync } from './hooks/useAutoUpdateSync.js';
 import { HomeTab } from './tabs/HomeTab.jsx';
 import { EarnTab } from './tabs/EarnTab.jsx';
 import { RewardsTab } from './tabs/RewardsTab.jsx';
@@ -67,6 +70,14 @@ export function App({ initialData, bridgeRef, hostEl }) {
     const [notification, setNotification] = useState(null);
     const [claimState, setClaimState] = useState('idle');
     const [claimErrorMsg, setClaimErrorMsg] = useState('');
+    // True when the last claim attempt was blocked specifically because the
+    // customer has a pending update (backend returned code
+    // 'UPDATE_REQUIRED' — see checkUpdateRequired.js). Changes the action
+    // button in NotificationPanel from "Try again" (retry the same claim,
+    // which would just fail again the same way) to "Update" (run the same
+    // sync-then-reload flow as the top banner's button — see
+    // handleUpdateClick below).
+    const [claimNeedsUpdate, setClaimNeedsUpdate] = useState(false);
 
     // ── Image preview (full-size view from any viewable Image) state ─────────
     const [previewImage, setPreviewImage] = useState(null);
@@ -106,42 +117,80 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // hooks below since both now call the backend exclusively via this path.
     const proxyPath = initialData.proxyPath || '/apps/widget';
 
+    // ── "Update available" banner — see useUpdateBanner.js for the full
+    //    state/logic (extracted out of this file, same pattern as
+    //    useReferralModal.js) and main.preact.jsx's computeUpdateStatus()
+    //    for the (admin flag + active version + customer mismatch)
+    //    condition that decides whether initialData.updateBanner is
+    //    non-null in the first place.
+    const {
+        updateBanner, effectiveUpdateBanner, updateDismissed, updateLoading, updateErrorMsg,
+        handleUpdateClick, dismiss: dismissUpdateBanner, resetDismiss: resetUpdateBannerDismiss, setPreviewUpdateBanner,
+    } = useUpdateBanner({ initialUpdateBanner: initialData.updateBanner, proxyPath, onSynced: applySyncedConfig });
+
     // Shopify customer id — needed by useCustomerProvision (below) and now
     // also useReferralModal (to scope its localStorage cache per-account,
     // see referralCache.js), so it's derived before both instead of down
     // near needsJoin where it used to live.
     const shopifyCustomerId = customer && customer.id;
 
-    const { provisioning, provisionNeeded, inFlight, failed: provisionFailed } = useCustomerProvision({ isLoggedIn, customer, appConfig, proxyPath });
+    const { provisioning, provisionNeeded, inFlight, failed: provisionFailed } = useCustomerProvision({ isLoggedIn, customer, widgetConfig, proxyPath });
     const referralConfig = widgetConfig.referral || {};
     const refModal = useReferralModal({ isLoggedIn, proxyPath, provisioning: inFlight, provisionNeeded, customerId: shopifyCustomerId, redirectUrl: referralConfig.redirectUrl, redirectEnabled: referralConfig.redirectEnabled });
 
     // ── Explicit "Join our program" step ──────────────────────────────────────
     // Two distinct ways to land here:
-    //   1. autoProvisionCustomer is OFF — merchant wants an explicit opt-in
-    //      click instead of a silent background join. needsJoin is true
-    //      from the very first render in this case.
-    //   2. autoProvisionCustomer is ON (default) but the silent attempt
-    //      failed (backend unreachable, timeout, error response) —
+    //   1. autoProvisionCustomer is OFF (default) — merchant wants an
+    //      explicit opt-in click instead of a silent background join.
+    //      needsJoin is true from the very first render in this case.
+    //   2. autoProvisionCustomer is explicitly turned ON but the silent
+    //      attempt failed (backend unreachable, timeout, error response) —
     //      useCustomerProvision never shows an alarming error itself, it
     //      just exposes `failed`; this becomes true only after that attempt
     //      settles, so the customer sees the provisioning spinner first and
     //      this panel only appears if that genuinely didn't work out —
     //      instead of silently landing on a broken widget (0 points, empty
     //      referral link) with no explanation or way to retry.
-    const autoProvisionEnabled = appConfig.autoProvisionCustomer !== false;
+    //
+    // hasConfig is real React state (not derived straight from `customer`,
+    // which is a plain const from initialData and never reassigned) purely
+    // so a successful explicit Join (below) can flip it after the fact —
+    // that's what lets needsJoin/isMember switch the widget straight to
+    // the normal member view without a page reload.
+    const [hasConfig, setHasConfig] = useState(!!(customer && customer.config && customer.config.id));
+    const autoProvisionEnabled = widgetConfig.autoProvisionCustomer === true;
     const needsJoin = !!(
         isLoggedIn
         && shopifyCustomerId
-        && (!customer.config || !customer.config.id)
+        && !hasConfig
         && (!autoProvisionEnabled || provisionFailed)
     );
     // Only meaningful when needsJoin is true via path 2 above — lets
     // JoinProgramPanel soften its copy ("we couldn't set this up
     // automatically") instead of the generic first-time wording.
     const joinFromAutoFailure = autoProvisionEnabled && provisionFailed;
-    const joinProgram = useJoinProgram({ proxyPath });
+    // No page reload on success — join-program.jsx now returns the fresh
+    // config, so onJoined patches state (applySyncedConfig, defined below —
+    // safe to reference here since it's hoisted, see App.jsx's own comment
+    // on applySyncedConfig) and flips hasConfig, same "resync response
+    // already has everything" reasoning as the update-sync hooks above.
+    const joinProgram = useJoinProgram({
+        proxyPath,
+        onJoined: function (config) {
+            applySyncedConfig(config);
+            setHasConfig(true);
+        },
+    });
     useApplyTheme(initialData.cssVars, hostEl);
+
+    // Admin Customize > Widget Config > New Customer Onboarding live
+    // preview override — see bridgeRef.setScene's 'join-program' case
+    // below. null means "no override, use the real needsJoin computed
+    // above"; true/false force the panel on/off regardless of the mock
+    // preview customer's real config state, same override pattern
+    // useUpdateBanner.js uses for the update banner (setPreviewUpdateBanner).
+    const [previewJoinProgram, setPreviewJoinProgram] = useState(null);
+    const effectiveNeedsJoin = previewJoinProgram !== null ? previewJoinProgram : needsJoin;
 
     // isLoggedIn means "authenticated with Shopify" — true even before the
     // customer has actually joined the loyalty program (needsJoin state).
@@ -153,7 +202,48 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // JoinProgramPanel intentionally shares GuestPanel's full-bleed layout
     // (see WidgetShell below), so treating needsJoin like the guest case
     // here is consistent, not a special case.
-    const isMember = isLoggedIn && !needsJoin;
+    const isMember = isLoggedIn && !effectiveNeedsJoin;
+
+    // ── Tiny non-blocking sync indicator (Header.jsx's .nbl-header__sync-
+    //    indicator) — shared by both background sync paths below. Kept as
+    //    plain boolean state, not tied to which specific path is running,
+    //    since the customer-facing cue is the same either way ("something
+    //    is quietly updating"), not which mechanism triggered it.
+    // Ref-counted, not a plain boolean — useConfigResync and useAutoUpdateSync
+    // both drive this via onSyncingChange(true/false), and in the (rare but
+    // real) case both are in flight at once — a version-mismatch sync AND
+    // the periodic hygiene sync both due on the same mount — a plain shared
+    // boolean would go false the moment EITHER one finishes, hiding the
+    // indicator while the other is still genuinely syncing. Counting active
+    // callers instead means it only clears once both have settled.
+    const [syncCount, setSyncCount] = useState(0);
+    const syncing = syncCount > 0;
+    function trackSyncing(active) {
+        setSyncCount((c) => Math.max(0, c + (active ? 1 : -1)));
+    }
+    const showSyncIndicator = (widgetConfig.resync && widgetConfig.resync.showSyncIndicator) !== false;
+
+    // ── Shared "apply a freshly-synced customer config to local state"
+    //    helper — used by all three resync paths (periodic hygiene sync
+    //    below, the manual Update-banner click, and auto-sync mode) so
+    //    they patch state identically instead of three near-duplicate
+    //    inline callbacks. None of these reload the page anymore — see
+    //    useUpdateBanner.js / useAutoUpdateSync.js for why: the resync
+    //    endpoint only ever returns this customer's OWN config (points/
+    //    rewards/transactions/prizeClaims/referralCode/lastSyncedVersionKey),
+    //    never shop-level data (reward rules, styles, labels) — so patching
+    //    exactly these fields is already complete, not a partial shortcut.
+    //    Shop-level data staying fresh is normal storefront/liquid
+    //    behavior (next navigation or reload), unrelated to this sync path.
+    function applySyncedConfig(config) {
+        if (typeof config.points === 'number') setPoints(config.points);
+        if (Array.isArray(config.rewards)) setCustomerRewards(config.rewards);
+        if (Array.isArray(config.prizeClaims)) setPrizeClaims(config.prizeClaims);
+        if (Array.isArray(config.transactions)) setTransactions(config.transactions);
+        if (config.referralCode) {
+            setReferralLink(buildReferralLink(shopUrl, referralConfig.linkPath, config.referralCode));
+        }
+    }
 
     // ── Periodic background config resync ──────────────────────────────────────
     // Only for customers who are actually fully set up (isMember) — nothing
@@ -163,15 +253,25 @@ export function App({ initialData, bridgeRef, hostEl }) {
         isMember,
         proxyPath,
         customerId: shopifyCustomerId,
-        onSynced: function (config) {
-            if (typeof config.points === 'number') setPoints(config.points);
-            if (Array.isArray(config.rewards)) setCustomerRewards(config.rewards);
-            if (Array.isArray(config.prizeClaims)) setPrizeClaims(config.prizeClaims);
-            if (Array.isArray(config.transactions)) setTransactions(config.transactions);
-            if (config.referralCode) {
-                setReferralLink(buildReferralLink(shopUrl, referralConfig.linkPath, config.referralCode));
-            }
-        },
+        onSynced: applySyncedConfig,
+        onSyncingChange: trackSyncing,
+    });
+
+    // ── Auto-sync mode for the update-version feature — see
+    //    useAutoUpdateSync.js. Only ever fires when Customize > Update
+    //    Notifications is set to "Auto-sync" AND this customer's own
+    //    config is actually behind (initialData.updateSyncNeeded, computed
+    //    server/liquid-side in main.preact.jsx's computeUpdateStatus()).
+    //    In "banner" mode this is always false and the hook is a no-op —
+    //    the banner (useUpdateBanner above) handles it via manual click
+    //    instead.
+    useAutoUpdateSync({
+        isMember,
+        needed: initialData.updateSyncNeeded,
+        proxyPath,
+        customerId: shopifyCustomerId,
+        onSynced: applySyncedConfig,
+        onSyncingChange: trackSyncing,
     });
 
     // ── Toast notifications (unseen transactions from since the customer's
@@ -213,6 +313,24 @@ export function App({ initialData, bridgeRef, hostEl }) {
         bridgeRef.setScene = function (scene) {
             // Any non-toast scene clears the dummy toast preview.
             if (scene !== 'notification-toast') setPreviewToasts(null);
+            // Any non-banner scene clears the dummy update-banner preview.
+            if (scene !== 'notification-update-banner') setPreviewUpdateBanner(null);
+            // Any non-join scene clears the join-panel override, so
+            // switching to a different Customize section always falls back
+            // to the real needsJoin computed from the mock preview
+            // customer (which has a full config, so normally shows the
+            // regular member dashboard) — see previewJoinProgram above.
+            if (scene !== 'join-program') setPreviewJoinProgram(null);
+            // Referral modal opened via the 'modal' scene (see below) stays
+            // open otherwise — nothing else in this function closes it, so
+            // switching to any other Customize/Labels section would leave
+            // it stuck overlaying whatever's selected next. Called
+            // unconditionally (no .isOpen check) because this closure is
+            // defined once at mount (see the empty deps array below) and
+            // would otherwise only ever see refModal's stale, mount-time
+            // isOpen value — closeModal() is a harmless no-op when already
+            // closed.
+            if (scene !== 'modal') refModal.closeModal();
 
             if (scene === 'notification-toast') {
                 setIsOpen(false);
@@ -221,6 +339,35 @@ export function App({ initialData, bridgeRef, hostEl }) {
                     { id: 'preview-2', type: 'REDEEM', activity: 'Reward unlocked: $10 off' },
                     { id: 'preview-3', type: 'REFERRAL', activity: 'Your friend joined — +200 points' },
                 ]);
+                return;
+            }
+            if (scene === 'notification-update-banner') {
+                setIsOpen(true);
+                setActiveTab('home');
+                resetUpdateBannerDismiss();
+                // Fixed demo text — deliberately NOT the real
+                // labels.updateBannerTitle/Desc lookup (widgetConfig here IS
+                // live-updated from the Advanced tab's OTHER color fields, but
+                // the actual customer-facing text lives on the separate Labels
+                // & Text tab and isn't necessarily loaded/relevant in this
+                // preview context) or any real version data. Same demo-data
+                // principle as the toast preview above.
+                setPreviewUpdateBanner({
+                    title: 'Update available',
+                    description: "We've made a few improvements to your account. Tap Update to see the latest.",
+                });
+                return;
+            }
+            if (scene === 'join-program') {
+                // Admin Customize > Widget Config > New Customer Onboarding
+                // preview — forces the Join panel on regardless of the mock
+                // customer's real config, so a merchant can see what it
+                // looks like without needing an actual not-yet-joined test
+                // customer. Cleared automatically the moment any other
+                // section/scene is selected (see the top of this function).
+                setIsOpen(true);
+                setActiveTab('home');
+                setPreviewJoinProgram(true);
                 return;
             }
             if (scene === 'launcher') {
@@ -328,13 +475,40 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // Both flows produce the SAME flat notification object — the unified
     // NotificationPanel renders whatever slots are present.
     function openInfo(content) {
+        // Gate claim-INITIATING panels only (content.claim === true — the
+        // "Spend X points for this reward?"/prize-claim confirm dialogs from
+        // RewardsTab.jsx / PrizesTab.jsx). Purely informational openInfo
+        // calls (EarnTab's rule explainer, ReferralTab's "link copied"
+        // toast, viewing an existing prize claim's details) have no
+        // `claim: true` and are never touched by this — nothing to block,
+        // they don't call the API. This is what "need update true hole
+        // notification dekhabena" is about — don't even let the customer
+        // get to the normal claim confirmation while behind; show the
+        // update message right away instead. Server-side checkUpdateRequired.js
+        // still enforces this independently either way (defense in depth —
+        // this client-side check is just a nicer UX shortcut, not the
+        // actual guarantee).
+        if (content.claim && updateBanner) {
+            setClaimState('idle');
+            setClaimErrorMsg('');
+            setClaimNeedsUpdate(true);
+            setNotification({
+                heading: updateBanner.title,
+                text: updateBanner.description || '',
+                claim: true,
+                data: null,
+            });
+            return;
+        }
         setClaimState('idle');
         setClaimErrorMsg('');
+        setClaimNeedsUpdate(false);
         setNotification({ ...content });
     }
     function openReward(code) {
         setClaimState('idle');
         setClaimErrorMsg('');
+        setClaimNeedsUpdate(false);
         setNotification({
             heading: lbl('notifyRewardHeading') || 'Success! Use this code at checkout',
             code: code || '',
@@ -399,7 +573,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
             if (status === 'COMPLETED' && claim.completedAt) detailRows.push({ key: 'Completed on', val: fmtDate(claim.completedAt) });
         }
 
-        let tUrl = '', tText = '', tLabel = 'Track your order';
+        let tUrl = '', tText = '', tLabel = lbl('prizeTrackingLabel') || 'Track your order';
         if (prizeConfig.showTrackingInfo && claim.trackingInfo && (status === 'FULFILLED' || status === 'COMPLETED')) {
             if (/^https?:\/\//i.test(claim.trackingInfo)) tUrl = claim.trackingInfo;
             else { tText = claim.trackingInfo; tLabel = claim.trackingInfo; }
@@ -432,6 +606,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
         if (!data) return;
         setClaimState('loading');
         setClaimErrorMsg('');
+        setClaimNeedsUpdate(false);
 
         try {
             if (data.isPrize) {
@@ -470,6 +645,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
         } catch (err) {
             setClaimState('error');
             setClaimErrorMsg(err.message || 'Something went wrong. Please try again.');
+            setClaimNeedsUpdate(err.code === 'UPDATE_REQUIRED');
         }
     }
 
@@ -502,13 +678,17 @@ export function App({ initialData, bridgeRef, hostEl }) {
                 onNavChange={setActiveNavigation}
                 onClose={closeWidget}
                 lbl={lbl}
+                syncing={syncing && showSyncIndicator}
                 notificationSlot={
                     <NotificationPanel
                         notification={notification}
                         claimState={claimState}
                         claimErrorMsg={claimErrorMsg}
+                        claimNeedsUpdate={claimNeedsUpdate}
+                        updateLoading={updateLoading}
                         onClose={closeNotification}
                         onClaim={handleClaim}
+                        onUpdateClick={handleUpdateClick}
                         lbl={lbl}
                     />
                 }
@@ -522,9 +702,19 @@ export function App({ initialData, bridgeRef, hostEl }) {
                         </div>
                     ) : null
                 }
+                updateBannerSlot={
+                    <UpdateBanner
+                        banner={effectiveUpdateBanner}
+                        loading={updateLoading}
+                        dismissed={updateDismissed}
+                        errorMsg={updateErrorMsg}
+                        onUpdate={handleUpdateClick}
+                        onDismiss={dismissUpdateBanner}
+                    />
+                }
             >
                 {isLoggedIn ? (
-                    needsJoin ? (
+                    effectiveNeedsJoin ? (
                         <JoinProgramPanel
                             joining={joinProgram.joining}
                             error={joinProgram.error}
@@ -609,7 +799,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
                 )}
             </WidgetShell>
 
-            <ReferralModal refModal={refModal} pointRules={pointRules} currencySymbol={currencySymbol} />
+            <ReferralModal refModal={refModal} pointRules={pointRules} currencySymbol={currencySymbol} onUpdateClick={handleUpdateClick} updateLoading={updateLoading} lbl={lbl} />
         </div>
     );
 }

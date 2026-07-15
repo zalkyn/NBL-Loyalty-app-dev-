@@ -4,6 +4,26 @@
   if btn_pos != 'right'
     assign btn_pos = 'left'
   endif
+
+  # Customer config used to live in ONE metafield (nbl_customer_v1). It's
+  # now split into four independent metafields — core/transactions/rewards/
+  # prizeclaims — written by syncCustomerConfig.js (see that file's
+  # module-level comment for why: Shopify's 128KB JSON metafield write
+  # limit + avoiding unnecessary rewrites of unrelated data on every event).
+  #
+  # nbl_customer_v1 (legacy) is read here too, purely as a fallback — a
+  # customer who hasn't had any event (or a resync) fire since this rollout
+  # still has their old single-blob metafield and nothing in the new ones
+  # yet. There's no bulk migration job; main.preact.jsx's
+  # mergeCustomerConfig() stitches whichever pieces exist (new, preferred)
+  # together with the legacy blob (fallback) into the single `config` shape
+  # the rest of the widget already expects.
+  assign nbl_customer_legacy = customer.metafields.app.nbl_customer_v1.value
+  assign nbl_customer_core = customer.metafields.app.nbl_customer_core_v1.value
+  assign nbl_customer_transactions = customer.metafields.app.nbl_customer_transactions_v1.value
+  assign nbl_customer_rewards = customer.metafields.app.nbl_customer_rewards_v1.value
+  assign nbl_customer_prizeclaims = customer.metafields.app.nbl_customer_prizeclaims_v1.value
+  assign nbl_referral_code = nbl_customer_core.referralCode | default: nbl_customer_legacy.referralCode
 %}
 
 <script>
@@ -17,11 +37,17 @@
     name:       {{ customer.name       | json }},
     first_name: {{ customer.first_name | json }},
     last_name:  {{ customer.last_name  | json }},
-    config:     {{ customer.metafields.app.nbl_customer_v1.value | json }}
+    configCore:         {{ nbl_customer_core         | json }},
+    configTransactions: {{ nbl_customer_transactions | json }},
+    configRewards:      {{ nbl_customer_rewards      | json }},
+    configPrizeClaims:  {{ nbl_customer_prizeclaims  | json }},
+    configLegacy:       {{ nbl_customer_legacy       | json }}
   };
 
-  if (NBL_v1.customer && NBL_v1.customer.config && NBL_v1.customer.config.points) {
-    NBL_v1.points = NBL_v1.customer.config.points || 0;
+  if (NBL_v1.customer && NBL_v1.customer.configCore && NBL_v1.customer.configCore.points != null) {
+    NBL_v1.points = NBL_v1.customer.configCore.points || 0;
+  } else if (NBL_v1.customer && NBL_v1.customer.configLegacy && NBL_v1.customer.configLegacy.points != null) {
+    NBL_v1.points = NBL_v1.customer.configLegacy.points || 0;
   }
 
   NBL_v1.routes = {
@@ -35,7 +61,7 @@
     isLoggedIn:     {{ customer | json | default: 'null' }} !== null,
     customerName:   {{ customer.name | json | default: '""' }},
     shopUrl:        {{ shop.url | json }},
-    referralCode:   {{ customer.metafields.app.nbl_customer_v1.value.referralCode | json | default: '""' }},
+    referralCode:   {{ nbl_referral_code | json | default: '""' }},
     headerLabel:    {{ nbl_config.styles.header.Heading.Label | json | default: '"Welcome, [name]"' }},
     pointsLabel:    {{ nbl_config.styles.header.Points.Label  | json | default: '"[points] points"' }},
     buttonPosition: {{ btn_pos | json }}

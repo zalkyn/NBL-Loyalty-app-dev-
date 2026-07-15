@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/EarnTab.jsx
+// app/widget-ui/ui/tabs/EarnTab.jsx
 // Earn Points tab — purono tabs/earn.js-er replacement.
 // =============================================================================
 

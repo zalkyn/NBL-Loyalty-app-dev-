@@ -19,6 +19,7 @@
 
 import prisma from "db-server";
 import { logger } from "app/utils/logger.js";
+import { updateDiscountDeleteSettings } from "app/controller/appSettings/discountDeleteSettings.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "layout/jobs/_action.server.js";
@@ -114,6 +115,27 @@ export async function handleForceReset({ formData, session }) {
     } catch (err) {
         logger.error("Force-reset job failed", { module: MODULE, shop: session.shop, error: err?.message });
         return { ok: false, intent: "forceReset", message: "Failed to reset job(s)." };
+    }
+}
+
+// ── DISCOUNT-DELETE SETTINGS — see appSettings/discountDeleteSettings.js.
+//    Not a job transition like everything else in this file (no
+//    mode/jobId(s)/fromStatus), just a plain settings save — kept here
+//    rather than a separate page since it's directly about what triggers
+//    DISCOUNT_DELETE jobs, right above the job list on this same page. ─────
+
+export async function handleSaveDiscountDeleteSettings({ formData, session }) {
+    try {
+        const settings = await updateDiscountDeleteSettings({
+            shop: session.shop,
+            sessionId: session.id,
+            onRewardCancel: formData.get("onRewardCancel") === "true",
+            onRewardUsed: formData.get("onRewardUsed") === "true",
+        });
+        return { ok: true, intent: "saveDiscountDeleteSettings", message: "Discount cleanup settings saved.", discountDeleteSettings: settings };
+    } catch (err) {
+        logger.error("Failed to save discount-delete settings", { module: MODULE, shop: session.shop, error: err?.message });
+        return { ok: false, intent: "saveDiscountDeleteSettings", message: "Failed to save settings." };
     }
 }
 

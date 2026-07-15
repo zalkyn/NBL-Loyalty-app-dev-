@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/Nav.jsx
+// app/widget-ui/ui/components/Nav.jsx
 // Nav rail — purono html.js-er navHTML + widget.js Section 5/8b-er replacement.
 // =============================================================================
 

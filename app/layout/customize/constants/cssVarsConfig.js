@@ -54,6 +54,68 @@ export const LABEL_DEFAULTS = {
     prizeClaimSuccessMsg: "Your request has been submitted! We'll contact you soon to arrange delivery.",
     claimingLabel: "Processing...",
     claimRetryLabel: "Try again",
+    // "Update available" banner + block message — deliberately generic and
+    // the SAME for every announced version, regardless of what that
+    // specific version's admin-only title/description (Version Tracking
+    // page) actually says. Customers should never see internal update
+    // details (bug fixes, specific features, etc.) — only ever this fixed,
+    // reassuring text. See main.preact.jsx's computeUpdateStatus() and
+    // checkUpdateRequired.js (server-side — the block message shown when
+    // attempting a claim while behind uses this too, not the version's own
+    // title/description).
+    updateBannerTitle: "Update available",
+    updateBannerDesc: "We've made a few improvements to your account. Tap Update to see the latest.",
+
+    // Nav — Referral tab (was missing a configurable field even though
+    // Nav.jsx already looked it up with a hardcoded fallback)
+    navReferral: "Referral",
+
+    // Guest panel (logged-out view) — GuestPanel.jsx already reads all of
+    // these via lbl() with matching hardcoded fallbacks; they just had no
+    // admin field to edit them.
+    guestTitle: "Earn & Redeem Rewards",
+    guestSubtitle: "Join the loyalty program and start earning points on every purchase.",
+    guestPerkEarn: "Earn on every order",
+    guestPerkRedeem: "Redeem for discounts",
+    guestPerkRefer: "Refer & earn more",
+    guestCreateAccount: "Create Account",
+    guestCreateAccountHint: "Free & takes 30 seconds",
+    guestSignIn: "Sign In",
+    guestSignInHint: "Already have an account?",
+
+    // Join Program panel (logged-in, not-yet-joined view) — same situation
+    // as guest* above, JoinProgramPanel.jsx already wired these.
+    joinProgramTitle: "You\u2019re Almost In!",
+    joinProgramSubtitle: "You\u2019re signed in, but not enrolled in the loyalty program yet. Join now to start earning points.",
+    joinProgramAutoFailTitle: "One More Step",
+    joinProgramAutoFailSubtitle: "We couldn\u2019t set up your account automatically. Tap below to join \u2014 it only takes a second.",
+    joinProgramJoining: "Joining...",
+    joinProgramCta: "Join Our Program",
+
+    // Referral modal — previously entirely hardcoded, not wired to lbl()
+    // at all (see ReferralModal.jsx).
+    referralModalBrand: "NBL Loyalty",
+    referralLoginTitle: "Login to Claim Your Referral Discount",
+    referralLoginSubtitle: "Log into your account to unlock your referral discount.",
+    referralLoginNote: "Almost there! After you sign in, just head back to our store \u2014 your discount code will be waiting for you right here.",
+    referralLoginBtn: "Login / Register",
+    referralFormTitle: "Get Your Referral Discount",
+    referralFormSubtitle: "Enter your referral code to unlock your discount.",
+    referralFormSubmitBtn: "Request Discount Code",
+    referralFormVerifying: "Verifying your referral code...",
+    referralSuccessTitle: "Your Discount Code",
+    referralSuccessCopyBtn: "Copy Code",
+    referralSuccessCopiedBtn: "Copied",
+    referralImportantHeading: "Important:",
+    referralImportantNote1: "One-time code \u2014 use at checkout.",
+    referralImportantNote2: "Use it quickly.",
+    referralFinishBtn: "Finish & Save",
+    referralLockedTitle: "Referral Already Used",
+    referralLockedSubtitle: "Only one referral discount is allowed per customer.",
+
+    // Prize claim notification — default label for the tracking link when
+    // showTrackingInfo is on and trackingInfo is a real URL (App.jsx).
+    prizeTrackingLabel: "Track your order",
 };
 
 export const WIDGET_CONFIG_DEFAULTS = {
@@ -66,6 +128,17 @@ export const WIDGET_CONFIG_DEFAULTS = {
     homePrizeRequestsPerPage: 5,
     myPrizesPerPage: 5,
     paginationMode: "loadmore",
+    // Whether a logged-in customer who isn't in the loyalty program yet
+    // gets enrolled silently in the background, or sees an explicit
+    // "Join our Program" button they have to tap themselves. See
+    // useCustomerProvision.js / JoinProgramPanel.jsx for the full flow.
+    // Defaults to false (manual/explicit) — a merchant has to deliberately
+    // turn this on to make joining silent.
+    autoProvisionCustomer: false,
+    // Only relevant when autoProvisionCustomer is true — whether the
+    // brief silent-provisioning attempt shows a loading overlay in the
+    // widget, or provisions invisibly in the background.
+    showProvisionLoadingOverlay: true,
     labels: { ...LABEL_DEFAULTS },
     prize: {
         contactUrl: "",
@@ -89,6 +162,32 @@ export const WIDGET_CONFIG_DEFAULTS = {
         // shared referral link. Empty/invalid falls back to the storefront
         // homepage ("/"). See buildReferralLink() in App.jsx / main.preact.jsx.
         linkPath: "/",
+    },
+    resync: {
+        // Master switch for how a customer whose account hasn't caught up
+        // with the shop's current ConfigUpdateVersion gets updated (see
+        // getActiveConfigUpdateVersion.js / mergeCustomerConfig() in
+        // main.preact.jsx). Deliberately kept OFF by default and separate
+        // from version history itself — an admin can instantly turn this
+        // off (e.g. a bug is found) without touching the Scheduled/
+        // version-tracking data. Independent of whether a version actually
+        // exists — nothing happens unless this is non-"off" AND an active
+        // version exists AND the customer doesn't match it.
+        //   "off"    - do nothing; customers stay on their last-synced config
+        //              until their next order/reward/referral event.
+        //   "banner" - show the "update available" banner with a manual
+        //              "Update" button (see UpdateBanner.jsx / useUpdateBanner.js).
+        //   "auto"   - silently resync and reload on the customer's next
+        //              visit, no banner, no click needed (see
+        //              useAutoUpdateSync.js).
+        updateMode: "off",
+        // Tiny non-blocking spinner next to the points balance during any
+        // background config resync (periodic hygiene sync OR "auto" mode
+        // above) — see Header.jsx / ui.css's .nbl-header__sync-indicator.
+        // On by default since it's subtle by design; unrelated to (and
+        // does not affect) the separate provision-overlay setting for
+        // brand-new customers joining.
+        showSyncIndicator: true,
     },
 };
 
@@ -272,6 +371,57 @@ export const WIDGET_CONFIG_SECTIONS = [
         ],
     },
     {
+        key: "resync",
+        label: "Update Notifications",
+        description: "Control how customers whose widget data hasn't caught up with a recent change get updated. The banner's actual customer-facing text (when using Banner mode) is set once for all updates under Labels & Text (below) — the title/description you type per-update on the Version Tracking page are for your own internal reference only and are never shown to customers.",
+        fields: [
+            {
+                key: "resync_updateMode",
+                label: "Update method",
+                hint: "Off: nothing happens until the customer's next order/reward/referral event. Banner: show an 'update available' banner with a manual Update button. Auto-sync: silently resync and refresh in the background on their next visit, no banner or click needed. Manage announcements from the Version Tracking page.",
+                type: "select",
+                options: [
+                    { value: "off", label: "Off" },
+                    { value: "banner", label: "Banner (manual)" },
+                    { value: "auto", label: "Auto-sync (silent)" },
+                ],
+                configKey: "resync.updateMode",
+                default: "off",
+            },
+            {
+                key: "resync_showSyncIndicator",
+                label: "Show subtle sync indicator",
+                hint: "A tiny, non-blocking spinner next to the points balance while a background sync is happening — either the periodic hygiene sync that quietly keeps points/rewards/transactions accurate, or an Auto-sync (silent) version update above. Off by default it's completely invisible either way; this only adds a small visual cue, never a blocking overlay like the one shown while a brand-new customer is joining.",
+                type: "toggle",
+                configKey: "resync.showSyncIndicator",
+                default: true,
+            },
+        ],
+    },
+    {
+        key: "onboarding",
+        label: "New Customer Onboarding",
+        description: "Control how a logged-in customer who isn't in the loyalty program yet gets enrolled — this is a separate setting from Update Notifications above, which only affects customers who've already joined.",
+        fields: [
+            {
+                key: "autoProvisionCustomer",
+                label: "Join automatically",
+                hint: "Off (default): the customer sees an explicit 'Join Our Program' button and taps it themselves. On: they're enrolled silently in the background the moment they open the widget, with no button to tap. See the 'Loading overlay while joining' option below — only relevant when this is on.",
+                type: "toggle",
+                configKey: "autoProvisionCustomer",
+                default: false,
+            },
+            {
+                key: "showProvisionLoadingOverlay",
+                label: "Show loading overlay while joining",
+                hint: "Only applies when 'Join automatically' above is on. When on, the widget shows a brief loading overlay during the silent join; when off, it joins invisibly with no visual indicator.",
+                type: "toggle",
+                configKey: "showProvisionLoadingOverlay",
+                default: true,
+            },
+        ],
+    },
+    {
         key: "labels",
         label: "Labels & Text",
         description: "Customize all text labels shown inside the widget.",
@@ -315,9 +465,107 @@ export const WIDGET_CONFIG_SECTIONS = [
             { key: "lbl_prizeClaimSuccessMsg", label: "Prize — Claim success message", hint: "Message shown after a prize is successfully claimed", type: "label", configKey: "labels.prizeClaimSuccessMsg", default: LABEL_DEFAULTS.prizeClaimSuccessMsg },
             { key: "lbl_claimingLabel", label: "Claim button — Processing", hint: "Text on the claim button while the request is being submitted", type: "label", configKey: "labels.claimingLabel", default: LABEL_DEFAULTS.claimingLabel },
             { key: "lbl_claimRetryLabel", label: "Claim button — Retry", hint: "Text on the claim button after a failed attempt", type: "label", configKey: "labels.claimRetryLabel", default: LABEL_DEFAULTS.claimRetryLabel },
+            { key: "lbl_updateBannerTitle", label: "Update banner — Title", hint: "Shown to every customer whenever ANY update is announced (Version Tracking page) — deliberately generic, the same text every time. Never reveals what specifically changed.", type: "label", configKey: "labels.updateBannerTitle", default: LABEL_DEFAULTS.updateBannerTitle },
+            { key: "lbl_updateBannerDesc", label: "Update banner — Description", hint: "Shown under the title above, and also as the message when a customer's claim is blocked pending an update. Same generic text for every announced version.", type: "label", configKey: "labels.updateBannerDesc", default: LABEL_DEFAULTS.updateBannerDesc },
+
+            { key: "lbl_navReferral", label: "Nav — Referral tab", hint: "Label shown on the Referral navigation tab", type: "label", configKey: "labels.navReferral", default: LABEL_DEFAULTS.navReferral },
+
+            { key: "lbl_guestTitle", label: "Guest — Title", hint: "Heading shown to logged-out visitors", type: "label", configKey: "labels.guestTitle", default: LABEL_DEFAULTS.guestTitle },
+            { key: "lbl_guestSubtitle", label: "Guest — Subtitle", hint: "Subtitle shown to logged-out visitors", type: "label", configKey: "labels.guestSubtitle", default: LABEL_DEFAULTS.guestSubtitle },
+            { key: "lbl_guestPerkEarn", label: "Guest — Perk: Earn", hint: "First perk shown to logged-out visitors", type: "label", configKey: "labels.guestPerkEarn", default: LABEL_DEFAULTS.guestPerkEarn },
+            { key: "lbl_guestPerkRedeem", label: "Guest — Perk: Redeem", hint: "Second perk shown to logged-out visitors", type: "label", configKey: "labels.guestPerkRedeem", default: LABEL_DEFAULTS.guestPerkRedeem },
+            { key: "lbl_guestPerkRefer", label: "Guest — Perk: Refer", hint: "Third perk shown to logged-out visitors", type: "label", configKey: "labels.guestPerkRefer", default: LABEL_DEFAULTS.guestPerkRefer },
+            { key: "lbl_guestCreateAccount", label: "Guest — Create account button", hint: "Primary button text for logged-out visitors", type: "label", configKey: "labels.guestCreateAccount", default: LABEL_DEFAULTS.guestCreateAccount },
+            { key: "lbl_guestCreateAccountHint", label: "Guest — Create account hint", hint: "Small text under the create account button", type: "label", configKey: "labels.guestCreateAccountHint", default: LABEL_DEFAULTS.guestCreateAccountHint },
+            { key: "lbl_guestSignIn", label: "Guest — Sign in button", hint: "Secondary button text for logged-out visitors", type: "label", configKey: "labels.guestSignIn", default: LABEL_DEFAULTS.guestSignIn },
+            { key: "lbl_guestSignInHint", label: "Guest — Sign in hint", hint: "Small text under the sign in button", type: "label", configKey: "labels.guestSignInHint", default: LABEL_DEFAULTS.guestSignInHint },
+
+            { key: "lbl_joinProgramTitle", label: "Join panel — Title", hint: "Heading shown to a logged-in customer who hasn't joined yet", type: "label", configKey: "labels.joinProgramTitle", default: LABEL_DEFAULTS.joinProgramTitle },
+            { key: "lbl_joinProgramSubtitle", label: "Join panel — Subtitle", hint: "Subtitle shown to a logged-in customer who hasn't joined yet", type: "label", configKey: "labels.joinProgramSubtitle", default: LABEL_DEFAULTS.joinProgramSubtitle },
+            { key: "lbl_joinProgramAutoFailTitle", label: "Join panel — Title (auto-join failed)", hint: "Heading shown when silent auto-provisioning failed and the customer has to join manually", type: "label", configKey: "labels.joinProgramAutoFailTitle", default: LABEL_DEFAULTS.joinProgramAutoFailTitle },
+            { key: "lbl_joinProgramAutoFailSubtitle", label: "Join panel — Subtitle (auto-join failed)", hint: "Subtitle shown when silent auto-provisioning failed", type: "label", configKey: "labels.joinProgramAutoFailSubtitle", default: LABEL_DEFAULTS.joinProgramAutoFailSubtitle },
+            { key: "lbl_joinProgramJoining", label: "Join panel — Joining button (loading)", hint: "Button text shown while the join request is in flight", type: "label", configKey: "labels.joinProgramJoining", default: LABEL_DEFAULTS.joinProgramJoining },
+            { key: "lbl_joinProgramCta", label: "Join panel — Join button", hint: "Main call-to-action button text", type: "label", configKey: "labels.joinProgramCta", default: LABEL_DEFAULTS.joinProgramCta },
+
+            { key: "lbl_referralModalBrand", label: "Referral modal — Brand text", hint: "Small brand pill shown at the top of every step of the referral modal", type: "label", configKey: "labels.referralModalBrand", default: LABEL_DEFAULTS.referralModalBrand },
+            { key: "lbl_referralLoginTitle", label: "Referral modal — Login title", hint: "Title shown when a guest needs to log in to claim a referral discount", type: "label", configKey: "labels.referralLoginTitle", default: LABEL_DEFAULTS.referralLoginTitle },
+            { key: "lbl_referralLoginSubtitle", label: "Referral modal — Login subtitle", hint: "Subtitle on the login step", type: "label", configKey: "labels.referralLoginSubtitle", default: LABEL_DEFAULTS.referralLoginSubtitle },
+            { key: "lbl_referralLoginNote", label: "Referral modal — Login note", hint: "Small reassurance note on the login step", type: "label", configKey: "labels.referralLoginNote", default: LABEL_DEFAULTS.referralLoginNote },
+            { key: "lbl_referralLoginBtn", label: "Referral modal — Login button", hint: "Button text on the login step", type: "label", configKey: "labels.referralLoginBtn", default: LABEL_DEFAULTS.referralLoginBtn },
+            { key: "lbl_referralFormTitle", label: "Referral modal — Form title", hint: "Title on the referral code entry step", type: "label", configKey: "labels.referralFormTitle", default: LABEL_DEFAULTS.referralFormTitle },
+            { key: "lbl_referralFormSubtitle", label: "Referral modal — Form subtitle", hint: "Subtitle on the referral code entry step", type: "label", configKey: "labels.referralFormSubtitle", default: LABEL_DEFAULTS.referralFormSubtitle },
+            { key: "lbl_referralFormSubmitBtn", label: "Referral modal — Submit button", hint: "Button text to request the discount code", type: "label", configKey: "labels.referralFormSubmitBtn", default: LABEL_DEFAULTS.referralFormSubmitBtn },
+            { key: "lbl_referralFormVerifying", label: "Referral modal — Verifying text", hint: "Shown while the referral code is being verified", type: "label", configKey: "labels.referralFormVerifying", default: LABEL_DEFAULTS.referralFormVerifying },
+            { key: "lbl_referralSuccessTitle", label: "Referral modal — Success title", hint: "Title shown once a discount code is ready", type: "label", configKey: "labels.referralSuccessTitle", default: LABEL_DEFAULTS.referralSuccessTitle },
+            { key: "lbl_referralSuccessCopyBtn", label: "Referral modal — Copy button", hint: "Button text to copy the discount code", type: "label", configKey: "labels.referralSuccessCopyBtn", default: LABEL_DEFAULTS.referralSuccessCopyBtn },
+            { key: "lbl_referralSuccessCopiedBtn", label: "Referral modal — Copied button", hint: "Button text after the code has been copied", type: "label", configKey: "labels.referralSuccessCopiedBtn", default: LABEL_DEFAULTS.referralSuccessCopiedBtn },
+            { key: "lbl_referralImportantHeading", label: "Referral modal — Important heading", hint: "Heading on the important-notes box", type: "label", configKey: "labels.referralImportantHeading", default: LABEL_DEFAULTS.referralImportantHeading },
+            { key: "lbl_referralImportantNote1", label: "Referral modal — Important note 1", hint: "First bullet in the important-notes box", type: "label", configKey: "labels.referralImportantNote1", default: LABEL_DEFAULTS.referralImportantNote1 },
+            { key: "lbl_referralImportantNote2", label: "Referral modal — Important note 2", hint: "Second bullet in the important-notes box", type: "label", configKey: "labels.referralImportantNote2", default: LABEL_DEFAULTS.referralImportantNote2 },
+            { key: "lbl_referralFinishBtn", label: "Referral modal — Finish button", hint: "Button text to close the modal after copying the code", type: "label", configKey: "labels.referralFinishBtn", default: LABEL_DEFAULTS.referralFinishBtn },
+            { key: "lbl_referralLockedTitle", label: "Referral modal — Locked title", hint: "Title shown when a customer already used a referral discount", type: "label", configKey: "labels.referralLockedTitle", default: LABEL_DEFAULTS.referralLockedTitle },
+            { key: "lbl_referralLockedSubtitle", label: "Referral modal — Locked subtitle", hint: "Subtitle shown when a customer already used a referral discount", type: "label", configKey: "labels.referralLockedSubtitle", default: LABEL_DEFAULTS.referralLockedSubtitle },
+
+            { key: "lbl_prizeTrackingLabel", label: "Prize — Tracking link text", hint: "Default text for the tracking link shown on a fulfilled/completed prize claim, when tracking info is a real URL", type: "label", configKey: "labels.prizeTrackingLabel", default: LABEL_DEFAULTS.prizeTrackingLabel },
         ],
     },
 ];
+
+// Groups the flat "labels" section's ~40 fields into a left-nav-able set of
+// sub-sections for the Labels & Text tab (mirrors the Widget Config tab's
+// section nav, see ConfigTab.jsx) — instead of one long undifferentiated
+// list. Built by filtering the SAME field objects already defined above (by
+// `key`), not duplicating them, so a field's label/hint/default only ever
+// needs editing in one place.
+const LABEL_GROUP_FIELD_KEYS = {
+    header: ["lbl_headerLabel", "lbl_pointsLabel"],
+    navigation: ["lbl_navHome", "lbl_navEarn", "lbl_navRewards", "lbl_navMyRewards", "lbl_navActivity", "lbl_navPrizes", "lbl_navMyPrizes", "lbl_navReferral"],
+    home: ["lbl_homeCardBrowse", "lbl_homeCardEarn", "lbl_homeCardRefer", "lbl_sectionRewards", "lbl_sectionActivity", "lbl_sectionPrizeRequests"],
+    lists: ["lbl_activityColDate", "lbl_activityColAct", "lbl_activityColPts", "lbl_emptyRewards", "lbl_emptyActivity", "lbl_emptyPrizes", "lbl_emptyMyPrizes", "lbl_loadMoreBtn", "lbl_loadMoreDone"],
+    rewards: ["lbl_notifyRewardHead", "lbl_notifyRewardCopy", "lbl_notifyInfoClaim", "lbl_notifyCopiedText", "lbl_notifyCloseBtn", "lbl_claimingLabel", "lbl_claimRetryLabel"],
+    prizes: ["lbl_prizeStatusPending", "lbl_prizeStatusFulfilled", "lbl_prizeStatusCompleted", "lbl_prizeStatusCancelled", "lbl_prizeContactUsText", "lbl_prizeClaimSuccessMsg", "lbl_prizeTrackingLabel"],
+    launcher: ["lbl_launcherTitle", "lbl_launcherSubtitle"],
+    updateBanner: ["lbl_updateBannerTitle", "lbl_updateBannerDesc"],
+    guestJoin: [
+        "lbl_guestTitle", "lbl_guestSubtitle", "lbl_guestPerkEarn", "lbl_guestPerkRedeem", "lbl_guestPerkRefer",
+        "lbl_guestCreateAccount", "lbl_guestCreateAccountHint", "lbl_guestSignIn", "lbl_guestSignInHint",
+        "lbl_joinProgramTitle", "lbl_joinProgramSubtitle", "lbl_joinProgramAutoFailTitle", "lbl_joinProgramAutoFailSubtitle",
+        "lbl_joinProgramJoining", "lbl_joinProgramCta",
+    ],
+    referralModal: [
+        "lbl_referralModalBrand", "lbl_referralLoginTitle", "lbl_referralLoginSubtitle", "lbl_referralLoginNote", "lbl_referralLoginBtn",
+        "lbl_referralFormTitle", "lbl_referralFormSubtitle", "lbl_referralFormSubmitBtn", "lbl_referralFormVerifying",
+        "lbl_referralSuccessTitle", "lbl_referralSuccessCopyBtn", "lbl_referralSuccessCopiedBtn",
+        "lbl_referralImportantHeading", "lbl_referralImportantNote1", "lbl_referralImportantNote2", "lbl_referralFinishBtn",
+        "lbl_referralLockedTitle", "lbl_referralLockedSubtitle",
+    ],
+};
+
+const LABEL_GROUP_META = {
+    header: { label: "Header & Points", description: "The greeting and points balance text shown at the top of the widget." },
+    navigation: { label: "Navigation Tabs", description: "Labels for each tab in the widget's navigation bar." },
+    home: { label: "Home Tab", description: "Shortcut cards and section headings shown on the Home tab." },
+    lists: { label: "Lists & Empty States", description: "Table column headers, empty-state messages, and the load-more control." },
+    rewards: { label: "Reward Redemption", description: "Text shown when a customer redeems or views a voucher reward." },
+    prizes: { label: "Physical Prizes", description: "Status text and messages for physical prize requests." },
+    launcher: { label: "Launcher Button", description: "Text on the floating button that opens the widget." },
+    updateBanner: { label: "Update Banner", description: "Text shown in the \"update available\" banner (Banner mode) and as the claim-blocked message." },
+    guestJoin: { label: "Guest & Join Panel", description: "Text shown to logged-out visitors, and to logged-in customers who haven't joined the program yet." },
+    referralModal: { label: "Referral Modal", description: "All text in the pop-up a friend sees when they open a referral link — login, code entry, success, and already-used states." },
+};
+
+export const LABEL_GROUPS = (() => {
+    const labelsSection = WIDGET_CONFIG_SECTIONS.find((s) => s.key === "labels");
+    const allFields = labelsSection ? labelsSection.fields : [];
+    return Object.keys(LABEL_GROUP_FIELD_KEYS).map((groupKey) => ({
+        key: groupKey,
+        label: LABEL_GROUP_META[groupKey].label,
+        description: LABEL_GROUP_META[groupKey].description,
+        fields: LABEL_GROUP_FIELD_KEYS[groupKey]
+            .map((fieldKey) => allFields.find((f) => f.key === fieldKey))
+            .filter(Boolean),
+    }));
+})();
 
 export const SIMPLE_SECTIONS = [
     {
@@ -437,6 +685,21 @@ export const SIMPLE_SECTIONS = [
             { key: "notifyBtnBg", label: "Button background", hint: "Background color of the Copy / Claim button", type: "color", maps: ["--nbl-notify-btn-bg"], default: "#ffffff" },
             { key: "notifyBtnTextColor", label: "Button text color", hint: "Text color of the Copy / Claim button", type: "color", maps: ["--nbl-notify-btn-text-color"], default: "#15803d" },
             { key: "notifyBtnBorderColor", label: "Button border color", hint: "Border color of the Copy / Claim button", type: "color", maps: ["--nbl-notify-btn-border-color"], default: "#ffffff" },
+        ],
+    },
+    {
+        key: "updateBanner",
+        label: "Update Banner",
+        description: "The 'an update is available' strip shown below the header when a customer's account hasn't synced an announced update yet (see Update Notifications and the Version Tracking page).",
+        fields: [
+            { key: "updateBannerBg", label: "Background color", hint: "Background color of the update banner strip", type: "color", maps: ["--nbl-update-banner-bg"], default: "var(--nbl-primary-light)", resolvedDefault: "#f3f1fc" },
+            { key: "updateBannerBorderColor", label: "Border color", hint: "Border color around the update banner strip", type: "color", maps: ["--nbl-update-banner-border-color"], default: "var(--nbl-primary)", resolvedDefault: "#7c3aed" },
+            { key: "updateBannerIconColor", label: "Icon color", hint: "Color of the star icon inside the update banner", type: "color", maps: ["--nbl-update-banner-icon-color"], default: "var(--nbl-primary)", resolvedDefault: "#7c3aed" },
+            { key: "updateBannerTitleColor", label: "Title text color", hint: "Color of the bold title line inside the update banner", type: "color", maps: ["--nbl-update-banner-title-color"], default: "var(--nbl-text)", resolvedDefault: "#1a1a2e" },
+            { key: "updateBannerDescColor", label: "Description text color", hint: "Color of the smaller description line inside the update banner", type: "color", maps: ["--nbl-update-banner-desc-color"], default: "var(--nbl-text-muted)", resolvedDefault: "#5b5b76" },
+            { key: "updateBannerBtnBg", label: "Update button background", hint: "Background color of the Update button", type: "color", maps: ["--nbl-update-banner-btn-bg"], default: "var(--nbl-primary)", resolvedDefault: "#7c3aed" },
+            { key: "updateBannerBtnColor", label: "Update button text color", hint: "Text color of the Update button", type: "color", maps: ["--nbl-update-banner-btn-color"], default: "var(--nbl-btn-color)", resolvedDefault: "#ffffff" },
+            { key: "updateBannerCloseColor", label: "Close icon color", hint: "Color of the dismiss (X) icon inside the update banner", type: "color", maps: ["--nbl-update-banner-close-color"], default: "var(--nbl-text-muted)", resolvedDefault: "#5b5b76" },
         ],
     },
     {
@@ -651,6 +914,15 @@ export const PRESETS = [
             "--nbl-modal-code-hover-border": "#FEC643",
             "--nbl-modal-input-border": "#EF633B",
             "--nbl-modal-input-focus": "#EF633B",
+
+            "--nbl-update-banner-bg": "#EF633B",
+            "--nbl-update-banner-border-color": "#FEC643",
+            "--nbl-update-banner-icon-color": "#1a1208",
+            "--nbl-update-banner-title-color": "#1a1208",
+            "--nbl-update-banner-desc-color": "#FFFFFF",
+            "--nbl-update-banner-btn-bg": "#FEC643",
+            "--nbl-update-banner-btn-color": "#1a1208",
+            "--nbl-update-banner-close-color": "#FFFFFF",
         },
     },
     {
@@ -1069,6 +1341,14 @@ export const CSS_DEFAULTS = {
     "--nbl-notify-max-height": "78%",
     "--nbl-notify-heading-size": "16px",
     "--nbl-notify-heading-weight": "600",
+    "--nbl-update-banner-bg": "var(--nbl-primary-light)",
+    "--nbl-update-banner-border-color": "var(--nbl-primary)",
+    "--nbl-update-banner-icon-color": "var(--nbl-primary)",
+    "--nbl-update-banner-title-color": "var(--nbl-text)",
+    "--nbl-update-banner-desc-color": "var(--nbl-text-muted)",
+    "--nbl-update-banner-btn-bg": "var(--nbl-primary)",
+    "--nbl-update-banner-btn-color": "var(--nbl-btn-color)",
+    "--nbl-update-banner-close-color": "var(--nbl-text-muted)",
     "--nbl-home-nav-color": "#ffffff",
     "--nbl-item-bg": "#f8f7ff",
     "--nbl-item-border": "#e9e7f0",
@@ -1220,12 +1500,13 @@ export function buildInitialVars(savedCssVars) {
 }
 
 export function buildInitialWidgetConfig(saved) {
-    const base = { ...WIDGET_CONFIG_DEFAULTS, labels: { ...LABEL_DEFAULTS }, prize: { ...WIDGET_CONFIG_DEFAULTS.prize }, referral: { ...WIDGET_CONFIG_DEFAULTS.referral } };
+    const base = { ...WIDGET_CONFIG_DEFAULTS, labels: { ...LABEL_DEFAULTS }, prize: { ...WIDGET_CONFIG_DEFAULTS.prize }, referral: { ...WIDGET_CONFIG_DEFAULTS.referral }, resync: { ...WIDGET_CONFIG_DEFAULTS.resync } };
     if (!saved || typeof saved !== "object") return base;
     const merged = { ...base, ...saved };
     merged.labels = { ...LABEL_DEFAULTS, ...(saved.labels || {}) };
     merged.prize = { ...WIDGET_CONFIG_DEFAULTS.prize, ...(saved.prize || {}) };
     merged.referral = { ...WIDGET_CONFIG_DEFAULTS.referral, ...(saved.referral || {}) };
+    merged.resync = { ...WIDGET_CONFIG_DEFAULTS.resync, ...(saved.resync || {}) };
     return merged;
 }
 export const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
@@ -1266,8 +1547,44 @@ export const SECTION_TO_SCENE = {
     pagination: "rewards",
     notifications: "notification-reward",
     toast: "notification-toast",
+    updateBanner: "notification-update-banner",
     status: "home",
     modal: "modal",
     animations: "home",
     glow: "home",
+};
+
+// Same idea as SECTION_TO_SCENE above, but for the Widget Config tab's own
+// sections (WIDGET_CONFIG_SECTIONS keys — behaviour/prizeNotifications/
+// referral/resync/onboarding), not the Customize (styling) tab's. Sections
+// with no bespoke scene to demo fall back to "home" — same convention
+// SECTION_TO_SCENE already uses for its own style-only sections above.
+export const CONFIG_SECTION_TO_SCENE = {
+    behaviour: "home",
+    prizeNotifications: "home",
+    referral: "referral",
+    resync: "notification-update-banner",
+    onboarding: "join-program",
+};
+
+// Same idea again, for the Labels & Text tab's own groups (LABEL_GROUPS
+// keys above) — lets selecting a label group show the part of the widget
+// those labels actually appear in, same convention as the other two maps.
+export const LABEL_GROUP_TO_SCENE = {
+    header: "home",
+    navigation: "home",
+    home: "home",
+    lists: "rewards",
+    rewards: "notification-reward",
+    prizes: "prizes",
+    launcher: "launcher",
+    updateBanner: "notification-update-banner",
+    guestJoin: "join-program",
+    // "modal" (not "referral") — this is the pre-existing scene the
+    // Customize tab's own Modal section already uses, which calls
+    // refModal.openModal() and actually opens the ReferralModal (on its
+    // default 'form' step). Mapping to "referral" instead would only
+    // switch the nav tab, never open the modal these labels are actually
+    // for — the person editing referral copy would never see it applied.
+    referralModal: "modal",
 };

@@ -19,6 +19,7 @@ import prisma from "db-server";
 import { normalizeCustomerGid } from "@controller/customers/normalizeCustomerGid.js";
 import createTransaction from "app/controller/transaction/createTransaction";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig.js";
+import checkUpdateRequired from "@controller/customers/checkUpdateRequired.js";
 import { dbRetry } from "app/utils/retry/dbRetry.js";
 
 const MODULE = "widget-data.claim-prize";
@@ -65,6 +66,11 @@ export async function action({ request }) {
         if (!prize) throw new AppError("Prize not found", 404);
         if (!prize.isActive) throw new AppError("This prize is no longer available", 422);
 
+        // Guard: pending update — see checkUpdateRequired.js / reward-claim.jsx's
+        // matching guard for the full rationale.
+        const updateCheck = await checkUpdateRequired({ shop: session.shop, customerDbId: customer.id });
+        if (updateCheck.blocked) throw new AppError(updateCheck.message, 409, "UPDATE_REQUIRED");
+
         if (prize.pointsCost > customer.points) {
             throw new AppError(
                 `Insufficient points. Required: ${Number(prize.pointsCost).toLocaleString()}, Available: ${Number(customer.points).toLocaleString()}`,
@@ -79,7 +85,7 @@ export async function action({ request }) {
         // separate Shopify Admin API call whose only purpose is refreshing
         // the customer's metafield cache for their next full page load —
         // the response below already has everything needed without it.
-        syncCustomerConfig(admin, shopifyId).then((updatedCustomer) => {
+        syncCustomerConfig(admin, shopifyId, { scope: ["core", "transactions", "prizeClaims"] }).then((updatedCustomer) => {
             if (!updatedCustomer) {
                 logger.error("Metafield sync failed after all retries — claim is still valid", {
                     module: MODULE,
@@ -111,7 +117,7 @@ export async function action({ request }) {
     } catch (err) {
         const statusCode = err instanceof AppError ? err.statusCode : 500;
         logger.error("Claim prize api error", err, { module: MODULE, shopifyId });
-        return jsonResponse({ error: "Claim prize api error", details: err.message }, statusCode);
+        return jsonResponse({ error: "Claim prize api error", details: err.message, code: err.code || undefined }, statusCode);
     }
 }
 
@@ -220,9 +226,11 @@ function jsonResponse(data, status) {
 }
 
 class AppError extends Error {
-    constructor(message, statusCode = 500) {
+    constructor(message, statusCode = 500, code = null) {
         super(message);
         this.name = "AppError";
         this.statusCode = statusCode;
+        // See reward-claim.jsx's matching AppError for the full rationale.
+        this.code = code;
     }
 }

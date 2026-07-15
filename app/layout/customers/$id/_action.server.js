@@ -1,6 +1,7 @@
 import prisma from "db-server";
 import createTransaction from "@controller/transaction/createTransaction";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig";
+import enqueueDiscountDeleteJob from "app/controller/jobs/enqueueDiscountDeleteJob.js";
 import { logger } from "app/utils/logger.js";
 
 /** @constant {string} Module identifier for structured logging */
@@ -184,6 +185,19 @@ export async function handleCancelReward({ formData, session, admin }) {
         await prisma.reward.update({
             where: { id: rewardIdInt },
             data: { status: "CANCELLED" },
+        });
+
+        // Non-critical, fire-and-forget by design — enqueueDiscountDeleteJob
+        // itself never throws (see its own doc comment), and no-ops if the
+        // shop hasn't turned this on (Customize-adjacent settings, not
+        // widget config — see discountDeleteSettings.js) or this reward
+        // pre-dates discountNodeId being captured at creation time.
+        enqueueDiscountDeleteJob({
+            shop: session.shop,
+            discountNodeId: reward.discountNodeId,
+            source: "reward_cancel",
+            entityType: "reward",
+            entityId: rewardIdInt,
         });
 
         const transaction = await createTransaction({

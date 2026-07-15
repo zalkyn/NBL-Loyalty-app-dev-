@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/usePagination.js
+// app/widget-ui/ui/hooks/usePagination.js
 // Purono pagination.js engine-er replacement. Duইটা mode support kore:
 // 'pagination' (prev/next + dots) ar 'loadmore' (button, progressively load).
 // =============================================================================

@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/MyPrizesTab.jsx
+// app/widget-ui/ui/tabs/MyPrizesTab.jsx
 // My Prizes tab — purono tabs/prizes.js-er renderMyPrizesTab()-er replacement.
 // =============================================================================
 

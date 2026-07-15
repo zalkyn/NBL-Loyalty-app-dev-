@@ -1,12 +1,12 @@
 // =============================================================================
-// modules/module-preact/HomeTab.jsx
+// app/widget-ui/ui/tabs/HomeTab.jsx
 // Home tab — nav cards + active rewards/prize-requests/activities preview.
 // Purono tabs/home.js-er replacement. Pratiটা section-er nijer pagination
 // instance ache (home-rewards, home-prize-requests, home-activities) —
 // purono pagination.js-er moto.
 // =============================================================================
 
-import { h } from 'preact';
+import { h, Fragment } from 'preact';
 import { formatNumber } from '../utils.js';
 import { Icon } from '../components/Icon.jsx';
 import { Image } from '../components/Image.jsx';
@@ -168,18 +168,20 @@ export function HomeTab({
                     <div class="nbl-home-section-card" data-home-section="activities">
                         <SectionHeader iconName="lightning" title={lbl('sectionRecentActivity') || 'Recent Activity'} />
                         <div class="nbl-activity-table">
-                            <div class="nbl-activity-table__head">
-                                <div class="nbl-activity-table__head-cell">{lbl('activityColDate')}</div>
-                                <div class="nbl-activity-table__head-cell">{lbl('activityColActivity')}</div>
-                                <div class="nbl-activity-table__head-cell">{lbl('activityColPoints')}</div>
-                            </div>
-                            <div>
-                                {activitiesPagination.pageItems.length ? (
-                                    activitiesPagination.pageItems.map((entry, i) => <ActivityRow key={i} entry={entry} />)
-                                ) : (
-                                    <div class="nbl-activity-table__empty">{lbl('emptyActivity')}</div>
-                                )}
-                            </div>
+                            {activitiesPagination.pageItems.length ? (
+                                <>
+                                    <div class="nbl-activity-table__head">
+                                        <div class="nbl-activity-table__head-cell">{lbl('activityColDate')}</div>
+                                        <div class="nbl-activity-table__head-cell">{lbl('activityColActivity')}</div>
+                                        <div class="nbl-activity-table__head-cell">{lbl('activityColPoints')}</div>
+                                    </div>
+                                    <div>
+                                        {activitiesPagination.pageItems.map((entry, i) => <ActivityRow key={i} entry={entry} />)}
+                                    </div>
+                                </>
+                            ) : (
+                                <div class="nbl-activity-table__empty">{lbl('emptyActivity')}</div>
+                            )}
                         </div>
                         <Pagination pagination={activitiesPagination} lbl={lbl} />
                     </div>

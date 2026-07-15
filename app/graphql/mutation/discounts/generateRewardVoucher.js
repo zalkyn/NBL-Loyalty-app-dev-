@@ -13,7 +13,7 @@ import { callShopifyGraphql } from "../../../utils/shopifyGraphql.js";
  * @param {"fixed"|"percentage"} rewardRule.discountType - Discount type
  * @param {number} rewardRule.rewardValue - Discount amount or percentage
  *
- * @returns {Promise<string>} Generated discount code
+ * @returns {Promise<{code: string, discountNodeId: string|null}>} Generated discount code and its Shopify GID
  *
  * @throws {Error} Customer-friendly error message
  */
@@ -53,15 +53,21 @@ export const generateRewardVoucher = async (admin, customerId, rewardRule) => {
 
     const discountCode =
         json?.data?.discountCodeBasicCreate?.codeDiscountNode?.codeDiscount?.codes?.nodes?.[0]?.code;
+    const discountNodeId = json?.data?.discountCodeBasicCreate?.codeDiscountNode?.id || null;
 
     if (!discountCode) {
         logger.error("Discount code missing in response", { json, ...ctx });
         throw new Error("Something went wrong while generating your reward. Please try again.");
     }
 
-    logger.success("Reward voucher created", { discountCode, ...ctx });
+    logger.success("Reward voucher created", { discountCode, discountNodeId, ...ctx });
 
-    return discountCode;
+    // Callers previously got just the code string back — now an object, so
+    // the codeDiscountNode GID can be persisted on the Reward row at
+    // creation time (see Reward.discountNodeId's schema comment for why:
+    // it's needed later by discountDeleteJob.js, and there's no cheaper way
+    // to get it than capturing it right here).
+    return { code: discountCode, discountNodeId };
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

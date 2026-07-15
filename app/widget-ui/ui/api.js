@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/api.js
+// app/widget-ui/ui/api.js
 // Promise-based fetch wrappers — SINGLE source of truth for every network
 // call the widget makes. No hook/component should call fetch() directly —
 // add a function here instead, so all request-building, error-shaping, and
@@ -87,7 +87,12 @@ async function postJson(url, body, timeoutMs = 40000) {
             // eslint-disable-next-line no-console
             console.error('[NBL] server error', res.status, data);
         }
-        throw new Error(friendly);
+        const err = new Error(friendly);
+        // Preserved so callers can distinguish specific business-rule errors
+        // (e.g. 'UPDATE_REQUIRED') from a generic one, without parsing the
+        // message text itself. See App.jsx's handleClaim.
+        if (data && data.code) err.code = data.code;
+        throw err;
     }
 
     return data;

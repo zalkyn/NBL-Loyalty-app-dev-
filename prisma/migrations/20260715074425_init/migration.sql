@@ -30,7 +30,7 @@ CREATE TABLE "Customer" (
     "lastName" TEXT,
     "email" TEXT NOT NULL,
     "points" INTEGER NOT NULL DEFAULT 0,
-    "orders" INTEGER NOT NULL DEFAULT 0,
+    "orders" INTEGER,
     "lifetimePoints" INTEGER NOT NULL DEFAULT 0,
     "referralCode" TEXT NOT NULL,
     "birthday" TIMESTAMP(3),
@@ -40,6 +40,7 @@ CREATE TABLE "Customer" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "enrolledAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "lastSyncedVersionKey" TEXT,
     "sessionId" TEXT NOT NULL,
 
     CONSTRAINT "Customer_pkey" PRIMARY KEY ("id")
@@ -143,6 +144,7 @@ CREATE TABLE "Referral" (
     "orderId" TEXT,
     "status" TEXT DEFAULT 'PENDING',
     "discountCode" TEXT,
+    "discountNodeId" TEXT,
     "discountInfo" TEXT,
     "discountUsed" BOOLEAN NOT NULL DEFAULT false,
     "rewardGiven" BOOLEAN NOT NULL DEFAULT false,
@@ -161,6 +163,7 @@ CREATE TABLE "Reward" (
     "event" TEXT,
     "type" TEXT DEFAULT 'DEFAULT',
     "code" TEXT,
+    "discountNodeId" TEXT,
     "rewardKey" TEXT,
     "orderId" TEXT,
     "pointsCost" INTEGER,
@@ -198,6 +201,7 @@ CREATE TABLE "AppSettings" (
     "settings" JSONB NOT NULL,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "sessionId" TEXT NOT NULL,
+    "looxFlowToken" TEXT,
 
     CONSTRAINT "AppSettings_pkey" PRIMARY KEY ("id")
 );
@@ -290,6 +294,19 @@ CREATE TABLE "Job" (
     "completedAt" TIMESTAMP(3),
 
     CONSTRAINT "Job_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ConfigUpdateVersion" (
+    "id" SERIAL NOT NULL,
+    "shop" TEXT NOT NULL,
+    "versionKey" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ConfigUpdateVersion_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -434,6 +451,9 @@ CREATE INDEX "WebhookEvent_shop_idx" ON "WebhookEvent"("shop");
 CREATE INDEX "WebhookEvent_createdAt_idx" ON "WebhookEvent"("createdAt");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "AppSettings_looxFlowToken_key" ON "AppSettings"("looxFlowToken");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "AppSettings_sessionId_key" ON "AppSettings"("sessionId");
 
 -- CreateIndex
@@ -480,6 +500,15 @@ CREATE INDEX "Job_shop_idx" ON "Job"("shop");
 
 -- CreateIndex
 CREATE INDEX "Job_type_status_idx" ON "Job"("type", "status");
+
+-- CreateIndex
+CREATE INDEX "Job_shop_status_type_updatedAt_idx" ON "Job"("shop", "status", "type", "updatedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ConfigUpdateVersion_versionKey_key" ON "ConfigUpdateVersion"("versionKey");
+
+-- CreateIndex
+CREATE INDEX "ConfigUpdateVersion_shop_isActive_idx" ON "ConfigUpdateVersion"("shop", "isActive");
 
 -- AddForeignKey
 ALTER TABLE "Customer" ADD CONSTRAINT "Customer_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "Session"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

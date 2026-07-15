@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/hooks/referralCache.js
+// app/widget-ui/ui/hooks/referralCache.js
 // localStorage cache + URL code detection — pure functions, purono
 // referral-modal.js-er cache/URL logic-er extraction, framework-agnostic.
 //

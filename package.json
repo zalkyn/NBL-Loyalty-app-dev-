@@ -22,7 +22,8 @@
     "typecheck": "react-router typegen && tsc --noEmit",
     "widget:build": "node app/widget-ui/ui/build.js",
     "widget:build:debug": "node app/widget-ui/ui/build.js --debug",
-    "widget:dev": "node app/widget-ui/ui/build.js --watch"
+    "widget:dev": "node app/widget-ui/ui/build.js --watch",
+    "migrate:resync-update-mode": "node scripts/migrate-resync-update-mode.js"
   },
   "type": "module",
   "engines": {
@@ -41,7 +42,6 @@
     "compression": "^1.8.1",
     "express": "^5.2.1",
     "isbot": "^5.1.31",
-    "jotai": "^2.19.0",
     "morgan": "^1.10.1",
     "node-cron": "^4.2.1",
     "preact": "^10.25.4",
