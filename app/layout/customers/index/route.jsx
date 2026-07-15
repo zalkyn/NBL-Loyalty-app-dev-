@@ -37,7 +37,8 @@ export default function Customers() {
 
     return (
         <s-page title="Customers" inlineSize="base">
-            <s-button
+            {/** Sync Customers */}
+            {/* <s-button
                 slot="primary-action"
                 variant="primary"
                 icon="refresh"
@@ -46,7 +47,7 @@ export default function Customers() {
                 onClick={page.handleSync}
             >
                 {page.isSyncRunning ? "Syncing…" : "Sync Customers"}
-            </s-button>
+            </s-button> */}
 
             <CustomerTable
                 customers={page.customers}
@@ -60,6 +61,8 @@ export default function Customers() {
                 navigatingTo={page.navigatingTo}
                 loaderError={page.loaderError}
                 onSearch={page.handleSearch}
+                onSearchSubmit={page.handleSearchSubmit}
+                onSearchKeyDown={page.handleSearchKeyDown}
                 onSortChange={page.handleSortChange}
                 onPageChange={page.handlePageChange}
                 onPageSizeChange={page.handlePageSizeChange}

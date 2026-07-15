@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/Image.jsx
+// app/widget-ui/ui/components/Image.jsx
 // Generic image wrapper with a fallback placeholder — reusable everywhere a
 // photo is shown with an icon fallback (prize item, prize-claim item).
 //

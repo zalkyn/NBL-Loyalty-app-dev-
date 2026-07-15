@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/hooks/useReferralModal.js
+// app/widget-ui/ui/hooks/useReferralModal.js
 // Referral modal state machine — purono referral-modal.js-er pura replacement.
 // URL/pending code detection, fetch + cache, step management — sob ekhane.
 // =============================================================================
@@ -30,6 +30,16 @@ const ERROR_MESSAGES = {
 };
 
 function friendlyMessage(data) {
+    // UPDATE_REQUIRED's text is dynamic (the admin's announced version
+    // title/description — see checkUpdateRequired.js), unlike every other
+    // code here which maps to a fixed, hardcoded string. Every other code
+    // stays on the static ERROR_MESSAGES map on purpose — trusting
+    // data.message in general would risk surfacing a raw/unexpected
+    // backend string to the customer; UPDATE_REQUIRED is deliberately the
+    // one exception because its message is always built server-side from
+    // the version's own admin-authored title/description, never from
+    // internal error detail.
+    if (data && data.code === 'UPDATE_REQUIRED' && data.message) return data.message;
     if (data && data.code && ERROR_MESSAGES[data.code]) return ERROR_MESSAGES[data.code];
     return GENERIC_ERROR_MESSAGE;
 }
@@ -59,7 +69,7 @@ function wait(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisionNeeded, customerId, redirectUrl }) {
+export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisionNeeded, customerId, redirectUrl, redirectEnabled }) {
     // NOTE: `provisioning` here is expected to be useCustomerProvision's
     // `inFlight` value (always accurate), not its `provisioning` (overlay-only,
     // can stay false even while a call is pending if the overlay is disabled
@@ -200,6 +210,13 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
         } else if (LOCKED_CODES.indexOf(data.code) > -1) {
             setStep('locked');
             setLockedMessage({ type: 'error', text: friendlyMessage(data) });
+        } else if (data.code === 'UPDATE_REQUIRED') {
+            // See checkUpdateRequired.js / reward-claim.jsx's matching guard.
+            // Message component (ReferralModal.jsx) renders an "Update"
+            // button instead of "Try Again" for this flag — retrying the
+            // same submission would just fail again the same way until the
+            // customer actually syncs.
+            setFormMessage({ type: 'error', text: friendlyMessage(data), isUpdateRequired: true });
         } else {
             setFormMessage({ type: 'error', text: friendlyMessage(data) });
         }
@@ -331,6 +348,16 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
         // registration, with no theme changes needed on the merchant's
         // side — see https://shopify.dev/docs/storefronts/themes/sign-in.
         //
+        // redirectEnabled is merchant-configurable (Customize > Referral in
+        // the admin — see cssVarsConfig.js's referral.redirectEnabled
+        // field). When off, the app deliberately omits return_to and lets
+        // Shopify's own default sign-in behaviour decide where the customer
+        // lands — redirectUrl below is irrelevant in that case.
+        if (redirectEnabled === false) {
+            window.location.href = '/customer_authentication/login';
+            return;
+        }
+
         // redirectUrl is merchant-configurable (Customize > Referral in the
         // admin — see cssVarsConfig.js's referral.redirectUrl field).
         // return_to only accepts relative paths, so anything that isn't one

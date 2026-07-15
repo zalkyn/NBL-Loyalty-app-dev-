@@ -25,6 +25,28 @@
     // outside Shopify's actual App Proxy tunnel). Matching both patterns
     // here keeps this working regardless of which path style is current.
     var originalFetch = window.fetch;
+
+    // Shared shape for any mock response that needs a customer config —
+    // matches syncCustomerConfig.js's real shape (id/shopifyId/points/
+    // referralCode/transactions/rewards/prizeClaims/lastSyncedVersionKey).
+    // Kept intentionally small/generic rather than mirroring the full
+    // preview-moc-config.js fixture — these are POST/GET responses simulating
+    // a fresh sync, not the initial page-load data, so callers only need
+    // enough here to confirm "the call succeeded and returned something
+    // usable", not full fidelity with the boot-time mock customer.
+    function mockConfig() {
+        return {
+            id: 1,
+            shopifyId: "gid://shopify/Customer/9441305526522",
+            points: 2563545,
+            referralCode: "NBL_3D3E3MBMOTOIN2S",
+            transactions: [],
+            rewards: [],
+            prizeClaims: [],
+            lastSyncedVersionKey: null,
+        };
+    }
+
     window.fetch = function (url, opts) {
         var isApiCall = typeof url === "string" &&
             (url.indexOf("/apps/widget") !== -1 || url.indexOf("/api/") !== -1);
@@ -35,11 +57,25 @@
             mockResponse = { voucherCode: "PREVIEW15OFF" };
         } else if (url.indexOf("claim-prize") !== -1) {
             mockResponse = { success: true, claimId: "preview-claim-1" };
-        } else if (url.indexOf("referral") !== -1) {
+        } else if (url.indexOf("get-referral-discount") !== -1) {
             mockResponse = {
                 success: true,
                 referralDiscountCode: "PREVIEW-REF15",
             };
+        } else if (url.indexOf("provision-customer") !== -1) {
+            // useCustomerProvision.js checks data.config specifically.
+            mockResponse = { success: true, created: false, config: mockConfig() };
+        } else if (url.indexOf("join-program") !== -1) {
+            // useJoinProgram.js checks data.success && data.config.
+            mockResponse = { success: true, alreadyJoined: true, config: mockConfig() };
+        } else {
+            // Plain GET /apps/widget — requestConfigResync (useConfigResync.js
+            // / useAutoUpdateSync.js / the Update banner's manual click all
+            // check data.config). Without this branch every one of those
+            // silently "fails" in preview even though nothing is actually
+            // wrong — see useUpdateBanner.js's error path, which is exactly
+            // what surfaced this gap.
+            mockResponse = { success: true, config: mockConfig() };
         }
 
         return Promise.resolve(

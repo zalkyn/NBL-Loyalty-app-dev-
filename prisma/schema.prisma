@@ -62,6 +62,17 @@ model Customer {
   enrolledAt     DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  // Which ConfigUpdateVersion.versionKey this customer's split metafields
+  // (core/transactions/rewards/prizeClaims) were last stamped with. Written
+  // ONLY after the Shopify metafield write itself succeeds (see
+  // syncCustomerConfig.js) — never write-then-hope, so this can never claim
+  // a customer is "updated" when the actual metafield write failed. Stamped
+  // on every full ("core"-scope) sync, not just an explicit customer click —
+  // most customers self-heal via their own order/reward/referral events and
+  // never need to see the update banner at all. null means "never synced
+  // under this versioning scheme" (pre-dates this feature, or brand new).
+  lastSyncedVersionKey String?
+
   transactions  Transaction[]
   referralsSent Referral[]           @relation("Referrer")
   referralsUsed Referral?            @relation("Referred")
@@ -216,6 +227,14 @@ model Referral {
   orderId                String?
   status                 String?  @default("PENDING")
   discountCode           String?
+  // Shopify GID of the codeDiscountNode behind discountCode — needed to
+  // delete the discount via discountCodeDelete (Shopify has no "delete by
+  // code string" mutation, only by ID). Captured once at creation time
+  // (generateReferralDiscountCode.js) instead of looked up later, to avoid
+  // an extra Admin API call when the discount-cleanup job runs. Nullable:
+  // rows created before this feature shipped simply won't have it, and the
+  // cleanup job skips those (see discountDeleteJob.js).
+  discountNodeId         String?
   discountInfo           String?  @db.Text
   discountUsed           Boolean  @default(false)
   rewardGiven            Boolean  @default(false)
@@ -241,6 +260,9 @@ model Reward {
   event        String?
   type         String?   @default("DEFAULT")
   code         String?
+  // Shopify GID of the codeDiscountNode behind `code` — see Referral.discountNodeId's
+  // matching comment for why this is captured at creation time.
+  discountNodeId String?
   rewardKey    String?   @unique
   orderId      String?
   pointsCost   Int?
@@ -448,4 +470,41 @@ model Job {
   @@index([status, lockedAt])
   @@index([shop])
   @@index([type, status])
+  // Admin Jobs page's exact filter+sort combo (shop always scoped, status/
+  // type optionally filtered, always sorted by updatedAt desc) — without
+  // this, that query has no single index to use as the table grows past
+  // what the four indexes above happen to cover well.
+  @@index([shop, status, type, updatedAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Config update version tracking — the customer-facing "an update is
+// available, please refresh" banner in the widget.
+//
+// A new row is created every time an admin announces a new version (title +
+// description shown in the banner, versionKey used to compare against each
+// customer's Customer.lastSyncedVersionKey). Only ONE row is `isActive` per
+// shop at a time — creating a new one flips the previous one to false. Rows
+// are NEVER deleted (append-only audit history of what was announced and
+// when), only superseded.
+//
+// The master on/off switch for the banner itself lives separately, in
+// Style.widgetConfig ("resync.showUpdateBanner" — see cssVarsConfig.js) —
+// deliberately NOT here, so an admin can kill the banner instantly (e.g. a
+// bug is found in it) without touching version history.
+model ConfigUpdateVersion {
+  id          Int      @id @default(autoincrement())
+  shop        String
+  // Random, unique per version — compared against Customer.lastSyncedVersionKey
+  // client-side (both values are already present at page load, via the shop
+  // metafield and the customer's own core metafield respectively — zero
+  // extra network call needed to detect a mismatch).
+  versionKey  String   @unique
+  title       String
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  // Primary lookup: "what's the current active version for this shop"
+  @@index([shop, isActive])
 }

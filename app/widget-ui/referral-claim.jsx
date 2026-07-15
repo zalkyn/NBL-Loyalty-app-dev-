@@ -28,6 +28,7 @@ import { syncCustomerConfig } from "@controller/metafieldsSync/syncCustomerConfi
 import { generateReferralDiscountCode } from "@graphql/mutation/discounts/generateReferralDiscountCode";
 import prisma from "db-server";
 import { normalizeCustomerGid } from "@controller/customers/normalizeCustomerGid.js";
+import checkUpdateRequired from "@controller/customers/checkUpdateRequired.js";
 import { customerOrderCount } from "@graphql/query/customers";
 import createTransaction from "@controller/transaction/createTransaction.js";
 import { createCustomerReward } from "@controller/customerReward/createCustomerReward.js";
@@ -62,6 +63,10 @@ const ERROR_CODES = {
     DISCOUNT_ALREADY_USED: { code: "DISCOUNT_ALREADY_USED", status: 409 },
     DISCOUNT_ALREADY_EXISTS: { code: "DISCOUNT_ALREADY_EXISTS", status: 409 },
     REFERRAL_ALREADY_LOCKED: { code: "REFERRAL_ALREADY_LOCKED", status: 409 },
+    // Pending update — see checkUpdateRequired.js / reward-claim.jsx's
+    // matching guard for the full rationale. 409 for the same
+    // stale-client-conflict reasoning as the other 409s above.
+    UPDATE_REQUIRED: { code: "UPDATE_REQUIRED", status: 409 },
     // 422
     SELF_REFERRAL: { code: "SELF_REFERRAL", status: 422 },
     INELIGIBLE_CUSTOMER_ORDERS: { code: "INELIGIBLE_CUSTOMER_ORDERS", status: 422 },
@@ -132,6 +137,16 @@ export async function action({ request }) {
 
         validateCustomers(referrer, referred);
 
+        // ── 2.0 Guard: pending update ───────────────────────────────────────────
+        // Only the REFERRED customer (the one actually making this request
+        // and about to get a new discount/points) needs to be in sync — the
+        // referrer isn't performing an action here. See checkUpdateRequired.js
+        // / reward-claim.jsx's matching guard for the full rationale.
+        const updateCheck = await checkUpdateRequired({ shop, customerDbId: referred.id });
+        if (updateCheck.blocked) {
+            throw createError(updateCheck.message, ERROR_CODES.UPDATE_REQUIRED);
+        }
+
         // ── 2.1 Enforce same-shop referral ─────────────────────────────────────
         if (referrer.sessionId !== session.id) {
             throw createError(
@@ -193,7 +208,7 @@ export async function action({ request }) {
         }
 
         // ── 6. Generate Shopify discount code ─────────────────────────────────
-        const discountCode = await withRetry(
+        const { code: discountCode, discountNodeId } = await withRetry(
             () => generateReferralDiscountCode(admin, shopifyId, referralCode, session.id),
             {
                 maxAttempts: 3,
@@ -216,7 +231,7 @@ export async function action({ request }) {
         }
 
         // ── 7. Save referral record ───────────────────────────────────────────
-        const newReferral = await createReferral(referrer.id, referred.id, discountCode);
+        const newReferral = await createReferral(referrer.id, referred.id, discountCode, discountNodeId);
 
         // ── 8. Transaction — audit trail only, no points movement yet ─────────
         await createTransaction(
@@ -247,6 +262,7 @@ export async function action({ request }) {
             title: "Referral discount voucher",
             description: `Use code ${discountCode} at checkout to get your referral discount on your first order.`,
             code: discountCode,
+            discountNodeId,
             // referralId: newReferral.id, // TODO: uncomment after Reward.referralId added to schema
         });
 
@@ -425,7 +441,7 @@ function handleExistingReferral({ existingReferral, currentReferrerId, referralC
     );
 }
 
-async function createReferral(referrerId, referredId, discountCode) {
+async function createReferral(referrerId, referredId, discountCode, discountNodeId) {
     // Shared with app/controller/referral/createReferral.js — same
     // dbRetry-wrapped create, same P2002 (unique referredId) handling.
     // The controller swallows P2002 and returns null instead of throwing,
@@ -436,6 +452,7 @@ async function createReferral(referrerId, referredId, discountCode) {
             referredId,
             status: REFERRAL_STATUS.ACTIVE,
             discountCode,
+            discountNodeId,
             discountInfo: "Referral discount code generated",
         },
         { id: true }

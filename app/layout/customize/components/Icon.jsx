@@ -2,7 +2,7 @@
 // Icon.jsx
 // Minimal SVG icon set for the customizer admin UI. Used only in two places:
 //   1. LivePreview.jsx — the phone-frame widget mockup, mirroring the
-//      storefront's own modules/icons.js so the preview matches reality.
+//      storefront's own app/widget-ui/ui/icons.js so the preview matches reality.
 //   2. The launcher "Button icon" picker (SimpleIconField) — the actual
 //      icon choice the merchant makes for their storefront launcher button.
 // All other dashboard chrome (sidebar nav, section headers, page tabs,
@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PATHS = {
-    // Widget mockup icons (mirrors storefront modules/icons.js)
+    // Widget mockup icons (mirrors storefront app/widget-ui/ui/icons.js)
     rewards: <><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 0 1-8 0" /></>,
     lightning: <><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></>,
     referral: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
@@ -51,7 +51,7 @@ export function Icon({ name, size = 18, color = "currentColor", strokeWidth = 1.
 
 // ── Launcher button icon choices ─────────────────────────────────────────────
 // The merchant picks one of these to display on the storefront launcher
-// button. Names map 1:1 to modules/icons.js `launcherIconNames()` on the
+// button. Names map 1:1 to app/widget-ui/ui/icons.js `launcherIconNames()` on the
 // storefront so the admin picker/preview and live widget always agree.
 export const LAUNCHER_ICON_OPTIONS = ["gift", "star", "trophy", "gem"];
 

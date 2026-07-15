@@ -31,6 +31,7 @@
 import { authenticate } from "shopify-server";
 import { logger } from "app/utils/logger";
 import ensureAndSyncCustomer from "@controller/customers/ensureAndSyncCustomer.js";
+import { checkRateLimit } from "app/utils/rateLimiter.server.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ const MODULE = "widget-ui/route.jsx";
 const HTTP = /** @type {const} */ ({
     OK: 200,
     UNAUTHORIZED: 401,
+    TOO_MANY_REQUESTS: 429,
 });
 
 // ─── GET: Config resync ─────────────────────────────────────────────────────────
@@ -89,6 +91,18 @@ export async function loader({ request }) {
             HTTP.OK,
             { "Cache-Control": "public, max-age=30" },
         );
+    }
+
+    // ── Server-side rate limit ──────────────────────────────────────────────
+    // Backstops the client-side 4-hour throttle in useConfigResync.js, which
+    // only stops the widget's OWN well-behaved JS — not a direct, replayed
+    // request bypassing it. 30/min is generous (this path is meant to be
+    // called at most every few hours in normal use) while still blocking
+    // an obvious hammering script. See rateLimiter.server.js for the full
+    // rationale and its single-instance caveat.
+    const rateCheck = checkRateLimit(`resync:${session.shop}:${loggedInCustomerId}`, { max: 30, windowMs: 60_000 });
+    if (!rateCheck.allowed) {
+        return jsonResponse({ config: null }, HTTP.TOO_MANY_REQUESTS, { "Retry-After": String(rateCheck.retryAfterSeconds) });
     }
 
     // ensureAndSyncCustomer never throws for the "customer not found on

@@ -32,7 +32,7 @@ import SaveBar from "@components/saveBar/SaveBar";
 import { loadCustomizeData } from "./_loader.server";
 import { handleUpdate, handleResetAll, handleClearAll } from "./_action.server";
 import { useCustomizePage } from "./_hooks";
-import { SECTION_TO_SCENE } from "./constants/cssVarsConfig";
+import { SECTION_TO_SCENE, CONFIG_SECTION_TO_SCENE, LABEL_GROUP_TO_SCENE } from "./constants/cssVarsConfig";
 
 import LivePreviewPanel from "./livePreview/LivePreview";
 import { PageHeader } from "./components/PageHeader";
@@ -83,7 +83,11 @@ export default function CustomizeNew() {
             ? (page.notificationPreviewType === "reward" ? "notification-reward" : "notification-info")
             : page.pageTab === "customize"
                 ? (SECTION_TO_SCENE[page.activeSimpleSection] ?? "home")
-                : "home";
+                : page.pageTab === "config"
+                    ? (CONFIG_SECTION_TO_SCENE[page.activeConfigSection] ?? "home")
+                    : page.pageTab === "labels"
+                        ? (LABEL_GROUP_TO_SCENE[page.activeLabelGroup] ?? "home")
+                        : "home";
 
     return (
         <s-page inlineSize="large">
@@ -143,6 +147,9 @@ export default function CustomizeNew() {
                 <LabelsTab
                     widgetConfig={page.widgetConfig}
                     onConfigChange={page.handleConfigChange}
+                    activeLabelGroup={page.activeLabelGroup}
+                    onLabelGroupChange={page.setActiveLabelGroup}
+                    labelGroupDirtyCount={page.configSectionDirtyCount}
                     isNetworkSubmitting={page.isNetworkSubmitting}
                 />
             )}

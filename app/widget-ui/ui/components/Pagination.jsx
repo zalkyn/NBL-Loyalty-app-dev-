@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/Pagination.jsx
+// app/widget-ui/ui/components/Pagination.jsx
 // Pagination/load-more UI controls — purono html.js paginationHTML()-er
 // replacement. usePagination() hook-er return value direct props hisebe nay.
 // =============================================================================

@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/WidgetShell.jsx
+// app/widget-ui/ui/components/WidgetShell.jsx
 // Widget container + scroll wrapper + header + body — purono html.js-er
 // widgetHTML structure-er replacement.
 // =============================================================================
@@ -9,7 +9,7 @@ import { useRef } from 'preact/hooks';
 import { Header } from './Header.jsx';
 import { useCompactHeader } from '../hooks/useCompactHeader.js';
 
-export function WidgetShell({ isOpen, isLoggedIn, customerName, points, position, activeTab, onNavChange, onClose, lbl, children, notificationSlot, previewSlot, provisionSlot }) {
+export function WidgetShell({ isOpen, isLoggedIn, customerName, points, position, activeTab, onNavChange, onClose, lbl, syncing, children, notificationSlot, previewSlot, provisionSlot, updateBannerSlot }) {
     const wrapperRef = useRef(null);
     const compact = useCompactHeader(wrapperRef);
 
@@ -17,16 +17,25 @@ export function WidgetShell({ isOpen, isLoggedIn, customerName, points, position
         <div class={`nbl-widget-container${isOpen ? ' active' : ''} pos-${position}`}>
             <div class="nbl-widget-scroll-area">
                 <div class="nbl-widget-wrapper" ref={wrapperRef}>
-                    <Header
-                        isLoggedIn={isLoggedIn}
-                        customerName={customerName}
-                        points={points}
-                        compact={compact}
-                        activeTab={activeTab}
-                        onNavChange={onNavChange}
-                        onClose={onClose}
-                        lbl={lbl}
-                    />
+                    <div class="nbl-sticky-top">
+                        <Header
+                            isLoggedIn={isLoggedIn}
+                            customerName={customerName}
+                            points={points}
+                            compact={compact}
+                            activeTab={activeTab}
+                            onNavChange={onNavChange}
+                            onClose={onClose}
+                            lbl={lbl}
+                            syncing={syncing}
+                        />
+                        {/* Sits inside the same sticky wrapper as the header,
+                            so it stays pinned right below it as tab content
+                            scrolls underneath — can't be missed or scrolled
+                            past. One place to implement, automatically
+                            visible regardless of which tab is active. */}
+                        {updateBannerSlot}
+                    </div>
                     {/* Guest body full-bleed — no .nbl-widget-body side padding.
                         Logged-in tabs keep the padded body as before. Mixing the
                         two in one wrapper caused the guest hero/orbs to render

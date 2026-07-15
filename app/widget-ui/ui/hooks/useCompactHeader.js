@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/hooks/useCompactHeader.js
+// app/widget-ui/ui/hooks/useCompactHeader.js
 // Header scroll-e compact hoy — purono widget.js Section 8-er replacement.
 // wrapperRef = scrollable '.nbl-widget-wrapper'-er ref.
 // =============================================================================

@@ -77,15 +77,18 @@ export const generateReferralDiscountCode = async (admin, customerId, referralCo
 
     const discountCode =
         json?.data?.discountCodeBasicCreate?.codeDiscountNode?.codeDiscount?.codes?.nodes?.[0]?.code;
+    const discountNodeId = json?.data?.discountCodeBasicCreate?.codeDiscountNode?.id || null;
 
     if (!discountCode) {
         logger.error(MODULE, "Discount code missing in response", { json, ...ctx });
         throw new Error("Something went wrong while generating your reward.");
     }
 
-    logger.success(MODULE, "Discount code created", { discountCode, ...ctx });
+    logger.success(MODULE, "Discount code created", { discountCode, discountNodeId, ...ctx });
 
-    return discountCode;
+    // See generateRewardVoucher.js's matching comment — callers now get an
+    // object (code + discountNodeId) instead of a plain string.
+    return { code: discountCode, discountNodeId };
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

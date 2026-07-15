@@ -1,8 +1,13 @@
 // =============================================================================
-// modules/module-preact/hooks/useCustomerProvision.js
+// app/widget-ui/ui/hooks/useCustomerProvision.js
 // Silent customer auto-provisioning — kichu logged-in customer Shopify-te
 // ache kintu app DB-te nai (e.g. install-er age customer ছিল, ba webhook
 // miss hoyeche). Eta detect kore background-e provision kore, then reload.
+//
+// Controlled by widgetConfig.autoProvisionCustomer — a real Customize >
+// New Customer Onboarding toggle (see cssVarsConfig.js), OFF by default:
+// merchants have to deliberately opt in to silent joining, otherwise every
+// such customer sees the explicit "Join Our Program" button instead.
 //
 // On failure (backend unreachable, timeout, non-success response), this
 // never shows an alarming error itself — instead it exposes `failed`, and
@@ -45,9 +50,9 @@ function markFailedThisSession() {
  *                                          ekhane Shopify customer GID (referralModal/api.js
  *                                          eki convention follow kore) — even if
  *                                          customer.config missing thake, customer.id thakte pare.
- * @param {Object} params.appConfig      - appConfig.autoProvisionCustomer
- *                                          (default true — static flag, explicit false e off hoy),
- *                                          appConfig.showProvisionLoadingOverlay
+ * @param {Object} params.widgetConfig   - widgetConfig.autoProvisionCustomer
+ *                                          (default false/off — real Customize page toggle,
+ *                                          explicit true e on hoy), widgetConfig.showProvisionLoadingOverlay
  * @param {string} params.proxyPath      - App Proxy base path (e.g. "/apps/widget"),
  *                                          same one every other widget API call uses.
  * @returns {{ provisioning: boolean, provisionNeeded: boolean, inFlight: boolean, failed: boolean }}
@@ -67,7 +72,7 @@ function markFailedThisSession() {
  *                              re-attempt na hoyeo, page reload-er pore-o eই flag thik thake.
  *                              App.jsx eta diye JoinProgramPanel fallback dekhay.
  */
-export function useCustomerProvision({ isLoggedIn, customer, appConfig, proxyPath }) {
+export function useCustomerProvision({ isLoggedIn, customer, widgetConfig, proxyPath }) {
     const [provisioning, setProvisioning] = useState(false); // overlay visibility only
     const [inFlight, setInFlight] = useState(false); // true whenever a provision call is outstanding, regardless of overlay setting
     // Lazy init reads sessionStorage once on first mount — so a customer who
@@ -77,10 +82,12 @@ export function useCustomerProvision({ isLoggedIn, customer, appConfig, proxyPat
     const [failed, setFailed] = useState(hasFailedThisSession);
     const ranRef = useRef(false);
 
-    const cfg = appConfig || {};
-    // Default true — eta static feature flag, dashboard toggle na. Only an
-    // EXPLICIT false in config turns it off; missing/undefined still means on.
-    const featureEnabled = cfg.autoProvisionCustomer !== false;
+    const cfg = widgetConfig || {};
+    // Default false (off/manual) — a real Customize page toggle now, not a
+    // static flag. Only an EXPLICIT true turns silent auto-join on;
+    // missing/undefined (a shop that's never touched this setting) still
+    // means off, so the customer sees the explicit Join button.
+    const featureEnabled = cfg.autoProvisionCustomer === true;
 
     // ── Synchronous, render-time derived flag ─────────────────────────────────
     // Available immediately on first render (no useEffect delay), so sibling

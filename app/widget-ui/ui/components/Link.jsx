@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/Link.jsx
+// app/widget-ui/ui/components/Link.jsx
 // Shared anchor primitive — for real navigational links (track order,
 // contact us, etc). Mirrors Button's prop shape (variant/size/icon/extraClass)
 // so call sites can reach for Button or Link interchangeably depending on

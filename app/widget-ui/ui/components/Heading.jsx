@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/Heading.jsx
+// app/widget-ui/ui/components/Heading.jsx
 // Shared title primitive. size="sm|md|lg" maps to a fixed scale; `as` picks
 // the semantic tag (h1-h6) independently of visual size.
 //
