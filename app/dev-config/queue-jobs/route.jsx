@@ -40,6 +40,7 @@ import {
     handleSaveDiscountDeleteSettings,
 } from "./_action.server";
 import { JobsTable } from "./components/JobsTable";
+import { DevConfigNav } from "../components/DevConfigNav";
 
 const STATUSES = ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED"];
 
@@ -227,23 +228,27 @@ export default function JobsPage() {
 
     return (
         <s-page heading="Background Jobs">
+            <DevConfigNav active="queue-jobs" />
             <s-section heading="Discount Code Cleanup">
                 <s-paragraph tone="subdued">
-                    When on, a background job (DISCOUNT_DELETE, listed below once
-                    any run) deletes the Shopify discount code for a reward in the
-                    matching situation. Off by default for both — a discount code
-                    left behind is just clutter in Shopify admin's discount list,
-                    not a functional problem, so this is opt-in.
+                    When a customer redeems a reward, the app creates a Shopify
+                    discount code for it. Sometimes that code is no longer
+                    needed — the reward was cancelled, or the code was already
+                    used. This setting decides whether the app automatically
+                    deletes those leftover codes from your Shopify discount
+                    list. It's purely tidiness: leaving them does no harm, it
+                    just clutters the discount list in Shopify admin. Both are
+                    on by default.
                 </s-paragraph>
                 <s-box paddingBlockStart="base">
                     <s-stack direction="block" gap="extra-small">
                         <s-checkbox
-                            label="Delete when a redeemed reward is cancelled"
+                            label="Delete when a redeemed reward is cancelled — the code would never be used, so remove it."
                             checked={onRewardCancel}
                             onChange={() => setOnRewardCancel((prev) => !prev)}
                         ></s-checkbox>
                         <s-checkbox
-                            label="Delete once a voucher is used at checkout"
+                            label="Delete once a voucher is used at checkout — the code is spent, so remove it afterwards."
                             checked={onRewardUsed}
                             onChange={() => setOnRewardUsed((prev) => !prev)}
                         ></s-checkbox>
@@ -266,6 +271,14 @@ export default function JobsPage() {
             </s-section>
 
             <s-section heading="Filters">
+                <s-paragraph tone="subdued">
+                    Background jobs are tasks the app runs on its own —
+                    processing paid orders, syncing customers, cleaning up
+                    discount codes, and so on. The table below lists them so
+                    you can check on any that failed or got stuck. Filter by
+                    status (e.g. failed, completed) or by type to narrow it
+                    down.
+                </s-paragraph>
                 <s-stack direction="inline" gap="base">
                     <s-select
                         label="Status"

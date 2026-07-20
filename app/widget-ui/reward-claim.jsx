@@ -21,6 +21,7 @@ import { logger } from "app/utils/logger.js";
 import { authenticate } from "shopify-server";
 import prisma from "db-server";
 import { normalizeCustomerGid } from "@controller/customers/normalizeCustomerGid.js";
+import ensureAndSyncCustomer from "@controller/customers/ensureAndSyncCustomer.js";
 import { generateRewardVoucher } from "app/graphql/mutation/discounts/generateRewardVoucher.js";
 import createTransaction from "app/controller/transaction/createTransaction";
 import { createCustomerReward } from "@app/controller/customerReward/createCustomerReward.js";
@@ -28,6 +29,7 @@ import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerCo
 import checkUpdateRequired from "@controller/customers/checkUpdateRequired.js";
 import { withRetry } from "app/utils/retry/withRetry.js";
 import { dbRetry } from "app/utils/retry/dbRetry.js";
+import { previewTitle } from "app/layout/rewards-rules/_data.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "widget-data.get-voucher";
@@ -72,7 +74,7 @@ export async function action({ request }) {
         logger.info("Received get-voucher request", { module: MODULE, shop, rewardRuleId, shopifyId });
 
         const [customer, rewardRule] = await Promise.all([
-            getValidCustomer(shopifyId, session.id),
+            getValidCustomer(admin, session, shopifyId),
             getValidRewardRule(rewardRuleId, session.id),
         ]);
 
@@ -182,6 +184,16 @@ export async function action({ request }) {
 async function redeemReward({ admin, session, customer, rewardRule, customerId, title }) {
     const shop = session?.shop;
     const pointsCost = Math.abs(Number(rewardRule.pointsCost) || 0);
+    // rewardRule.title may still be the raw "Voucher {{currency_value}}"
+    // template (see rewards-rules/_data.server.js's own comment — the
+    // admin Edit Rule form used to resolve and freeze this at save time,
+    // which meant editing a rule's discount value later left the title
+    // silently stale/wrong forever after). Resolving it fresh here, right
+    // at claim time, means it always reflects whatever the rule's CURRENT
+    // discountType/rewardValue actually are. Falls back to the raw title
+    // itself if it has no placeholder to resolve (previewTitle just
+    // returns it unchanged in that case) or is empty.
+    const resolvedRuleTitle = previewTitle(rewardRule.title, rewardRule.discountType, rewardRule.rewardValue) || rewardRule.title;
 
     // ── 1. Deduct points FIRST ──────────────────────────────────────────────
     //
@@ -200,8 +212,8 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
         {
             customerId: customer.id,
             type: "REDEEM",
-            reason: `${pointsCost.toLocaleString()} points redeemed for reward: ${rewardRule.title}`,
-            activity: `-${pointsCost.toLocaleString()} points redeemed for reward: ${rewardRule.title}`,
+            reason: `${pointsCost.toLocaleString()} points redeemed for reward: ${resolvedRuleTitle}`,
+            activity: `-${pointsCost.toLocaleString()} points redeemed for reward: ${resolvedRuleTitle}`,
             points: pointsCost,
             // rewardId intentionally omitted — the Reward row doesn't exist
             // yet at this point (it needs the real voucher code, generated
@@ -251,7 +263,7 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
             {
                 customerId: customer.id,
                 type: "ADJUST",
-                reason: `Refund — voucher generation failed for reward: ${rewardRule.title}`,
+                reason: `Refund — voucher generation failed for reward: ${resolvedRuleTitle}`,
                 activity: `+${pointsCost.toLocaleString()} points refunded (redemption failed)`,
                 points: pointsCost, // positive = credit back
                 status: "COMPLETED",
@@ -321,7 +333,7 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
             rewardRuleId: rewardRule.id,
             event: "MANUAL",
             type: "REDEEM",
-            title: title || rewardRule.title || "Points redemption",
+            title: title || resolvedRuleTitle || "Points redemption",
             description: rewardRule.description || "Redeemed points for a discount voucher",
             code: voucherCode,
             discountNodeId,
@@ -337,8 +349,8 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
     return {
         voucherCode,
         pointsCost,
-        rewardTitle: rewardRule.title,
-        activity: `-${pointsCost.toLocaleString()} points redeemed for reward: ${rewardRule.title}`,
+        rewardTitle: resolvedRuleTitle,
+        activity: `-${pointsCost.toLocaleString()} points redeemed for reward: ${resolvedRuleTitle}`,
         createdAt: newReward?.createdAt ?? new Date(),
         balanceAfter: transaction.balanceAfter,
     };
@@ -371,14 +383,41 @@ async function getValidRewardRule(id, sessionId) {
 // shopifyId comes from Shopify's signed `logged_in_customer_id` — not from
 // the client body — so this lookup can't be pointed at another shop's
 // customer or a stale/forged id the way the old customerIndex lookup could.
-async function getValidCustomer(shopifyId, sessionId) {
+//
+// Self-heals a missing DB row via ensureAndSyncCustomer() — the SAME
+// self-heal path widget-ui/route.jsx (periodic resync), provision-
+// customer.jsx, and join-program.jsx already use. Before this, a customer
+// whose DB row didn't exist yet (fresh deploy, DB reset, or simply hasn't
+// had their own background resync complete yet — e.g. they open the
+// widget and claim a reward within the same second) got an outright
+// "Customer not found" 404 here, with no recovery — the ONLY way to fix
+// it was a page reload, which coincidentally triggers that separate
+// resync path first. Reproducing the same self-heal here removes that
+// dependency entirely; a first-ever claim now works the same as any
+// other, no reload required.
+async function getValidCustomer(admin, session, shopifyId) {
     try {
+        const existing = await dbRetry(
+            () => prisma.customer.findFirst({ where: { shopifyId, sessionId: session.id } }),
+            { module: MODULE, shopifyId, sessionId: session.id }
+        );
+        if (existing) return existing;
+
+        logger.warn("Customer not found on first lookup — attempting self-heal", {
+            module: MODULE,
+            shopifyId,
+            shop: session.shop,
+        });
+
+        const healed = await ensureAndSyncCustomer(admin, session, shopifyId);
+        if (!healed.config) return null; // genuinely no such Shopify customer
+
         return await dbRetry(
-            () => prisma.customer.findFirst({ where: { shopifyId, sessionId } }),
-            { module: MODULE, shopifyId, sessionId }
+            () => prisma.customer.findFirst({ where: { shopifyId, sessionId: session.id } }),
+            { module: MODULE, shopifyId, sessionId: session.id }
         );
     } catch (error) {
-        logger.error("Failed to fetch customer", { module: MODULE, shopifyId, sessionId, error: error?.message });
+        logger.error("Failed to fetch customer", { module: MODULE, shopifyId, sessionId: session.id, error: error?.message });
         return null;
     }
 }

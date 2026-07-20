@@ -11,7 +11,7 @@ import { logger } from "app/utils/logger.js";
 import { getDiscountDeleteSettings } from "app/controller/appSettings/discountDeleteSettings.js";
 
 /** @constant {string} Module identifier for structured logging */
-const MODULE = "layout/dev-config/queue-jobs/_loader.server.js";
+const MODULE = "dev-config/queue-jobs/_loader.server.js";
 
 export const DEFAULT_PAGE_SIZE = 25;
 
@@ -67,6 +67,6 @@ export async function loadJobsData({ shop, status, type, page = 1, perPage = DEF
         };
     } catch (err) {
         logger.error("Failed to load jobs", { module: MODULE, shop, status, type, error: err?.message });
-        return { jobs: [], total: 0, page, perPage, types: [], discountDeleteSettings: { onRewardCancel: false, onRewardUsed: false } };
+        return { jobs: [], total: 0, page, perPage, types: [], discountDeleteSettings: { onRewardCancel: true, onRewardUsed: true } };
     }
 }

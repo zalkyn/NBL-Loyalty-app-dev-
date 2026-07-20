@@ -1144,6 +1144,20 @@ input:not([type=checkbox], [type=radio]) {
     line-height: 1.2;
 }
 
+/* Points-pending indicator (App.jsx's pointsPending) — same base
+   .nbl-spinner as the header's sync dot, just sized/aligned to sit inline
+   in the launcher's single-line subtitle instead of next to a points
+   badge. */
+.nbl-launcher__sync-spinner.nbl-spinner--sync {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    vertical-align: -1px;
+    border-width: 1.5px;
+    border-color: color-mix(in srgb, currentColor 30%, transparent);
+    border-top-color: currentColor;
+}
+
 /* Guest mode — slightly narrower label, no points sub-line */
 .nbl-launcher__button.guest .nbl-launcher__label {
     padding: 0 14px 0 10px;
@@ -2466,29 +2480,19 @@ input:not([type=checkbox], [type=radio]) {
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   SYNC INDICATOR — tiny, non-blocking spinner shown next
-   to the header points balance while a background config
-   resync (periodic hygiene sync OR version auto-sync) is
-   in flight. Deliberately NOT the same as the provision
-   overlay above — this never blocks or dims the widget,
-   it's meant to be easy to miss if you're not looking for
-   it. Controlled by widgetConfig.showSyncIndicator
-   (Customize > Update Notifications), default on.
+   SYNC INDICATOR — small spinner shown in place of the
+   points number (Header.jsx) or points subtitle
+   (LauncherButton.jsx) while that number is known-stale:
+   a Banner-mode update sitting unclicked, or any
+   background resync actively in flight (periodic hygiene
+   sync OR version auto-sync). Both components swap the
+   number for this spinner under the exact same condition
+   (App.jsx's pointsPending) — deliberately NOT the same as
+   the provision overlay above, which blocks/dims the whole
+   widget; this is a small, local swap only. Controlled by
+   widgetConfig.showSyncIndicator (Customize > Update
+   Notifications), default on.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-.nbl-header__sync-indicator {
-    display: inline-flex;
-    align-items: center;
-    margin-left: 6px;
-    opacity: 0;
-    transform: scale(0.6);
-    transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.nbl-header__sync-indicator.active {
-    opacity: 0.85;
-    transform: scale(1);
-}
-
 .nbl-spinner--sync {
     width: 10px;
     height: 10px;

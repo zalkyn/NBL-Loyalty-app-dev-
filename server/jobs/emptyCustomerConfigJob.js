@@ -24,20 +24,17 @@ const STALE_LOCK_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 /**
  * Main entry point called by jobManager on each cron cycle.
  *
- * TESTING ONLY. Handles EMPTY_CUSTOMER_CONFIG jobs — enqueued exclusively
- * from the Version Tracking page's "empty already-synced customers'
- * config" button, which itself only renders when
- * AppSettings.settings.testing.showEmptyConfigButton is true (see
- * testingFlags.js — that can only ever be set by a developer directly in
- * the database).
+ * Handles EMPTY_CUSTOMER_CONFIG jobs — enqueued from the Customer Sync
+ * page's "empty already-synced customers' config" button (see
+ * maintenanceToolFlags.js).
  *
  * Does the OPPOSITE of bulkCustomerSyncJob.js: instead of writing fresh
  * data TO a customer's split metafields, this DELETES them from Shopify —
  * for customers who currently have a synced config
  * (lastSyncedVersionKey IS NOT NULL) only, since "empty an already-synced
  * customer" is specifically the scenario this simulates (self-heal/
- * fallback testing against real Shopify data, not just this app's DB —
- * see clearCustomerMetafields.js's own comment).
+ * fallback against real Shopify data, not just this app's DB — see
+ * clearCustomerMetafields.js's own comment).
  *
  * Same chunked/resumable shape as bulkCustomerSyncJob.js and the same
  * reasoning for why: real per-customer Shopify API calls, so this must
