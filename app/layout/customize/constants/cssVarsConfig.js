@@ -132,9 +132,7 @@ export const WIDGET_CONFIG_DEFAULTS = {
     // gets enrolled silently in the background, or sees an explicit
     // "Join our Program" button they have to tap themselves. See
     // useCustomerProvision.js / JoinProgramPanel.jsx for the full flow.
-    // Defaults to false (manual/explicit) — a merchant has to deliberately
-    // turn this on to make joining silent.
-    autoProvisionCustomer: false,
+    autoProvisionCustomer: true,
     // Only relevant when autoProvisionCustomer is true — whether the
     // brief silent-provisioning attempt shows a loading overlay in the
     // widget, or provisions invisibly in the background.
@@ -164,15 +162,6 @@ export const WIDGET_CONFIG_DEFAULTS = {
         linkPath: "/",
     },
     resync: {
-        // Master switch for how a customer whose account hasn't caught up
-        // with the shop's current ConfigUpdateVersion gets updated (see
-        // getActiveConfigUpdateVersion.js / mergeCustomerConfig() in
-        // main.preact.jsx). Deliberately kept OFF by default and separate
-        // from version history itself — an admin can instantly turn this
-        // off (e.g. a bug is found) without touching the Scheduled/
-        // version-tracking data. Independent of whether a version actually
-        // exists — nothing happens unless this is non-"off" AND an active
-        // version exists AND the customer doesn't match it.
         //   "off"    - do nothing; customers stay on their last-synced config
         //              until their next order/reward/referral event.
         //   "banner" - show the "update available" banner with a manual
@@ -180,7 +169,7 @@ export const WIDGET_CONFIG_DEFAULTS = {
         //   "auto"   - silently resync and reload on the customer's next
         //              visit, no banner, no click needed (see
         //              useAutoUpdateSync.js).
-        updateMode: "off",
+        updateMode: "auto",
         // Tiny non-blocking spinner next to the points balance during any
         // background config resync (periodic hygiene sync OR "auto" mode
         // above) — see Header.jsx / ui.css's .nbl-header__sync-indicator.
@@ -386,12 +375,12 @@ export const WIDGET_CONFIG_SECTIONS = [
                     { value: "auto", label: "Auto-sync (silent)" },
                 ],
                 configKey: "resync.updateMode",
-                default: "off",
+                default: "auto",
             },
             {
                 key: "resync_showSyncIndicator",
                 label: "Show subtle sync indicator",
-                hint: "A tiny, non-blocking spinner next to the points balance while a background sync is happening — either the periodic hygiene sync that quietly keeps points/rewards/transactions accurate, or an Auto-sync (silent) version update above. Off by default it's completely invisible either way; this only adds a small visual cue, never a blocking overlay like the one shown while a brand-new customer is joining.",
+                hint: "Replaces the points number with a small spinner (in both the header and the floating launcher button) while it's known-stale — a Banner-mode update sitting unclicked, or a background sync actively running (the periodic hygiene sync that quietly keeps points/rewards/transactions accurate, or an Auto-sync (silent) version update above). On by default; turning this off shows the points number as-is at all times instead, never a blocking overlay like the one shown while a brand-new customer is joining.",
                 type: "toggle",
                 configKey: "resync.showSyncIndicator",
                 default: true,
@@ -406,10 +395,10 @@ export const WIDGET_CONFIG_SECTIONS = [
             {
                 key: "autoProvisionCustomer",
                 label: "Join automatically",
-                hint: "Off (default): the customer sees an explicit 'Join Our Program' button and taps it themselves. On: they're enrolled silently in the background the moment they open the widget, with no button to tap. See the 'Loading overlay while joining' option below — only relevant when this is on.",
+                hint: "On (default): they're enrolled silently in the background the moment they open the widget, with no button to tap. See the 'Loading overlay while joining' option below — only relevant when this is on. Off: the customer sees an explicit 'Join Our Program' button and taps it themselves.",
                 type: "toggle",
                 configKey: "autoProvisionCustomer",
-                default: false,
+                default: true,
             },
             {
                 key: "showProvisionLoadingOverlay",

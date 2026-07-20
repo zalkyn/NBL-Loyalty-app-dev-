@@ -28,6 +28,7 @@ import { syncCustomerConfig } from "@controller/metafieldsSync/syncCustomerConfi
 import { generateReferralDiscountCode } from "@graphql/mutation/discounts/generateReferralDiscountCode";
 import prisma from "db-server";
 import { normalizeCustomerGid } from "@controller/customers/normalizeCustomerGid.js";
+import ensureAndSyncCustomer from "@controller/customers/ensureAndSyncCustomer.js";
 import checkUpdateRequired from "@controller/customers/checkUpdateRequired.js";
 import { customerOrderCount } from "@graphql/query/customers";
 import createTransaction from "@controller/transaction/createTransaction.js";
@@ -132,7 +133,7 @@ export async function action({ request }) {
         // within the currently authenticated shop.
         const [referrer, referred] = await Promise.all([
             getReferrer(referralCode),
-            getReferred(shopifyId, session.id),
+            getReferred(admin, session, shopifyId),
         ]);
 
         validateCustomers(referrer, referred);
@@ -365,10 +366,29 @@ function getReferrer(referralCode) {
     );
 }
 
-function getReferred(shopifyId, sessionId) {
+async function getReferred(admin, session, shopifyId) {
+    const existing = await dbRetry(
+        () => prisma.customer.findFirst({ where: { shopifyId, sessionId: session.id }, select: { id: true } }),
+        { module: MODULE, shopifyId, sessionId: session.id }
+    );
+    if (existing) return existing;
+
+    // Self-heal — same fix and rationale as reward-claim.jsx's
+    // getValidCustomer. Only applies to the CURRENT logged-in customer
+    // (referred) — getReferrer above looks up a DIFFERENT customer by
+    // referral code, where a missing row is a legitimately invalid code,
+    // not something to self-heal.
+    logger.warn("Referred customer not found on first lookup — attempting self-heal", {
+        module: MODULE,
+        shopifyId,
+        shop: session.shop,
+    });
+    const healed = await ensureAndSyncCustomer(admin, session, shopifyId);
+    if (!healed.config) return null;
+
     return dbRetry(
-        () => prisma.customer.findFirst({ where: { shopifyId, sessionId }, select: { id: true } }),
-        { module: MODULE, shopifyId, sessionId }
+        () => prisma.customer.findFirst({ where: { shopifyId, sessionId: session.id }, select: { id: true } }),
+        { module: MODULE, shopifyId, sessionId: session.id }
     );
 }
 
