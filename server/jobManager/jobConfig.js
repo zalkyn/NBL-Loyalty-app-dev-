@@ -208,14 +208,12 @@ export const JOB_CONFIGS = [
         retry: { maxAttempts: 3 },
     },
 
-    // ── Empty Customer Config (TESTING ONLY) ────────────────────────────────
+    // ── Empty Customer Config ────────────────────────────────────────────────
     // Processes pending EMPTY_CUSTOMER_CONFIG jobs — the OPPOSITE of
     // bulk_customer_sync: deletes already-synced customers' real Shopify
-    // metafields instead of writing to them. Only ever enqueued from the
-    // Version Tracking page's testing-only button — see
-    // app/controller/appSettings/testingFlags.js for why that button can
-    // never appear in production by accident (no app UI path can turn it
-    // on, only a developer editing the database directly). Same cadence/
+    // metafields instead of writing to them. Enqueued from the Customer
+    // Sync page's "empty already-synced customers' config" button — see
+    // app/controller/appSettings/maintenanceToolFlags.js. Same cadence/
     // shape as bulk_customer_sync for the same reasons.
     {
         name: "empty_customer_config",

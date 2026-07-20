@@ -4,11 +4,10 @@ import { logger } from "../../utils/logger.js";
 const MODULE = "controller/jobs/emptyCustomerConfig.js";
 
 /**
- * TESTING ONLY. Starts a background job that clears (deletes from
- * Shopify) the split metafields of every customer who currently has a
- * synced config — see emptyCustomerConfigJob.js for the full rationale.
- * Only ever called after the caller has already re-verified
- * AppSettings.settings.testing.showEmptyConfigButton is true.
+ * Starts a background job that clears (deletes from Shopify) the split
+ * metafields of every customer who currently has a synced config — see
+ * emptyCustomerConfigJob.js for the full rationale. Only ever called after
+ * the caller has already re-verified maintenanceToolFlags.showEmptyConfigButton.
  *
  * @param {Object} params
  * @param {string} params.shop
@@ -34,7 +33,7 @@ export async function enqueueEmptyCustomerConfig({ shop }) {
             },
         });
 
-        logger.warn(MODULE, "TESTING: empty-customer-config job started", { shop });
+        logger.warn(MODULE, "Empty-customer-config job started", { shop });
         return { ok: true, message: "Started — this runs in the background and clears real Shopify metafields for already-synced customers." };
     } catch (error) {
         logger.error(MODULE, "Failed to start empty-customer-config job", { shop, error: error?.message });

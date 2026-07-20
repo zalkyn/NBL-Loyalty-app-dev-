@@ -6,7 +6,7 @@
 // =============================================================================
 
 import { h, Fragment } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 import { icon } from './icons.js';
 import { formatNumber, buildReferralLink } from './utils.js';
 import { LauncherButton } from './components/LauncherButton.jsx';
@@ -34,7 +34,7 @@ import { ReferralTab } from './tabs/ReferralTab.jsx';
 import { ActivitiesTab } from './tabs/ActivitiesTab.jsx';
 import { ActiveRewardsTab } from './tabs/ActiveRewardsTab.jsx';
 import { MyPrizesTab } from './tabs/MyPrizesTab.jsx';
-import { requestRewardVoucher, requestClaimPrize } from './api.js';
+import { requestRewardVoucher, requestClaimPrize, requestConfigResync } from './api.js';
 
 function TabPanel({ tabKey, activeTab, children }) {
     return (
@@ -117,24 +117,26 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // hooks below since both now call the backend exclusively via this path.
     const proxyPath = initialData.proxyPath || '/apps/widget';
 
+    // Shopify customer id — needed by useUpdateBanner / useCustomerProvision
+    // (below) and useReferralModal (to scope its localStorage cache
+    // per-account, see referralCache.js), so it's derived before all of
+    // them instead of down near needsJoin where it used to live.
+    const shopifyCustomerId = customer && customer.id;
+
     // ── "Update available" banner — see useUpdateBanner.js for the full
     //    state/logic (extracted out of this file, same pattern as
     //    useReferralModal.js) and main.preact.jsx's computeUpdateStatus()
     //    for the (admin flag + active version + customer mismatch)
     //    condition that decides whether initialData.updateBanner is
-    //    non-null in the first place.
+    //    non-null in the first place. customerId is passed so a successful
+    //    manual "Update" click can reset the periodic hygiene-sync timer
+    //    too — same as useAutoUpdateSync does after an auto resync.
     const {
         updateBanner, effectiveUpdateBanner, updateDismissed, updateLoading, updateErrorMsg,
         handleUpdateClick, dismiss: dismissUpdateBanner, resetDismiss: resetUpdateBannerDismiss, setPreviewUpdateBanner,
-    } = useUpdateBanner({ initialUpdateBanner: initialData.updateBanner, proxyPath, onSynced: applySyncedConfig });
+    } = useUpdateBanner({ initialUpdateBanner: initialData.updateBanner, proxyPath, customerId: shopifyCustomerId, onSynced: applySyncedConfig });
 
-    // Shopify customer id — needed by useCustomerProvision (below) and now
-    // also useReferralModal (to scope its localStorage cache per-account,
-    // see referralCache.js), so it's derived before both instead of down
-    // near needsJoin where it used to live.
-    const shopifyCustomerId = customer && customer.id;
-
-    const { provisioning, provisionNeeded, inFlight, failed: provisionFailed } = useCustomerProvision({ isLoggedIn, customer, widgetConfig, proxyPath });
+    const { provisioning, provisionNeeded, inFlight, failed: provisionFailed } = useCustomerProvision({ isLoggedIn, customer, widgetConfig, proxyPath, onSynced: applySyncedConfig, onSyncingChange: trackSyncing });
     const referralConfig = widgetConfig.referral || {};
     const refModal = useReferralModal({ isLoggedIn, proxyPath, provisioning: inFlight, provisionNeeded, customerId: shopifyCustomerId, redirectUrl: referralConfig.redirectUrl, redirectEnabled: referralConfig.redirectEnabled });
 
@@ -218,6 +220,28 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // callers instead means it only clears once both have settled.
     const [syncCount, setSyncCount] = useState(0);
     const syncing = syncCount > 0;
+    // handleClaim ekta async function-er moddhe live syncCount value dorkar
+    // hoy (button click-er shomoy-er stale closure value na) — tai ekta ref
+    // e mirror kore rakhi, jeta poll kore proactively "auto"-mode-e claim
+    // pathanor age already-in-flight (page-load) resync shesh howa porjonto
+    // wait kora jai.
+    const syncCountRef = useRef(0);
+    useEffect(() => {
+        syncCountRef.current = syncCount;
+    }, [syncCount]);
+
+    // Shared by LauncherButton (closed-widget summary) and Header (open-
+    // widget points line) — both hide the actual points number and show a
+    // spinner in its place while a resync is genuinely in-flight (auto-sync,
+    // periodic hygiene sync, or the banner's own manual-click resync).
+    // Deliberately NOT true just because an unclicked Banner-mode update is
+    // sitting there (effectiveUpdateBanner) — that's a static "update
+    // pending" state, not an active operation, and the banner itself
+    // already communicates it visually (title/description/Update button).
+    // Layering a spinner on top of that made it look like something was
+    // stuck loading, when nothing was actually in flight until the
+    // customer taps Update.
+    const pointsPending = syncing;
     function trackSyncing(active) {
         setSyncCount((c) => Math.max(0, c + (active ? 1 : -1)));
     }
@@ -249,8 +273,23 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // Only for customers who are actually fully set up (isMember) — nothing
     // to resync for a guest or a customer still on the join step. See
     // useConfigResync.js for the throttling/circuit-breaker rationale.
+    // Deliberately skips both the two hooks below whenever provisioning is
+    // needed for this customer (provisionNeeded — a static value; customer
+    // never mutates, so this never changes mid-session). Reasoning: when
+    // useCustomerProvision's silent self-heal runs, ensureAndSyncCustomer()
+    // already does a FULL fresh sync as a byproduct — points, rewards,
+    // transactions, AND lastSyncedVersionKey — so useConfigResync's
+    // periodic hygiene sync and useAutoUpdateSync's version-mismatch sync
+    // would just be repeating the exact same work a second (and third)
+    // time via separate API calls, landing on applySyncedConfig with
+    // effectively identical data. If provisioning instead FAILS,
+    // provisionFailed flips needsJoin true and isMember false — which
+    // already gates both hooks below on its own, so skipping them here
+    // doesn't lose any real recovery path, only the redundant race.
+    const deferSyncToProvisioning = provisionNeeded;
+
     useConfigResync({
-        isMember,
+        isMember: isMember && !deferSyncToProvisioning,
         proxyPath,
         customerId: shopifyCustomerId,
         onSynced: applySyncedConfig,
@@ -266,7 +305,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
     //    the banner (useUpdateBanner above) handles it via manual click
     //    instead.
     useAutoUpdateSync({
-        isMember,
+        isMember: isMember && !deferSyncToProvisioning,
         needed: initialData.updateSyncNeeded,
         proxyPath,
         customerId: shopifyCustomerId,
@@ -602,47 +641,100 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // ── Claim flow — purono notifications.js claimBtn + click-router.js
     //    notify:info:claim:start/success-er replacement ────────────────────────
 
+    // Actual claim network call + success-state handling, factored out of
+    // handleClaim so it can be called a second time (silently) after an
+    // auto-mode resync without duplicating this whole block.
+    async function attemptClaim(data) {
+        if (data.isPrize) {
+            const prize = data.prize;
+            const response = await requestClaimPrize({ prizeId: prize.id, proxyPath });
+
+            const newPoints = Number(response.points);
+            if (!isNaN(newPoints)) setPoints(newPoints);
+
+            const createdAt = response.createdAt ? new Date(response.createdAt).toISOString() : new Date().toISOString();
+            setPrizeClaims((prev) => [{ id: response.claimId || Date.now(), physicalPrizeId: prize.id, pointsCost: prize.pointsCost, status: 'PENDING', createdAt }, ...prev]);
+            setTransactions((prev) => [{ activity: response.activity || 'Prize Claimed', points: -Math.abs(Number(prize.pointsCost) || 0), createdAt }, ...prev]);
+
+            setClaimState('idle');
+            openInfo({
+                text: lbl('prizeClaimSuccessMsg') || "Your request has been submitted! We'll contact you soon to arrange delivery.",
+                isHtml: false,
+                claim: false,
+            });
+        } else {
+            const rule = data.rewardRule;
+            const response = await requestRewardVoucher({ rewardRuleId: rule.id, title: data.title, proxyPath });
+
+            const newPoints = Number(response.points);
+            if (!isNaN(newPoints)) setPoints(newPoints);
+
+            const createdAt = response.createdAt ? new Date(response.createdAt).toISOString() : new Date().toISOString();
+            if (response.voucherCode) {
+                setCustomerRewards((prev) => [{ code: response.voucherCode, title: data.title || 'Voucher', status: 'ACTIVE', discountUsed: false, createdAt }, ...prev]);
+            }
+            setTransactions((prev) => [{ activity: response.activity || 'Reward Redeemed', points: -Math.abs(Number(rule.pointsCost) || 0), createdAt }, ...prev]);
+
+            setClaimState('idle');
+            openReward(response.voucherCode);
+        }
+    }
+
+    // Page-load-e "auto" mode-e useAutoUpdateSync/useConfigResync already
+    // background-e resync shuru kore fele thakte pare (syncCountRef > 0).
+    // Customer jodi ekdom druto claim button-e chape, ei resync-ta shesh
+    // hওয়ার age-i claim request pouche jete pare — sheita-i race condition
+    // ta. Tai claim pathanor age, mode "auto" hole, ei in-flight sync-ta
+    // shesh howa porjonto ektu wait kori (max ~4s, tarpor r wait na kore
+    // egiye jai — server-side checkUpdateRequired.js/handleClaim-er nijer
+    // retry fallback ekhono ache jodi ei window-eo mismatch theke jay).
+    async function waitForInFlightSync(maxWaitMs) {
+        const start = Date.now();
+        while (syncCountRef.current > 0 && Date.now() - start < maxWaitMs) {
+            await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+    }
+
     async function handleClaim(data) {
         if (!data) return;
         setClaimState('loading');
         setClaimErrorMsg('');
         setClaimNeedsUpdate(false);
 
+        const resyncMode = (widgetConfig.resync && widgetConfig.resync.updateMode) || 'off';
+        if (resyncMode === 'auto' && syncCountRef.current > 0) {
+            await waitForInFlightSync(4000);
+        }
+
         try {
-            if (data.isPrize) {
-                const prize = data.prize;
-                const response = await requestClaimPrize({ prizeId: prize.id, proxyPath });
-
-                const newPoints = Number(response.points);
-                if (!isNaN(newPoints)) setPoints(newPoints);
-
-                const createdAt = response.createdAt ? new Date(response.createdAt).toISOString() : new Date().toISOString();
-                setPrizeClaims((prev) => [{ id: response.claimId || Date.now(), physicalPrizeId: prize.id, pointsCost: prize.pointsCost, status: 'PENDING', createdAt }, ...prev]);
-                setTransactions((prev) => [{ activity: response.activity || 'Prize Claimed', points: -Math.abs(Number(prize.pointsCost) || 0), createdAt }, ...prev]);
-
-                setClaimState('idle');
-                openInfo({
-                    text: lbl('prizeClaimSuccessMsg') || "Your request has been submitted! We'll contact you soon to arrange delivery.",
-                    isHtml: false,
-                    claim: false,
-                });
-            } else {
-                const rule = data.rewardRule;
-                const response = await requestRewardVoucher({ rewardRuleId: rule.id, title: data.title, proxyPath });
-
-                const newPoints = Number(response.points);
-                if (!isNaN(newPoints)) setPoints(newPoints);
-
-                const createdAt = response.createdAt ? new Date(response.createdAt).toISOString() : new Date().toISOString();
-                if (response.voucherCode) {
-                    setCustomerRewards((prev) => [{ code: response.voucherCode, title: data.title || 'Voucher', status: 'ACTIVE', discountUsed: false, createdAt }, ...prev]);
-                }
-                setTransactions((prev) => [{ activity: response.activity || 'Reward Redeemed', points: -Math.abs(Number(rule.pointsCost) || 0), createdAt }, ...prev]);
-
-                setClaimState('idle');
-                openReward(response.voucherCode);
-            }
+            await attemptClaim(data);
         } catch (err) {
+            // "auto" mode e customer ke kokhono manual "Update" button
+            // dekhano uchit na — sheta "banner" mode-er jonno reserved
+            // behavior. Server 409 UPDATE_REQUIRED dile (checkUpdateRequired.js),
+            // mode "auto" thakle customer ke kono error na dekhiye nijei
+            // ekbar chupchap resync kore original claim automatically retry
+            // kori — jate customer kokhono "Update korte hobe" na dekhe.
+            if (err.code === 'UPDATE_REQUIRED' && resyncMode === 'auto') {
+                try {
+                    const resyncData = await requestConfigResync({ proxyPath });
+                    if (resyncData && resyncData.config) {
+                        applySyncedConfig(resyncData.config);
+                        await attemptClaim(data);
+                        return;
+                    }
+                } catch (resyncErr) {
+                    // resync/retry nijei fail korle niche-r generic fallback-e jai
+                }
+                // Resync ba retry fail korle-i shudhu ekhon generic error
+                // dekhabo — "Update" button na dekhiye, karon "auto" mode-e
+                // customer-er manual update kora expected na.
+                setClaimState('error');
+                setClaimErrorMsg('Something went wrong. Please try again.');
+                setClaimNeedsUpdate(false);
+                return;
+            }
+
             setClaimState('error');
             setClaimErrorMsg(err.message || 'Something went wrong. Please try again.');
             setClaimNeedsUpdate(err.code === 'UPDATE_REQUIRED');
@@ -654,6 +746,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
             <LauncherButton
                 isLoggedIn={isMember}
                 points={points}
+                pointsPending={pointsPending && showSyncIndicator}
                 position={position}
                 launcherIconName={launcherIconName}
                 onClick={toggleWidget}
@@ -678,7 +771,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
                 onNavChange={setActiveNavigation}
                 onClose={closeWidget}
                 lbl={lbl}
-                syncing={syncing && showSyncIndicator}
+                pointsPending={pointsPending && showSyncIndicator}
                 notificationSlot={
                     <NotificationPanel
                         notification={notification}

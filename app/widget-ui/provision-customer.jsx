@@ -17,8 +17,13 @@
  * periodic resync in route.jsx.
  *
  * Response (200):
- *   { success: true, shouldReload: boolean }
- *   shouldReload is true only when a NEW record was just created.
+ *   { success: true, shouldReload: boolean, config: Object }
+ *   config is the same shape syncCustomerConfig.js writes to the customer's
+ *   metafields — included so that when shouldReload is false (an existing
+ *   record was found and silently re-synced, not created), the frontend
+ *   can still patch its own state in place instead of leaving stale data
+ *   on screen with nothing to tell it a background sync just happened.
+ *   See useCustomerProvision.js.
  *
  * Error responses (401 / 404 / 500):
  *   { success: false, code, message }
@@ -92,7 +97,7 @@ export async function action({ request }) {
             });
         }
 
-        return jsonResponse({ success: true, shouldReload: created }, 200);
+        return jsonResponse({ success: true, shouldReload: created, config }, 200);
 
     } catch (err) {
         const errorDef = err?.errorDef || ERROR_CODES.INTERNAL_ERROR;

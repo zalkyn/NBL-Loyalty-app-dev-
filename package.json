@@ -22,8 +22,7 @@
     "typecheck": "react-router typegen && tsc --noEmit",
     "widget:build": "node app/widget-ui/ui/build.js",
     "widget:build:debug": "node app/widget-ui/ui/build.js --debug",
-    "widget:dev": "node app/widget-ui/ui/build.js --watch",
-    "migrate:resync-update-mode": "node scripts/migrate-resync-update-mode.js"
+    "widget:dev": "node app/widget-ui/ui/build.js --watch"
   },
   "type": "module",
   "engines": {

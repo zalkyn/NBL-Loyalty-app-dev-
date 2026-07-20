@@ -1,6 +1,6 @@
 /**
  * @file controller/customers/deleteCustomerRecord.js
- * @description TESTING ONLY. Deletes a customer's Shopify app metafields
+ * @description Deletes a customer's Shopify app metafields
  * (INCLUDING the legacy `nbl_customer_v1` blob — see `includeLegacy` below,
  * this is the one thing that makes this tool different from "Empty
  * config") AND their app-database `Customer` row (cascading to their
@@ -8,7 +8,7 @@
  *
  * This is deliberately a SEPARATE tool from "Empty config" (see
  * clearCustomerMetafields.js) — that one only clears the 4 split
- * metafields on purpose, to test the self-heal/fallback path
+ * metafields on purpose, to exercise the self-heal/fallback path
  * (ensureAndSyncCustomer.js finds the existing DB row and silently
  * re-syncs it, restoring the customer's real data). That's correct
  * behaviour for that tool, but it means "Empty config" can never be used
@@ -35,11 +35,12 @@
  * a real pre-install/webhook-missed, never-synced-once customer would be
  * in.
  *
- * Note: the widget shows the explicit "Join our Program" panel by default —
- * `autoProvisionCustomer` (Customize > New Customer Onboarding) now
- * defaults to OFF. If a shop has explicitly turned it ON, the widget
- * silently re-provisions and reloads before the customer ever sees the
- * panel instead — see useCustomerProvision.js.
+ * Note: `autoProvisionCustomer` (Customize > New Customer Onboarding)
+ * defaults to ON, so on most shops the customer will be silently
+ * auto-provisioned again on their next visit rather than seeing the
+ * explicit "Join our Program" panel. To actually exercise the manual Join
+ * step with this tool, the shop needs to have turned `autoProvisionCustomer`
+ * OFF first — see useCustomerProvision.js.
  *
  * Also note: this does NOT touch anything on the Shopify side beyond the
  * app's own metafields — e.g. real discount codes tied to any Reward rows
@@ -71,7 +72,7 @@ export default async function deleteCustomerRecord(admin, { shop, customerId, sh
 
     await prisma.customer.delete({ where: { id: customerId } });
 
-    logger.warn(MODULE, "TESTING: customer app record deleted (metafields incl. legacy + DB row)", {
+    logger.warn(MODULE, "Customer app record deleted (metafields incl. legacy + DB row)", {
         shop,
         shopifyId,
         customerId,

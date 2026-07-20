@@ -37,8 +37,10 @@ export default [
         // deletes, raw job queue management) that only someone with direct
         // codebase + database access should ever touch. Reachable by exact
         // URL only.
-        route("app/dev-config/queue-jobs", "./layout/dev-config/queue-jobs/route.jsx"),
-        route("app/dev-config/version-tracking", "./layout/dev-config/version-tracking/route.jsx"),
+        route("app/dev-config", "./dev-config/index/route.jsx"),
+        route("app/dev-config/customer-sync", "./dev-config/customer-sync/route.jsx"),
+        route("app/dev-config/queue-jobs", "./dev-config/queue-jobs/route.jsx"),
+        route("app/dev-config/version-tracking", "./dev-config/version-tracking/route.jsx"),
 
         // Loox review points — Shopify Flow setup guide
         route("app/loox-setup", "./layout/loox-setup/route.jsx"),

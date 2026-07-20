@@ -13,7 +13,7 @@ import { Text } from './Text.jsx';
 import { usePointsBump } from '../hooks/usePointsBump.js';
 import { formatNumber } from '../utils.js';
 
-export function Header({ isLoggedIn, customerName, points, compact, activeTab, onNavChange, onClose, lbl, syncing }) {
+export function Header({ isLoggedIn, customerName, points, compact, activeTab, onNavChange, onClose, lbl, pointsPending }) {
     const bump = usePointsBump(points);
     const [ready, setReady] = useState(false);
 
@@ -53,18 +53,22 @@ export function Header({ isLoggedIn, customerName, points, compact, activeTab, o
                                 {titleAfter || ''}
                             </Heading>
                             <div class={`nbl-header__points${bump ? ' bump' : ''}`}>
-                                {ptsBefore}
-                                <Text as="span" bare extraClass="nbl-customer-points">{formatNumber(points)}</Text>
-                                {ptsAfter || ''}
-                                {/* Non-blocking — see ui.css's module comment above
-                                    .nbl-header__sync-indicator for why this is
-                                    deliberately separate from the provision
-                                    overlay. Always rendered (not conditionally
-                                    mounted) so the opacity/scale transition can
-                                    actually run instead of popping in/out. */}
-                                <span class={`nbl-header__sync-indicator${syncing ? ' active' : ''}`} aria-hidden="true">
-                                    <span class="nbl-spinner nbl-spinner--sync" />
-                                </span>
+                                {pointsPending ? (
+                                    // Same rule, same visual language as
+                                    // LauncherButton.jsx — see App.jsx's
+                                    // pointsPending for why this and the
+                                    // launcher button now always agree
+                                    // instead of one hiding the number and
+                                    // the other showing it with just a
+                                    // small dot next to it.
+                                    <span class="nbl-spinner nbl-spinner--sync" aria-label="Updating" />
+                                ) : (
+                                    <>
+                                        {ptsBefore}
+                                        <Text as="span" bare extraClass="nbl-customer-points">{formatNumber(points)}</Text>
+                                        {ptsAfter || ''}
+                                    </>
+                                )}
                             </div>
                         </>
                     ) : (

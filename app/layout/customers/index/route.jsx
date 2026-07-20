@@ -37,8 +37,7 @@ export default function Customers() {
 
     return (
         <s-page title="Customers" inlineSize="base">
-            {/** Sync Customers */}
-            {/* <s-button
+            <s-button
                 slot="primary-action"
                 variant="primary"
                 icon="refresh"
@@ -47,7 +46,7 @@ export default function Customers() {
                 onClick={page.handleSync}
             >
                 {page.isSyncRunning ? "Syncing…" : "Sync Customers"}
-            </s-button> */}
+            </s-button>
 
             <CustomerTable
                 customers={page.customers}

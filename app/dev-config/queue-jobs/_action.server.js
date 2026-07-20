@@ -22,7 +22,7 @@ import { logger } from "app/utils/logger.js";
 import { updateDiscountDeleteSettings } from "app/controller/appSettings/discountDeleteSettings.js";
 
 /** @constant {string} Module identifier for structured logging */
-const MODULE = "layout/dev-config/queue-jobs/_action.server.js";
+const MODULE = "dev-config/queue-jobs/_action.server.js";
 
 // ── Shared transition helper ───────────────────────────────────────────────
 

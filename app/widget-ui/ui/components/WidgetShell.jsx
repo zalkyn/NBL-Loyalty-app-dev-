@@ -9,7 +9,7 @@ import { useRef } from 'preact/hooks';
 import { Header } from './Header.jsx';
 import { useCompactHeader } from '../hooks/useCompactHeader.js';
 
-export function WidgetShell({ isOpen, isLoggedIn, customerName, points, position, activeTab, onNavChange, onClose, lbl, syncing, children, notificationSlot, previewSlot, provisionSlot, updateBannerSlot }) {
+export function WidgetShell({ isOpen, isLoggedIn, customerName, points, position, activeTab, onNavChange, onClose, lbl, pointsPending, children, notificationSlot, previewSlot, provisionSlot, updateBannerSlot }) {
     const wrapperRef = useRef(null);
     const compact = useCompactHeader(wrapperRef);
 
@@ -27,7 +27,7 @@ export function WidgetShell({ isOpen, isLoggedIn, customerName, points, position
                             onNavChange={onNavChange}
                             onClose={onClose}
                             lbl={lbl}
-                            syncing={syncing}
+                            pointsPending={pointsPending}
                         />
                         {/* Sits inside the same sticky wrapper as the header,
                             so it stays pinned right below it as tab content

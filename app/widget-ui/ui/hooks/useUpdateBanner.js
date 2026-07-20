@@ -11,8 +11,9 @@
 
 import { useState } from 'preact/hooks';
 import { requestConfigResync } from '../api.js';
+import { markSyncedNow } from './useConfigResync.js';
 
-export function useUpdateBanner({ initialUpdateBanner, proxyPath, onSynced }) {
+export function useUpdateBanner({ initialUpdateBanner, proxyPath, customerId, onSynced }) {
     const [updateBanner, setUpdateBanner] = useState(initialUpdateBanner || null);
     const [updateDismissed, setUpdateDismissed] = useState(false);
     const [updateLoading, setUpdateLoading] = useState(false);
@@ -49,6 +50,14 @@ export function useUpdateBanner({ initialUpdateBanner, proxyPath, onSynced }) {
                 // Checking data.config first is what makes a real failure
                 // visible instead of silently looking successful.
                 if (data && data.config) {
+                    // Reset the periodic hygiene-sync timer too — this
+                    // customer was just freshly synced this instant (their
+                    // explicit Update click), so useConfigResync's 4-hour
+                    // interval shouldn't fire again right away. Same call
+                    // useAutoUpdateSync makes after its silent resync, so
+                    // both update paths leave the timer in the same state.
+                    // Safe no-op if customerId is missing.
+                    if (customerId) markSyncedNow(customerId);
                     // No page reload — the resync endpoint only ever
                     // returns THIS customer's own config (points/rewards/
                     // transactions/prizeClaims/referralCode), never

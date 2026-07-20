@@ -17,6 +17,7 @@ import { logger } from "app/utils/logger.js";
 import { authenticate } from "shopify-server";
 import prisma from "db-server";
 import { normalizeCustomerGid } from "@controller/customers/normalizeCustomerGid.js";
+import ensureAndSyncCustomer from "@controller/customers/ensureAndSyncCustomer.js";
 import createTransaction from "app/controller/transaction/createTransaction";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig.js";
 import checkUpdateRequired from "@controller/customers/checkUpdateRequired.js";
@@ -58,7 +59,7 @@ export async function action({ request }) {
         const { prizeId } = body;
 
         const [customer, prize] = await Promise.all([
-            getValidCustomer(shopifyId, session.id),
+            getValidCustomer(admin, session, shopifyId),
             getValidPrize(prizeId, session.id),
         ]);
 
@@ -202,14 +203,33 @@ async function getValidPrize(id, sessionId) {
     }
 }
 
-async function getValidCustomer(shopifyId, sessionId) {
+// Self-heals a missing DB row via ensureAndSyncCustomer() — same fix and
+// rationale as reward-claim.jsx's getValidCustomer; see that file's
+// comment for the full explanation (this is the actual cause of a "first
+// claim fails, reload fixes it" pattern reported in production).
+async function getValidCustomer(admin, session, shopifyId) {
     try {
+        const existing = await dbRetry(
+            () => prisma.customer.findFirst({ where: { shopifyId, sessionId: session.id } }),
+            { module: MODULE, shopifyId, sessionId: session.id }
+        );
+        if (existing) return existing;
+
+        logger.warn("Customer not found on first lookup — attempting self-heal", {
+            module: MODULE,
+            shopifyId,
+            shop: session.shop,
+        });
+
+        const healed = await ensureAndSyncCustomer(admin, session, shopifyId);
+        if (!healed.config) return null;
+
         return await dbRetry(
-            () => prisma.customer.findFirst({ where: { shopifyId, sessionId } }),
-            { module: MODULE, shopifyId, sessionId }
+            () => prisma.customer.findFirst({ where: { shopifyId, sessionId: session.id } }),
+            { module: MODULE, shopifyId, sessionId: session.id }
         );
     } catch (error) {
-        logger.error("Failed to fetch customer", { module: MODULE, shopifyId, sessionId, error: error?.message });
+        logger.error("Failed to fetch customer", { module: MODULE, shopifyId, sessionId: session.id, error: error?.message });
         return null;
     }
 }

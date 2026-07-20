@@ -9,18 +9,17 @@ export const DEFAULT_DISCOUNT_DELETE_SETTINGS = {
     // cancelled (see handleCancelReward in customers/$id/_action.server.js)
     // — the code will never be used, no reason to leave it cluttering the
     // shop's discount list in Shopify admin.
-    onRewardCancel: false,
+    onRewardCancel: true,
     // Delete the discount code once it's actually been used at checkout
     // (discountUsed flips to true — see orderPaidJob.js's "Voucher rewards
-    // marked as used" step). Off by default: some merchants want to keep
-    // used codes around in Shopify admin for their own records/reporting.
-    onRewardUsed: false,
+    // marked as used" step).
+    onRewardUsed: true,
 };
 
 /**
  * Reads a shop's discount-delete settings (AppSettings.settings.discountDelete),
  * merged over the defaults so a shop that's never saved this still gets a
- * complete, safe object back (both off).
+ * complete object back (both on by default).
  *
  * @param {string} shop
  * @returns {Promise<typeof DEFAULT_DISCOUNT_DELETE_SETTINGS>}
