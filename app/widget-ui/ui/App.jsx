@@ -56,6 +56,26 @@ function fmtDate(iso) {
 export function App({ initialData, bridgeRef, hostEl }) {
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('home');
+
+    // GuestPanel's Create Account / Sign In buttons (see GuestPanel.jsx)
+    // save this flag right before navigating away, so that when the
+    // customer comes back to this same page after logging in/registering
+    // (via return_to), the widget reopens automatically instead of the
+    // customer having to click the launcher again — same idea as the
+    // referral modal's own login round-trip (useReferralModal.js).
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('NBL_ReopenWidget');
+            if (!raw) return;
+            localStorage.removeItem('NBL_ReopenWidget');
+            const saved = JSON.parse(raw);
+            const REOPEN_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes — same window as the referral flow's pending code
+            if (saved && typeof saved.savedAt === 'number' && Date.now() - saved.savedAt <= REOPEN_EXPIRY_MS) {
+                setIsOpen(true);
+            }
+        } catch (e) { /* ignore — storage unavailable/blocked, or malformed value */ }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const [points, setPoints] = useState(Number(initialData.points) || 0);
 
     // ── Data state — purono appConfig/customer.config-er jaiga ───────────────
@@ -557,6 +577,13 @@ export function App({ initialData, bridgeRef, hostEl }) {
         if (claimState === 'loading') return;
         setNotification(null);
     }
+    // Earn tab-e REFERRAL rule-e click korle notificationPanel-e ekta button
+    // dekhano hoy (see EarnTab.jsx's goToReferralTab flag) — sekhane click
+    // korle notification bondho kore referral tab open kore.
+    function handleGoToReferralTab() {
+        closeNotification();
+        setActiveTab('referral');
+    }
 
     // Opt-in auto-close — only notifications that explicitly set
     // `autoCloseMs` (e.g. the referral "Link copied!" toast, see
@@ -782,6 +809,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
                         onClose={closeNotification}
                         onClaim={handleClaim}
                         onUpdateClick={handleUpdateClick}
+                        onGoToReferral={handleGoToReferralTab}
                         lbl={lbl}
                     />
                 }

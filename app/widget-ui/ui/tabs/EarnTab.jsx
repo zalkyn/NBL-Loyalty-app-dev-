@@ -99,7 +99,12 @@ function PointRuleItem({ rule, currencySymbol, onOpenInfo }) {
     return (
         <Item
             active={true}
-            onClick={() => onOpenInfo({ text: label })}
+            onClick={() =>
+                onOpenInfo({
+                    text: label,
+                    ...(type === 'REFERRAL' && { goToReferralTab: true }),
+                })
+            }
             leading={<Icon name={ICON_MAP[type] || 'earn-points'} size="lg" />}
             content={
                 <div class="nbl-item__content">
