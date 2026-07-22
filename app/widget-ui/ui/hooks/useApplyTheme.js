@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/hooks/useApplyTheme.js
+// app/widget-ui/ui/hooks/useApplyTheme.js
 // Dashboard theme CSS variable apply kora — purono theme.js-er applyTheme()
 // (NEW cssVars path)-er replacement. document.documentElement-e --nbl-* set kore.
 // =============================================================================

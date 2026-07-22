@@ -142,7 +142,9 @@ export function SummaryPanel({ event, referral, isSubscription, isActive, onActi
                 <s-box paddingBlockEnd="base" />
                 <s-text>
                     <strong>Status:</strong>{" "}
-                    {isActive ? "Active ✅" : "Inactive ❌"}
+                    <s-badge tone={isActive ? "success" : "critical"}>
+                        {isActive ? "Active" : "Inactive"}
+                    </s-badge>
                 </s-text>
             </s-section>
 

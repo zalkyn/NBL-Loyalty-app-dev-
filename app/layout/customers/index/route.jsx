@@ -60,6 +60,8 @@ export default function Customers() {
                 navigatingTo={page.navigatingTo}
                 loaderError={page.loaderError}
                 onSearch={page.handleSearch}
+                onSearchSubmit={page.handleSearchSubmit}
+                onSearchKeyDown={page.handleSearchKeyDown}
                 onSortChange={page.handleSortChange}
                 onPageChange={page.handlePageChange}
                 onPageSizeChange={page.handlePageSizeChange}

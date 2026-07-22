@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/ToastStack.jsx
+// app/widget-ui/ui/components/ToastStack.jsx
 // Stacked toast notifications shown above the launcher button on page load,
 // for transactions the customer hasn't seen yet (notifiedAt=null server-side).
 // Hidden whenever the widget panel itself is open.

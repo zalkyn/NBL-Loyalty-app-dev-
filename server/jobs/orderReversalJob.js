@@ -31,8 +31,8 @@ const STALE_LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
  * Main entry point called by jobManager on each cron cycle.
  *
  * Handles ORDER_REVERSED jobs, enqueued by:
- *   - webhooks/orders/cancelled  → reversalType: "CANCEL" (reverse everything left)
- *   - webhooks/refunds/create    → reversalType: "REFUND" (reverse a proportional slice)
+ *   - webhooks/orders/cancelled  -> reversalType: "CANCEL" (reverse everything left)
+ *   - webhooks/refunds/create    -> reversalType: "REFUND" (reverse a proportional slice)
  *
  * Same crash-recovery + batching + backoff shape as orderPaidJob.js.
  *
@@ -126,10 +126,24 @@ async function processJob(job) {
     const { orderId, reversalType, refundId, refundAmount } = payload;
 
     // ── 1. Claim ──────────────────────────────────────────────────────────────
-    await dbRetry(
-        () => prisma.job.update({ where: { id }, data: { status: "PROCESSING", lockedAt: new Date() } }),
+    // Conditional on status still being PENDING — see the matching comment in
+    // orderPaidJob.js's processJob() for the full race this closes (two
+    // replicas' findMany both returning the same PENDING row before either
+    // one's claim lands, both then unconditionally "succeeding" at claiming
+    // it and processing the same reversal twice).
+    const claim = await dbRetry(
+        () =>
+            prisma.job.updateMany({
+                where: { id, status: "PENDING" },
+                data: { status: "PROCESSING", lockedAt: new Date() },
+            }),
         { module: MODULE, jobId: id }
     );
+
+    if (claim.count === 0) {
+        logger.info(MODULE, `Job #${id} already claimed by another process — skipping`, { shop, orderId });
+        return;
+    }
 
     logger.info(MODULE, `Processing job #${id}`, { shop, orderId, reversalType, attempt: attempts + 1, maxAttempts });
 
@@ -161,7 +175,7 @@ async function processJob(job) {
         const nextAttempt = attempts + 1;
         const exhausted = nextAttempt >= maxAttempts;
 
-        // ── 3b. Failure — exponential backoff: 2min → 4min → 8min ────────────
+        // ── 3b. Failure — exponential backoff: 2min -> 4min -> 8min ────────────
         const backoffMs = exhausted
             ? 0
             : Math.min(2 ** nextAttempt * 60 * 1000, 30 * 60 * 1000);
@@ -205,8 +219,8 @@ async function processJob(job) {
  *   1. totalEarned    = sum of all EARN transactions tagged with this orderId
  *   2. alreadyReversed = sum of all REVERSAL transactions already tagged with this orderId
  *   3. remaining       = totalEarned - alreadyReversed  (nothing to do if <= 0)
- *   4. CANCEL  → reverse `remaining` in full
- *      REFUND  → reverse round(totalEarned * (refundAmount / orderTotal)), capped at `remaining`
+ *   4. CANCEL  -> reverse `remaining` in full
+ *      REFUND  -> reverse round(totalEarned * (refundAmount / orderTotal)), capped at `remaining`
  *                (orderTotal is read from the original EARN transaction's metadata,
  *                 so no extra Shopify API call is needed)
  *   5. Balance is floored at 0 by createTransaction's REVERSAL case — a customer
@@ -226,6 +240,43 @@ async function processJob(job) {
  * @param {number} [args.refundAmount] - Amount refunded in THIS refund event (REFUND only)
  * @returns {Promise<void>}
  */
+/**
+ * Builds the reversal transaction's reason/activity text, worded
+ * differently depending on whose points these actually were.
+ *
+ * The generic "your order was refunded" phrasing is only accurate for the
+ * customer whose own order this is. A referrer's bonus is being reversed
+ * because a DIFFERENT customer's (the friend they referred) order was
+ * cancelled/refunded — showing them "Order Refunded" reads as if their own
+ * order was refunded, which it wasn't.
+ *
+ * @param {Object} params
+ * @param {"NORMAL"|"REFERRER_BONUS"|"REFERRED_ORDER"} params.role
+ * @param {"CANCEL"|"REFUND"} params.reversalType
+ * @param {number} params.reverseAmount
+ * @returns {{ reason: string, activity: string }}
+ */
+function buildReversalMessage({ role, reversalType, reverseAmount }) {
+    const cancelled = reversalType === "CANCEL";
+
+    if (role === "REFERRER_BONUS") {
+        return {
+            reason: cancelled
+                ? `Referral bonus reversed — the order from the friend you referred was cancelled`
+                : `Referral bonus reversed — the order from the friend you referred was refunded`,
+            activity: `-${reverseAmount} points (referral bonus reversed — friend's order ${cancelled ? "cancelled" : "refunded"})`,
+        };
+    }
+
+    // REFERRED_ORDER (genuinely their own order, just placed with a referral
+    // discount) and NORMAL both get the same accurate, generic wording —
+    // it really is their own order being cancelled/refunded either way.
+    return {
+        reason: cancelled ? `Order cancelled — points reversed` : `Order refunded — points reversed`,
+        activity: `-${reverseAmount} points (${cancelled ? "order cancelled" : "order refunded"})`,
+    };
+}
+
 async function mainHandler({ admin, session, shop, orderId, reversalType, refundId, refundAmount }) {
     // ── 1. Find every EARN transaction tagged with this order ──────────────────
     const earnTransactions = await dbRetry(
@@ -236,7 +287,13 @@ async function mainHandler({ admin, session, shop, orderId, reversalType, refund
                     status: "COMPLETED",
                     metadata: { path: ["orderId"], equals: orderId },
                 },
-                select: { customerId: true, points: true, metadata: true },
+                select: {
+                    customerId: true,
+                    points: true,
+                    metadata: true,
+                    event: { select: { type: true } },
+                    referral: { select: { referrerId: true, referredId: true } },
+                },
             }),
         { module: MODULE, shop, orderId }
     );
@@ -250,11 +307,28 @@ async function mainHandler({ admin, session, shop, orderId, reversalType, refund
 
     // Group by customer — an order can have earners on both sides of a referral
     const byCustomer = new Map();
+    // Per-customer role, used only to word the reversal message accurately —
+    // does NOT affect how much gets reversed, just what the customer reads.
+    //   REFERRER_BONUS   — this customer's points came from someone THEY
+    //                       referred placing this order (not their own order).
+    //   REFERRED_ORDER   — this customer placed this order themselves, using
+    //                       a referral discount (it IS genuinely their order).
+    //   NORMAL           — a plain ORDER-type earn, nothing referral-related.
+    const roleByCustomer = new Map();
     for (const t of earnTransactions) {
         byCustomer.set(t.customerId, (byCustomer.get(t.customerId) || 0) + t.points);
+
+        if (!roleByCustomer.has(t.customerId)) {
+            let role = "NORMAL";
+            if (t.event?.type === "REFERRAL" && t.referral) {
+                role = t.referral.referrerId === t.customerId ? "REFERRER_BONUS" : "REFERRED_ORDER";
+            }
+            roleByCustomer.set(t.customerId, role);
+        }
     }
 
     for (const [customerId, totalEarned] of byCustomer.entries()) {
+        const role = roleByCustomer.get(customerId) || "NORMAL";
         // ── 2. How much of this customer's points on this order were already reversed ──
         const priorReversals = await dbRetry(
             () =>
@@ -296,16 +370,16 @@ async function mainHandler({ admin, session, shop, orderId, reversalType, refund
         if (reverseAmount <= 0) continue;
 
         // ── 4. Reverse it — balance floors at 0, never goes negative ───────────
+        const { reason, activity } = buildReversalMessage({ role, reversalType, reverseAmount });
+
         await createTransaction(
             {
                 customerId,
                 type: "REVERSAL",
                 points: -reverseAmount,
                 status: "COMPLETED",
-                reason: reversalType === "CANCEL"
-                    ? `Order cancelled — points reversed`
-                    : `Order refunded — points reversed`,
-                activity: `-${reverseAmount} points (${reversalType === "CANCEL" ? "order cancelled" : "order refunded"})`,
+                reason,
+                activity,
                 metadata: { orderId, refundId: refundId ?? null, reversalType },
             },
             session

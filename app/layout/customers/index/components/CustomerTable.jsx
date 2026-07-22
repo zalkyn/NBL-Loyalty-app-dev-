@@ -9,23 +9,32 @@ export function CustomerTable({
     page, pageSize,
     localSearch, sortBy,
     isLoading, navigatingTo, loaderError,
-    onSearch, onSortChange,
+    onSearch, onSearchSubmit, onSearchKeyDown, onSortChange,
     onPageChange, onPageSizeChange,
     onDetails,
 }) {
     return (
         <s-section>
             {/* ── Toolbar ── */}
-            <s-grid gridTemplateColumns="1fr 1fr 1fr" alignItems="center" gap="base">
-                <h2 style={{ margin: 0 }}>Customers ({totalCount.toLocaleString()})</h2>
+            <s-grid gridTemplateColumns="1fr 1fr auto 1fr" alignItems="stretch" gap="base">
+                <h2 style={{ margin: 0, display: "flex", alignItems: "center" }}>Customers ({totalCount.toLocaleString()})</h2>
                 <s-search-field
                     label="Search customers"
                     labelAccessibilityVisibility="exclusive"
                     placeholder="Search by name or email"
                     value={localSearch}
                     onInput={onSearch}
+                    onKeyDown={onSearchKeyDown}
                     disabled={isLoading}
                 />
+                <s-button
+                    variant="secondary"
+                    size="large"
+                    disabled={isLoading}
+                    onClick={onSearchSubmit}
+                >
+                    Search
+                </s-button>
                 <s-select
                     label="Sort by"
                     labelAccessibilityVisibility="exclusive"
@@ -79,7 +88,11 @@ export function CustomerTable({
                                         <s-text>{c.email || "N/A"}</s-text>
                                     </s-table-cell>
                                     <s-table-cell>{c._count.transactions}</s-table-cell>
-                                    <s-table-cell>{c.points.toLocaleString()}</s-table-cell>
+                                    <s-table-cell>
+                                        <s-text tone={c.points < 0 ? "critical" : undefined}>
+                                            {c.points.toLocaleString()}
+                                        </s-text>
+                                    </s-table-cell>
                                     <s-table-cell>{c._count.rewards}</s-table-cell>
                                     <s-table-cell>
                                         {c.enrolledAt ? new Date(c.enrolledAt).toLocaleDateString() : "N/A"}

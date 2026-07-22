@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/NotificationPanel.jsx
+// app/widget-ui/ui/components/NotificationPanel.jsx
 // ONE unified, content-driven notification panel — replaces the old split
 // RewardPanel + InfoPanel. State-driven, no DOM query/bus, no badges.
 //
@@ -28,7 +28,7 @@ import { Button } from './Button.jsx';
 import { Text } from './Text.jsx';
 import { Link } from './Link.jsx';
 
-export function NotificationPanel({ notification, claimState, claimErrorMsg, onClose, onClaim, lbl }) {
+export function NotificationPanel({ notification, claimState, claimErrorMsg, claimNeedsUpdate, updateLoading, onClose, onClaim, onUpdateClick, onGoToReferral, lbl }) {
     const [copied, setCopied] = useState(false);
 
     // Reset the copied state whenever the notification changes.
@@ -57,6 +57,7 @@ export function NotificationPanel({ notification, claimState, claimErrorMsg, onC
         trackingText = '',
         contactUrl = '',
         contactText = 'Contact us',
+        goToReferralTab = false,
     } = notification;
 
     function handleOverlayClick() {
@@ -145,19 +146,40 @@ export function NotificationPanel({ notification, claimState, claimErrorMsg, onC
                     {/* Error line (claim flow) */}
                     {isError && <div class="nbl-notify-panel__error">{claimErrorMsg}</div>}
 
-                    {/* Claim / action button */}
+                    {/* Claim / action button — when the last attempt was blocked
+                        specifically for a pending update (claimNeedsUpdate), this
+                        becomes an "Update" button that runs the same sync-then-
+                        reload flow as the top banner (onUpdateClick), instead of
+                        retrying the same claim, which would just fail again the
+                        same way. See App.jsx's handleClaim/handleUpdateClick. */}
                     {claim && (
                         <Button
                             bare
                             extraClass="nbl-notify-panel__btn nbl-notify-panel__action-btn"
-                            disabled={isLoading}
-                            loading={isLoading}
-                            loadingLabel={lbl('claimingLabel') || 'Processing...'}
-                            onClick={() => onClaim(data)}
+                            disabled={claimNeedsUpdate ? updateLoading : isLoading}
+                            loading={claimNeedsUpdate ? updateLoading : isLoading}
+                            loadingLabel={claimNeedsUpdate ? 'Updating…' : (lbl('claimingLabel') || 'Processing...')}
+                            onClick={claimNeedsUpdate ? onUpdateClick : () => onClaim(data)}
                         >
-                            {isError
-                                ? (lbl('claimRetryLabel') || 'Try again')
-                                : (claimLabel || lbl('notifyInfoClaimBtn') || 'Claim')}
+                            {claimNeedsUpdate
+                                ? 'Update'
+                                : isError
+                                    ? (lbl('claimRetryLabel') || 'Try again')
+                                    : (claimLabel || lbl('notifyInfoClaimBtn') || 'Claim')}
+                        </Button>
+                    )}
+
+                    {/* Earn tab-e REFERRAL rule click korle eta dekhay — click
+                        korle notification bondho hoye referral tab open hoy
+                        (App.jsx-er handleGoToReferralTab, EarnTab.jsx-er
+                        goToReferralTab flag). */}
+                    {goToReferralTab && (
+                        <Button
+                            bare
+                            extraClass="nbl-notify-panel__btn nbl-notify-panel__action-btn"
+                            onClick={onGoToReferral}
+                        >
+                            {lbl('notifyGoToReferralBtn') || 'View referral program'}
                         </Button>
                     )}
 

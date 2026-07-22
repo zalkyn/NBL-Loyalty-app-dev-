@@ -3,9 +3,9 @@ import * as esbuild from "esbuild";
 const SRC_ENTRY = "app/widget-ui/ui/main.preact.jsx";
 const CSS_SRC = "app/widget-ui/ui/styles/ui.css";
 
-const EXT_JS_OUT = "extensions/theme-extension/assets/ui.min.js";
+const EXT_JS_OUT = "extensions/theme-extension/assets/nbl-loyalty-ui.min.js";
 const PREVIEW_JS_OUT = "public/widget/preview.min.js";
-// ui.min.css / preview.min.css ar output hoy na — CSS ekhon ui.min.js /
+// ui.min.css / preview.min.css ar output hoy na — CSS ekhon nbl-loyalty-ui.min.js /
 // preview.min.js-er bhitore __NBL_CSS_TEXT__ hisebe bundle hocche.
 // loyalty.liquid theke stylesheet_tag-er link-ta soriye felte hobe.
 

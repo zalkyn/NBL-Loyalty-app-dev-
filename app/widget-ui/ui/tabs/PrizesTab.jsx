@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/PrizesTab.jsx
+// app/widget-ui/ui/tabs/PrizesTab.jsx
 // Prizes tab — physical prize list + active prize claims (paginated).
 // Purono tabs/prizes.js-er replacement.
 // =============================================================================

@@ -200,9 +200,9 @@ function deepEqual(a, b) {
 /**
  * Parse a dot-path string into segments. Numeric segments become numbers
  * so arrays index correctly.
- *   "address.geo.lat" → ["address", "geo", "lat"]
- *   "tags.0.name"     → ["tags", 0, "name"]
- *   ["a", 0, "b"]     → ["a", 0, "b"]   (already-parsed input passes through)
+ *   "address.geo.lat" -> ["address", "geo", "lat"]
+ *   "tags.0.name"     -> ["tags", 0, "name"]
+ *   ["a", 0, "b"]     -> ["a", 0, "b"]   (already-parsed input passes through)
  * @private
  */
 function parsePath(path) {
@@ -255,8 +255,8 @@ function setAt(obj, path, value) {
 
 /**
  * Immutably delete a key/index at a dot-path.
- *  - Object key → property removed.
- *  - Array index → element spliced out (array length shrinks).
+ *  - Object key -> property removed.
+ *  - Array index -> element spliced out (array length shrinks).
  * @private
  */
 function deleteAt(obj, path) {
@@ -373,7 +373,7 @@ function toPathKey(path) {
  *   Raw data (e.g. from a loader). May be `null`/`undefined`.
  *
  * @param {function(Object): Object} buildFormShape
- *   Pure function mapping server data → clean form shape.
+ *   Pure function mapping server data -> clean form shape.
  *   Should be defined module-level or wrapped in useCallback.
  *
  * @param {UseFormStateOptions} [options]
@@ -593,8 +593,8 @@ export function useFormState(serverData, buildFormShape, options = {}) {
 
     /**
      * Delete a key or array index at any depth.
-     *   - Object key → property removed.
-     *   - Array index → element spliced out (length shrinks).
+     *   - Object key -> property removed.
+     *   - Array index -> element spliced out (length shrinks).
      * @param {Path} path
      * @example
      * removeField("socialLinks.twitter")
@@ -786,12 +786,12 @@ export function useFormState(serverData, buildFormShape, options = {}) {
      * for primitive arrays). Supports `"asc"` / `"desc"`.
      *
      * Comparison rules:
-     *   - Numbers  → numeric.
-     *   - Strings  → case-insensitive locale-aware.
-     *   - Dates / ISO-8601 strings → chronological.
-     *   - Booleans → false before true (ascending).
-     *   - null / undefined → always sorted to the end.
-     *   - Mixed types → string comparison fallback.
+     *   - Numbers  -> numeric.
+     *   - Strings  -> case-insensitive locale-aware.
+     *   - Dates / ISO-8601 strings -> chronological.
+     *   - Booleans -> false before true (ascending).
+     *   - null / undefined -> always sorted to the end.
+     *   - Mixed types -> string comparison fallback.
      *
      * @param {Path} listPath
      * @param {string | null} [sortKey=null]  Field to sort by; null for primitives.
@@ -1135,59 +1135,59 @@ export function useFormState(serverData, buildFormShape, options = {}) {
         hasRunValidation,    // true after the first validation run (validateNow, submit, or validateOnChange).
 
         // ── General value ops ──────────────────────────────────────────────
-        set,            // set("a.b.c", value)         → update any value anywhere.
-        setMany,        // setMany([["a", 1], ["b.c", 2]]) → batch update, one render.
-        get,            // get("a.b.c")                → read from live form.
-        getSnapshotValue, // getSnapshotValue("a.b.c") → read from saved snapshot.
-        removeField,    // removeField("a.b.c")        → delete a key OR array index.
-        merge,          // merge({...}, "path")        → shallow-merge a patch at a path.
+        set,            // set("a.b.c", value)         -> update any value anywhere.
+        setMany,        // setMany([["a", 1], ["b.c", 2]]) -> batch update, one render.
+        get,            // get("a.b.c")                -> read from live form.
+        getSnapshotValue, // getSnapshotValue("a.b.c") -> read from saved snapshot.
+        removeField,    // removeField("a.b.c")        -> delete a key OR array index.
+        merge,          // merge({...}, "path")        -> shallow-merge a patch at a path.
 
         // ── Object helpers ─────────────────────────────────────────────────
-        setObjectKey,   // setObjectKey("links", "tiktok", url)  → add/update a dynamic key.
-        deleteObjectKey,// deleteObjectKey("links", "twitter")   → remove a dynamic key.
+        setObjectKey,   // setObjectKey("links", "tiktok", url)  -> add/update a dynamic key.
+        deleteObjectKey,// deleteObjectKey("links", "twitter")   -> remove a dynamic key.
 
         // ── List ops ───────────────────────────────────────────────────────
-        addItem,        // addItem("list", item)                 → append (deep-clones item).
-        insertItem,     // insertItem("list", index, item)       → insert at index.
-        removeItem,     // removeItem("list", index)             → remove by index.
-        updateItem,     // updateItem("list", index, field, v)   → update one field of one item.
-        replaceItem,    // replaceItem("list", index, item)      → replace a whole item.
-        moveItem,       // moveItem("list", from, to)            → reposition.
-        swapItems,      // swapItems("list", i, j)               → swap two items.
-        duplicateItem,  // duplicateItem("list", index)          → deep-clone in place.
-        setList,        // setList("list", newArray)             → replace the entire list.
-        clearList,      // clearList("list")                     → empty the list ([]).
+        addItem,        // addItem("list", item)                 -> append (deep-clones item).
+        insertItem,     // insertItem("list", index, item)       -> insert at index.
+        removeItem,     // removeItem("list", index)             -> remove by index.
+        updateItem,     // updateItem("list", index, field, v)   -> update one field of one item.
+        replaceItem,    // replaceItem("list", index, item)      -> replace a whole item.
+        moveItem,       // moveItem("list", from, to)            -> reposition.
+        swapItems,      // swapItems("list", i, j)               -> swap two items.
+        duplicateItem,  // duplicateItem("list", index)          -> deep-clone in place.
+        setList,        // setList("list", newArray)             -> replace the entire list.
+        clearList,      // clearList("list")                     -> empty the list ([]).
 
         // ── Sorting & reordering ───────────────────────────────────────────
-        sortList,           // sortList("list", "field", "asc")        → sort by field.
-        reorderList,        // reorderList("list", from, to)           → drag-drop alias of moveItem.
-        normalizeSortOrder, // normalizeSortOrder("list", "sortOrder") → re-stamp order field.
+        sortList,           // sortList("list", "field", "asc")        -> sort by field.
+        reorderList,        // reorderList("list", from, to)           -> drag-drop alias of moveItem.
+        normalizeSortOrder, // normalizeSortOrder("list", "sortOrder") -> re-stamp order field.
 
         // ── Files & media ──────────────────────────────────────────────────
         pendingFiles,         // { slotName: File[] }  Files staged for upload.
-        fileSetterFor,        // fileSetterFor("avatar") → setter for ImagePickerField.
-        clearPendingFilesFor, // clearPendingFilesFor("avatar") → discard staged files.
+        fileSetterFor,        // fileSetterFor("avatar") -> setter for ImagePickerField.
+        clearPendingFilesFor, // clearPendingFilesFor("avatar") -> discard staged files.
         removedMediaKeys,     // { urlField: true }  Preview URLs cleared by the user.
-        removeMedia,          // removeMedia("avatarUrl") → clear URL + flag for DB null.
-        undoRemoveMedia,      // undoRemoveMedia("avatarUrl") → restore from snapshot.
+        removeMedia,          // removeMedia("avatarUrl") -> clear URL + flag for DB null.
+        undoRemoveMedia,      // undoRemoveMedia("avatarUrl") -> restore from snapshot.
 
         // ── Dirty helpers ──────────────────────────────────────────────────
-        isDirtyAt,      // isDirtyAt("section.field") → per-field/subtree dirty check.
+        isDirtyAt,      // isDirtyAt("section.field") -> per-field/subtree dirty check.
 
         // ── Touched & errors ───────────────────────────────────────────────
-        touchField,     // touchField("name")        → mark touched (call on blur).
-        untouchField,   // untouchField("name")      → unmark touched.
-        touchAllFields, // touchAllFields()          → mark all leaves touched.
-        isFieldTouched, // isFieldTouched("name")    → has user interacted with field?
-        setFieldError,  // setFieldError("email", "Taken") → set error from server.
-        clearFieldError,// clearFieldError("email")  → clear one field's error.
-        clearAllErrors, // clearAllErrors()          → wipe all errors.
-        errorFor,       // errorFor("name") → error string if touched/submitted, else null.
-        validateNow,    // validateNow()    → run validation now; returns isValid boolean.
+        touchField,     // touchField("name")        -> mark touched (call on blur).
+        untouchField,   // untouchField("name")      -> unmark touched.
+        touchAllFields, // touchAllFields()          -> mark all leaves touched.
+        isFieldTouched, // isFieldTouched("name")    -> has user interacted with field?
+        setFieldError,  // setFieldError("email", "Taken") -> set error from server.
+        clearFieldError,// clearFieldError("email")  -> clear one field's error.
+        clearAllErrors, // clearAllErrors()          -> wipe all errors.
+        errorFor,       // errorFor("name") -> error string if touched/submitted, else null.
+        validateNow,    // validateNow()    -> run validation now; returns isValid boolean.
 
         // ── Lifecycle ──────────────────────────────────────────────────────
-        submit,         // submit()              → validate → onSubmit. Returns true on success.
-        reset,          // reset()               → discard all edits back to savedSnapshot.
-        syncAfterSave,  // syncAfterSave(data)   → update snapshot after a successful save.
+        submit,         // submit()              -> validate -> onSubmit. Returns true on success.
+        reset,          // reset()               -> discard all edits back to savedSnapshot.
+        syncAfterSave,  // syncAfterSave(data)   -> update snapshot after a successful save.
     };
 }

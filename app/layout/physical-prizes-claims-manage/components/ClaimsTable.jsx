@@ -141,17 +141,17 @@ export function ClaimsTable({
                                     {/* Status */}
                                     <s-table-cell>
                                         <s-stack direction="block" gap="small-300">
-                                            <s-badge tone={sc.tone}>{sc.icon} {sc.label}</s-badge>
+                                            <s-badge tone={sc.tone}>{sc.label}</s-badge>
                                             {isNew && <s-badge tone="info" size="small">New</s-badge>}
-                                            {!claim.viewedByAdmin && !optimisticViewedIds.has(claim.id) && !isNew && <s-badge tone="warning" size="small">👁 Unreviewed</s-badge>}
-                                            {claim.adminNote && <s-badge tone="attention" size="small">📝 Note</s-badge>}
+                                            {!claim.viewedByAdmin && !optimisticViewedIds.has(claim.id) && !isNew && <s-badge tone="warning" size="small">Unreviewed</s-badge>}
+                                            {claim.adminNote && <s-badge tone="attention" size="small">Note</s-badge>}
                                         </s-stack>
                                     </s-table-cell>
 
                                     {/* Actions */}
                                     <s-table-cell>
                                         <s-button variant="plain" onClick={() => onView(claim)}>
-                                            {isNew ? "👁 View (New)" : "👁 View"}
+                                            {isNew ? "View (New)" : "View"}
                                         </s-button>
                                     </s-table-cell>
 

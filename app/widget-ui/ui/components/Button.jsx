@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/Button.jsx
+// app/widget-ui/ui/components/Button.jsx
 // Shared button primitive. variant="primary|accent|outline|ghost",
 // size="sm|md|lg". `loading` shows a bounce-dots indicator in place of the
 // label and auto-disables the button — same visual language as the

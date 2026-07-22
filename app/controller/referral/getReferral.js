@@ -1,6 +1,6 @@
-import prisma from "db-server";
-import { logger } from "@app/utils/logger";
-import { dbRetry } from "@app/utils/retry/dbRetry.js";
+import prisma from "../../db.server.js";
+import { logger } from "../../utils/logger.js";
+import { dbRetry } from "../../utils/retry/dbRetry.js";
 import { DEFAULT_REFERRAL_SELECT } from "./referralSelect.js";
 
 /**
@@ -33,7 +33,10 @@ export const getReferral = async (referralId, select = DEFAULT_REFERRAL_SELECT) 
             error: error?.message,
             stack: error?.stack,
         });
-        return null;
+        // "Not found" is already handled above via the `!referral` check —
+        // reaching this catch means the query itself failed, so surface it
+        // instead of returning the same null a legitimate not-found would.
+        throw error;
     }
 };
 
@@ -67,7 +70,9 @@ export const getReferralByReferredId = async (referredId, select = DEFAULT_REFER
             error: error?.message,
             stack: error?.stack,
         });
-        return null;
+        // Same reasoning as getReferral() above — don't let a failed query
+        // masquerade as "this customer has no referral".
+        throw error;
     }
 };
 
@@ -120,7 +125,9 @@ export const getReferralsByReferrerId = async (referrerId, filters = {}, select 
             error: error?.message,
             stack: error?.stack,
         });
-        return [];
+        // An empty array here would read as "referrer has no referrals",
+        // which is a real, valid state — don't conflate it with a failed query.
+        throw error;
     }
 };
 
@@ -165,6 +172,9 @@ export const getReferralByDiscountCode = async (discountCode, select = DEFAULT_R
             error: error?.message,
             stack: error?.stack,
         });
-        return null;
+        // Same reasoning as above — a failed lookup is not the same thing
+        // as "this discount code doesn't exist", and checkout-time callers
+        // need to be able to tell the two apart.
+        throw error;
     }
 };
