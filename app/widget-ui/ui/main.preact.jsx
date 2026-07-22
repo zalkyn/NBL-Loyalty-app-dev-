@@ -184,6 +184,28 @@ function boot() {
     document.body.appendChild(host);
     var shadowRoot = host.attachShadow({ mode: 'open' });
 
+    // ── Theme vars — apply SYNCHRONOUSLY, before render() ───────────────────
+    // savedCssVars is already available here (came straight off the shop
+    // metafield via liquid, no network call). Previously these were only
+    // applied inside App.jsx's useApplyTheme() useEffect — which Preact/React
+    // always runs AFTER the first paint. That gap is normally sub-frame and
+    // invisible, but on a cold/hard reload (JS bundle download+parse, the
+    // onReady() 50ms poll, etc. all competing for the main thread) it stretches
+    // into a visible flash: launcher button renders once with ui.css's
+    // hardcoded :host defaults, then visibly snaps to the merchant's actual
+    // theme a moment later. Setting the vars on `host` here — before `render()`
+    // is ever called — means the very first paint already has the correct
+    // theme, so there's nothing to flash. useApplyTheme()'s effect still runs
+    // afterwards too; that's now just a harmless no-op re-application for the
+    // initial load, and remains the mechanism for any future non-boot call site.
+    if (savedCssVars && typeof savedCssVars === 'object') {
+        Object.keys(savedCssVars).forEach(function (prop) {
+            if (prop.indexOf('--') === 0) {
+                host.style.setProperty(prop, savedCssVars[prop]);
+            }
+        });
+    }
+
     var styleEl = document.createElement('style');
     // __NBL_CSS_TEXT__ — build.js-e esbuild `define` diye inject kora
     // minified ui.css string (dekho build.js). :root ui.css-e :host-e

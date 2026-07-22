@@ -28,7 +28,7 @@ import { Button } from './Button.jsx';
 import { Text } from './Text.jsx';
 import { Link } from './Link.jsx';
 
-export function NotificationPanel({ notification, claimState, claimErrorMsg, claimNeedsUpdate, updateLoading, onClose, onClaim, onUpdateClick, lbl }) {
+export function NotificationPanel({ notification, claimState, claimErrorMsg, claimNeedsUpdate, updateLoading, onClose, onClaim, onUpdateClick, onGoToReferral, lbl }) {
     const [copied, setCopied] = useState(false);
 
     // Reset the copied state whenever the notification changes.
@@ -57,6 +57,7 @@ export function NotificationPanel({ notification, claimState, claimErrorMsg, cla
         trackingText = '',
         contactUrl = '',
         contactText = 'Contact us',
+        goToReferralTab = false,
     } = notification;
 
     function handleOverlayClick() {
@@ -165,6 +166,20 @@ export function NotificationPanel({ notification, claimState, claimErrorMsg, cla
                                 : isError
                                     ? (lbl('claimRetryLabel') || 'Try again')
                                     : (claimLabel || lbl('notifyInfoClaimBtn') || 'Claim')}
+                        </Button>
+                    )}
+
+                    {/* Earn tab-e REFERRAL rule click korle eta dekhay — click
+                        korle notification bondho hoye referral tab open hoy
+                        (App.jsx-er handleGoToReferralTab, EarnTab.jsx-er
+                        goToReferralTab flag). */}
+                    {goToReferralTab && (
+                        <Button
+                            bare
+                            extraClass="nbl-notify-panel__btn nbl-notify-panel__action-btn"
+                            onClick={onGoToReferral}
+                        >
+                            {lbl('notifyGoToReferralBtn') || 'View referral program'}
                         </Button>
                     )}
 
