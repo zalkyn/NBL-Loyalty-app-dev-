@@ -10,6 +10,9 @@ import { createCustomerReward } from "../../app/controller/customerReward/create
 import { syncCustomerConfig } from "../../app/controller/metafieldsSync/syncCustomerConfig.js";
 import { getCustomerRewardByCode } from "../../app/controller/customerReward/getCustomerReward.js";
 import { updateCustomerReward } from "../../app/controller/customerReward/updateCustomerReward.js";
+import { updateReferral } from "../../app/controller/referral/updateReferral.js";
+import enqueueDiscountDeleteJob from "../../app/controller/jobs/enqueueDiscountDeleteJob.js";
+import { callShopifyGraphql, SHOPIFY_RETRYABLE_ERRORS } from "../../app/utils/shopifyGraphql.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "orderPaidJob";
@@ -163,10 +166,10 @@ async function requeueStaleJobs() {
  * Processes a single ORDER_PAID job end-to-end.
  *
  * Flow:
- *   1. Claim the job → PROCESSING + lockedAt
+ *   1. Claim the job -> PROCESSING + lockedAt
  *   2. Authenticate shop + run mainHandler
- *   3a. Success → COMPLETED
- *   3b. Failure → increment attempts; exponential backoff retry or FAILED
+ *   3a. Success -> COMPLETED
+ *   3b. Failure -> increment attempts; exponential backoff retry or FAILED
  *
  * @param {{ id: number, shop: string, payload: object, attempts: number, maxAttempts: number }} job
  * @returns {Promise<void>}
@@ -176,10 +179,28 @@ async function processJob(job) {
     const { orderId, customerId } = payload;
 
     // ── 1. Claim ──────────────────────────────────────────────────────────────
-    await dbRetry(
-        () => prisma.job.update({ where: { id }, data: { status: "PROCESSING", lockedAt: new Date() } }),
+    // Conditional on status still being PENDING — the previous unconditional
+    // `update({ where: { id } })` always "succeeds" even if another replica
+    // already claimed and started this same job a moment earlier (both
+    // replicas' findMany in runOrderPaidJob can return the same PENDING row
+    // before either one's claim lands). Checking the affected row count
+    // makes this the actual point of truth for "did *we* get this job" —
+    // count === 0 means someone else already claimed it, so we back off
+    // instead of both processing the same order (double points, double
+    // discount codes).
+    const claim = await dbRetry(
+        () =>
+            prisma.job.updateMany({
+                where: { id, status: "PENDING" },
+                data: { status: "PROCESSING", lockedAt: new Date() },
+            }),
         { module: MODULE, jobId: id }
     );
+
+    if (claim.count === 0) {
+        logger.info(MODULE, `Job #${id} already claimed by another process — skipping`, { shop, orderId });
+        return;
+    }
 
     logger.info(MODULE, `Processing job #${id}`, { shop, orderId, attempt: attempts + 1, maxAttempts });
 
@@ -211,7 +232,7 @@ async function processJob(job) {
         const nextAttempt = attempts + 1;
         const exhausted = nextAttempt >= maxAttempts;
 
-        // ── 3b. Failure — exponential backoff: 2min → 4min → 8min ────────────
+        // ── 3b. Failure — exponential backoff: 2min -> 4min -> 8min ────────────
         const backoffMs = exhausted
             ? 0
             : Math.min(2 ** nextAttempt * 60 * 1000, 30 * 60 * 1000);
@@ -256,8 +277,8 @@ async function processJob(job) {
  *
  * Combining the metafield fetch with the order fetch means the caller
  * (mainHandler) can run this and getAppstleMetafield in parallel:
- *   - fetchFullOrder  → order fields + raw Appstle metafield value
- *   - getAppstleMetafield → product.sellingPlanGroups (interval resolution)
+ *   - fetchFullOrder  -> order fields + raw Appstle metafield value
+ *   - getAppstleMetafield -> product.sellingPlanGroups (interval resolution)
  *
  * Both run simultaneously, reducing total latency from 3 sequential calls
  * to 2 parallel calls.
@@ -270,7 +291,8 @@ async function processJob(job) {
  * @returns {Promise<{ order: object, appstle: object|null }|null>}
  */
 async function fetchFullOrder(admin, orderId) {
-    const res = await admin.graphql(
+    const json = await callShopifyGraphql(
+        admin,
         `#graphql
         query GetOrderWithAppstle($id: ID!) {
             order(id: $id) {
@@ -301,16 +323,14 @@ async function fetchFullOrder(admin, orderId) {
                 }
             }
         }`,
-        { variables: { id: orderId } }
+        { id: orderId }
     );
-
-    const json = await res.json();
 
     const raw = json?.data?.order ?? null;
 
     if (!raw) return null;
 
-    // Normalize GraphQL shape → REST-style shape expected by handlers
+    // Normalize GraphQL shape -> REST-style shape expected by handlers
     const order = {
         name: raw.name,
         order_number: raw.orderNumber,
@@ -393,7 +413,7 @@ async function mainHandler({ admin, session, shop, orderId, customerId }) {
             {
                 maxAttempts: 3,
                 baseDelayMs: 800,
-                retryableErrors: ["fetch failed", "ECONNRESET", "ETIMEDOUT"],
+                retryableErrors: SHOPIFY_RETRYABLE_ERRORS,
                 context: { shop, orderId, module: MODULE },
             }
         ),
@@ -423,6 +443,30 @@ async function mainHandler({ admin, session, shop, orderId, customerId }) {
             shop, orderId, cancelledAt: orderFields.cancelled_at,
         });
         return;
+    }
+
+    // ── Cached order-count maintenance ──────────────────────────────────────
+    // Keeps Customer.orders in sync incrementally so the admin dashboard can
+    // read it directly instead of calling Shopify's API on every page view
+    // (see app/layout/customers/$id/_loader.server.js). Runs regardless of
+    // whether this order matches a points rule — the order genuinely
+    // happened either way. If the cache is still null (never backfilled —
+    // see schema.prisma), Postgres leaves a NULL+1 increment as NULL, which
+    // is fine: it self-heals the next time an admin opens this customer's
+    // detail page. Best-effort — never let this block points awarding.
+    try {
+        await dbRetry(
+            () =>
+                prisma.customer.update({
+                    where: { id: customer.id },
+                    data: { orders: { increment: 1 } },
+                }),
+            { module: MODULE, shop, customerId: customer.id }
+        );
+    } catch (err) {
+        logger.error(MODULE, "Failed to increment cached order count", {
+            shop, orderId, customerId: customer.id, error: err?.message,
+        });
     }
 
     // Resolve subscription interval — uses the pre-fetched appstle metafield
@@ -479,7 +523,16 @@ const detectReferralOrder = ({ order, customer, contract }) => {
     const referral = customer?.referralsUsed;
     if (!referral) return { isReferralOrder: false };
 
-    const discountMatch = order?.discount_codes?.find((d) => d.code === referral.discountCode);
+    // Case-insensitive: Shopify itself treats discount codes as
+    // case-insensitive at checkout, but order.discount_codes[].code reflects
+    // whatever case the customer actually typed (copy-paste preserves our
+    // stored uppercase, but manual entry — especially mobile autocapitalize/
+    // autocorrect — can change it). An exact-case match here would silently
+    // never mark the referral as used even though Shopify already applied
+    // the discount, leaving the widget showing "code ready" indefinitely.
+    const discountMatch = order?.discount_codes?.find(
+        (d) => d.code?.toUpperCase() === referral.discountCode?.toUpperCase()
+    );
     if (discountMatch) return { isReferralOrder: true, type: "FIRST", referral };
 
     if (
@@ -498,9 +551,9 @@ const detectReferralOrder = ({ order, customer, contract }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Resolves points for a single line item using the P1→P4 priority chain.
+ * Resolves points for a single line item using the P1->P4 priority chain.
  *
- * Priority (highest → lowest):
+ * Priority (highest -> lowest):
  *   P4 — product is in a group AND interval matches
  *   P3 — product is in a group, no interval match
  *   P2 — product not in any group, interval matches
@@ -585,7 +638,7 @@ const resolveOrderPoints = (order, conditions, interval, isSubscription) => {
 };
 
 /**
- * Resolves referrer + referred points using the P1→P4 priority chain.
+ * Resolves referrer + referred points using the P1->P4 priority chain.
  *
  * For RECURRING (renewal):
  *   - Uses renewalPoints instead of points
@@ -675,7 +728,7 @@ const resolveReferralPoints = (conditions, lineItems, interval, isRenewal) => {
 
 /**
  * Awards points for a standard (non-referral) order.
- * Uses per-product P1→P4 priority resolution.
+ * Uses per-product P1->P4 priority resolution.
  *
  * @param {Object}      params
  * @param {Object}      params.admin
@@ -689,7 +742,7 @@ const resolveReferralPoints = (conditions, lineItems, interval, isRenewal) => {
  */
 const handleNormalOrder = async ({ admin, order, customer, session, shop, subscriptionInterval, isSubscription }) => {
     // getPointRuleByEvent retries transient DB errors internally.
-    const rule = await getPointRuleByEvent("ORDER");
+    const rule = await getPointRuleByEvent("ORDER", session.id);
 
     if (!rule?.isActive) {
         logger.warn(MODULE, "ORDER rule inactive — skipping", { shop });
@@ -755,7 +808,7 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop, subscr
  */
 const handleReferral = async ({ admin, referralContext, order, subscriptionContract, subscriptionInterval, isSubscription, session, shop }) => {
     // getPointRuleByEvent retries transient DB errors internally.
-    const rule = await getPointRuleByEvent("REFERRAL");
+    const rule = await getPointRuleByEvent("REFERRAL", session.id);
 
     if (!rule?.isActive) {
         logger.warn(MODULE, "REFERRAL rule inactive — skipping", { shop });
@@ -788,20 +841,19 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
         const { referrerPoints, referredPoints } = resolveReferralPoints(conditions, lineItems, subscriptionInterval, false);
 
         await Promise.all([
-            dbRetry(
-                () =>
-                    prisma.referral.update({
-                        where: { id: referral.id },
-                        data: {
-                            status: "USED",
-                            discountUsed: true,
-                            orderId: order.admin_graphql_api_id,
-                            subscriptionContractId: subscriptionContract?.id?.toString() ?? null,
-                            metadata: subscriptionContract ?? {},
-                        },
-                    }),
-                { module: MODULE, shop, referralId: referral.id }
-            ),
+            updateReferral(referral.id, {
+                status: "USED",
+                discountUsed: true,
+                // Set alongside discountUsed since this is the single point
+                // where the referrer's points transaction (below, in the
+                // same Promise.all) is actually created — rewardGiven was
+                // previously never populated anywhere despite being a real
+                // schema field and a supported updateReferral() input.
+                rewardGiven: true,
+                orderId: order.admin_graphql_api_id,
+                subscriptionContractId: subscriptionContract?.id?.toString() ?? null,
+                metadata: subscriptionContract ?? {},
+            }),
             createTransaction(
                 {
                     customerId: referral.referrerId,
@@ -834,8 +886,14 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
             ),
         ]);
 
-        // Mark referred customer's reward voucher as used
-        const existingReward = await getCustomerRewardByCode(referral.discountCode, { id: true, status: true });
+        // Mark referred customer's reward voucher as used — scoped to the
+        // referred customer so a discount code collision on another shop
+        // can never resolve to the wrong reward.
+        const existingReward = await getCustomerRewardByCode(
+            referral.discountCode,
+            { id: true, status: true },
+            referral.referredId
+        );
         if (existingReward) {
             await updateCustomerReward(existingReward.id, {
                 status: "USED",
@@ -939,10 +997,7 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
 
         await Promise.all([
             ...rewardTasks,
-            dbRetry(
-                () => prisma.referral.update({ where: { id: referral.id }, data: { metadata: subscriptionContract ?? {} } }),
-                { module: MODULE, shop, referralId: referral.id }
-            ),
+            updateReferral(referral.id, { metadata: subscriptionContract ?? {} }),
         ]);
 
         // Non-critical — syncCustomerConfig retries transient failures internally and never throws.
@@ -978,8 +1033,13 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
         const orderDiscountCodes = order?.discount_codes ?? [];
         if (!orderDiscountCodes.length) return;
 
+        // Normalize to uppercase — DB codes are always generated uppercase
+        // (generateDiscountCode.js), but a customer typing the code by hand
+        // at checkout (rather than copy-pasting) can submit it in a
+        // different case, which would otherwise silently miss this `in`
+        // filter and leave an already-redeemed voucher looking unused.
         const discountCodeSet = new Set(
-            orderDiscountCodes.map((d) => d?.code).filter(Boolean)
+            orderDiscountCodes.map((d) => d?.code?.toUpperCase()).filter(Boolean)
         );
         if (!discountCodeSet.size) return;
 
@@ -991,7 +1051,7 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
                         code: { in: [...discountCodeSet] },
                         status: { notIn: ["USED", "EXPIRED", "CANCELLED", "REDEEMED"] },
                     },
-                    select: { id: true, code: true, title: true },
+                    select: { id: true, code: true, title: true, discountNodeId: true },
                 }),
             { module: MODULE, shop, customerId: customer.id }
         );
@@ -1001,8 +1061,20 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
         const orderLabel = getOrderLabel(order);
 
         await Promise.all(
-            rewards.map((reward) =>
-                Promise.all([
+            rewards.map((reward) => {
+                // Non-critical, fire-and-forget — see the matching comment
+                // in customers/$id/_action.server.js's handleCancelReward.
+                // Deliberately NOT part of the Promise.all below: order
+                // processing must never wait on this hygiene step.
+                enqueueDiscountDeleteJob({
+                    shop,
+                    discountNodeId: reward.discountNodeId,
+                    source: "reward_used",
+                    entityType: "reward",
+                    entityId: reward.id,
+                });
+
+                return Promise.all([
                     updateCustomerReward(reward.id, {
                         status: "USED",
                         discountUsed: true,
@@ -1021,8 +1093,8 @@ const voucherUpdateIfAvailable = async ({ admin, order, customer, shop, session 
                         },
                         session
                     ),
-                ])
-            )
+                ]);
+            })
         );
 
         // Non-critical — voucher status already updated. syncCustomerConfig

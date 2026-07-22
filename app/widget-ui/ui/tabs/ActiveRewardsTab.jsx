@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/ActiveRewardsTab.jsx
+// app/widget-ui/ui/tabs/ActiveRewardsTab.jsx
 // Full Active Rewards tab — purono tabs/activities.js-er active-rewards
 // half-er replacement. (Ager version-e eta bhul kore ActivitiesTab.jsx-er
 // bhitore likha chilo — eта alada tab, tai alada file-e thaka uchit.)

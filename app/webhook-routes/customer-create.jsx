@@ -95,6 +95,11 @@ export const action = async ({ request }) => {
                             referralCode,
                             sessionId: session.id,
                             metadata: customer,
+                            // Genuinely 0 at the moment of creation (they just
+                            // registered) — see the "orders" field comment in
+                            // schema.prisma for why this is explicit, not
+                            // left null.
+                            orders: 0,
                         },
                     }),
                 { module: MODULE, shop, shopifyId }

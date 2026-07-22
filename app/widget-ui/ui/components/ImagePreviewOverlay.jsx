@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/ImagePreviewOverlay.jsx
+// app/widget-ui/ui/components/ImagePreviewOverlay.jsx
 // Full-size image preview — rendered inside the widget container the same
 // way NotificationModal is (App.jsx owns the state, WidgetShell renders this
 // as an absolute sibling slot). Opened by clicking the eye icon on any

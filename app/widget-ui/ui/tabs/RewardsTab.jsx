@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/rewards.jsx
+// app/widget-ui/ui/tabs/RewardsTab.jsx
 // Rewards tab — reward rules list + Active Rewards card (paginated, same
 // pattern as PrizesTab-er active-prizes card). Purono tabs/rewards.js-er
 // pura replacement.

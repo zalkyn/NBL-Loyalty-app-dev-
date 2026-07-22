@@ -8,7 +8,7 @@ import { Icon } from "./Icon";
 //
 // SVG equivalent of SimpleEmojiField — lets the merchant pick one of a small
 // set of SVG icons (by name) instead of a raw emoji character. Used for the
-// launcher "Button icon" field; storefront modules/icons.js renders the same
+// launcher "Button icon" field; storefront app/widget-ui/ui/icons.js renders the same
 // icon names via launcherIcon().
 // ─────────────────────────────────────────────────────────────────────────────
 

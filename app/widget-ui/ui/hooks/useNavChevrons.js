@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/hooks/useNavChevrons.js
+// app/widget-ui/ui/hooks/useNavChevrons.js
 // Nav rail-er left/right chevron visibility — purono widget.js Section 8b-er
 // replacement. scrollRef = nav scroll container-er ref.
 // =============================================================================

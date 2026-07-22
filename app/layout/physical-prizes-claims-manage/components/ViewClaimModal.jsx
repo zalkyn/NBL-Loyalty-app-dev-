@@ -79,7 +79,7 @@ export function ViewClaimModal({
                             </s-stack>
                             <s-stack direction="block" gap="small-200">
                                 <s-text tone="subdued" variant="bodySm">Status</s-text>
-                                <s-badge tone={sc.tone}>{sc.icon} {sc.label}</s-badge>
+                                <s-badge tone={sc.tone}>{sc.label}</s-badge>
                             </s-stack>
                             <s-stack direction="block" gap="small-200">
                                 <s-text tone="subdued" variant="bodySm">Claimed On</s-text>
@@ -96,7 +96,7 @@ export function ViewClaimModal({
                             <s-stack direction="block" gap="small-200">
                                 <s-text tone="subdued" variant="bodySm">First Reviewed</s-text>
                                 <s-text variant="bodySm">
-                                    {vc.viewedByAdmin ? formatDate(vc.viewedAt) : <s-badge tone="warning" size="small">👁 Not yet reviewed</s-badge>}
+                                    {vc.viewedByAdmin ? formatDate(vc.viewedAt) : <s-badge tone="warning" size="small">Not yet reviewed</s-badge>}
                                 </s-text>
                             </s-stack>
                         </s-grid>
@@ -105,7 +105,7 @@ export function ViewClaimModal({
                             <>
                                 <s-divider />
                                 <s-stack direction="block" gap="small-200">
-                                    <s-text variant="headingSm">🔑 Notes / License / Link</s-text>
+                                    <s-text variant="headingSm">Notes / License / Link</s-text>
                                     <s-text variant="bodySm">{vc.trackingInfo}</s-text>
                                 </s-stack>
                             </>
@@ -115,7 +115,7 @@ export function ViewClaimModal({
                             <>
                                 <s-divider />
                                 <s-stack direction="block" gap="small-200">
-                                    <s-text variant="headingSm">📝 Admin Note</s-text>
+                                    <s-text variant="headingSm">Admin Note</s-text>
                                     <s-text variant="bodySm" tone="subdued">{vc.adminNote}</s-text>
                                 </s-stack>
                             </>

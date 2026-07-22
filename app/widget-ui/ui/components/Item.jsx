@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/Item.jsx
+// app/widget-ui/ui/components/Item.jsx
 // Generic clickable "card" shell — reusable for every item in the widget
 // (reward item, points item, prize item, active reward item, prize claim
 // item, etc). All of these are the SAME visual component; the only layout

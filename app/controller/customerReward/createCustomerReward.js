@@ -17,6 +17,7 @@ import { DEFAULT_REWARD_SELECT } from "./rewardSelect.js";
  * @param {string}        [input.title]
  * @param {string}        [input.description]
  * @param {string}        [input.code]
+ * @param {string}        [input.discountNodeId] - Shopify GID of the codeDiscountNode behind `code` (see Reward.discountNodeId's schema comment).
  * @param {string}        [input.orderId]
  * @param {string}        [input.referralId]
  * @param {number|string} [input.rewardRuleId]
@@ -61,6 +62,7 @@ export const createCustomerReward = async (input, select = DEFAULT_REWARD_SELECT
                         title: input.title ?? null,
                         description: input.description ?? null,
                         code: input.code ?? null,
+                        discountNodeId: input.discountNodeId ?? null,
                         orderId: input.orderId ?? null,
                         rewardRuleId: input.rewardRuleId ? Number(input.rewardRuleId) : null,
                         pointsCost: input.pointsCost !== undefined ? Number(input.pointsCost) : null,

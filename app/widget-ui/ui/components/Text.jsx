@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/Text.jsx
+// app/widget-ui/ui/components/Text.jsx
 // Shared body-copy primitive. Size and color always come from props, never
 // from a surrounding context selector — the same single-source-of-truth
 // principle as Icon's size prop.

@@ -8,15 +8,23 @@ const MODULE = "layout/rewards-rules/_data.server.js";
 // ─────────────────────────────────────────────────────────────────────────────
 // TITLE PLACEHOLDER
 //
-// Server-side resolution at write-time, so the stored title is already the
-// final display string (e.g. "Voucher $10") rather than the raw template.
+// Stored AS ENTERED — including the raw "{{currency_value}}" placeholder,
+// if present — never resolved at write-time. Resolving and freezing it
+// here used to mean editing a rule's discount value later silently left
+// the title stale: "Voucher $15" saved, then the admin bumps the discount
+// to $20, and the title still reads "$15" forever (it no longer contains
+// the placeholder pattern, so nothing would ever re-resolve it). That's
+// also why the Edit Rule form used to show the resolved value instead of
+// the template, unlike the Create form's default.
+//
+// Actual resolution now happens where the title is actually consumed:
+// widget-ui/reward-claim.jsx resolves it fresh at claim time (via this
+// same previewTitle() — see _data.js) using the rule's CURRENT
+// discountType/rewardValue, and freezes the RESULT onto that customer's
+// own CustomerReward.title — which is correct to freeze, since a reward
+// a customer already claimed shouldn't retroactively change if the rule
+// is edited afterward.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const resolveTitlePlaceholder = (title, discountType, rewardValue) => {
-    if (!title) return title;
-    const formatted = discountType === "percentage" ? `${rewardValue}%` : `$${rewardValue}`;
-    return title.replace(/\{\{currency_value\}\}/gi, formatted);
-};
 
 // ── CREATE ───────────────────────────────────────────────────────────────────
 
@@ -38,11 +46,9 @@ export async function handleAddRule({ formData, session, admin }) {
         return { message: "Points cost must be greater than 0.", status: "error", submitType };
 
     try {
-        const resolvedTitle = resolveTitlePlaceholder(newRule.title, newRule.discountType, newRule.rewardValue);
-
         const created = await prisma.rewardRule.create({
             data: {
-                title: resolvedTitle,
+                title: newRule.title,
                 description: newRule.description || null,
                 discountType: newRule.discountType,
                 rewardValue: Number(newRule.rewardValue) || 0,
@@ -89,12 +95,10 @@ export async function handleUpdateRule({ formData, session, admin }) {
         if (!existing || existing.sessionId !== session.id)
             return { message: "Rule not found or access denied.", status: "error", submitType };
 
-        const resolvedTitle = resolveTitlePlaceholder(updatedRule.title, updatedRule.discountType, updatedRule.rewardValue);
-
         const rule = await prisma.rewardRule.update({
             where: { id: parseInt(updatedRule.id) },
             data: {
-                title: resolvedTitle,
+                title: updatedRule.title,
                 description: updatedRule.description || null,
                 discountType: updatedRule.discountType,
                 rewardValue: Number(updatedRule.rewardValue) || 0,

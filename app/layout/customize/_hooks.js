@@ -3,7 +3,7 @@ import { useSubmit, useNavigation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import {
-    SIMPLE_SECTIONS, WIDGET_CONFIG_SECTIONS, CSS_DEFAULTS, PRESETS,
+    SIMPLE_SECTIONS, WIDGET_CONFIG_SECTIONS, LABEL_GROUPS, CSS_DEFAULTS, PRESETS,
     deepClone, isEqual, matchesPreset, buildInitialVars, buildInitialWidgetConfig,
 } from "./constants/cssVarsConfig";
 
@@ -40,6 +40,7 @@ export function useCustomizePage(loaderData, actionData) {
     // ── UI-only state (never sent to server, never dirty-tracked) ────────────
     const [activeSimpleSection, setActiveSimpleSection] = useState(SIMPLE_SECTIONS[0].key);
     const [activeConfigSection, setActiveConfigSection] = useState(WIDGET_CONFIG_SECTIONS[0].key);
+    const [activeLabelGroup, setActiveLabelGroup] = useState(LABEL_GROUPS[0].key);
     const [pageTab, setPageTab] = useState("customize");
     const [activeIntent, setActiveIntent] = useState(null);
     const [notificationPreviewType, setNotificationPreviewType] = useState("reward");
@@ -64,7 +65,7 @@ export function useCustomizePage(loaderData, actionData) {
     // React Router's actionData never goes back to null after first
     // response, so a simple [actionData] effect fires only on the *first* save.
     // Subsequent saves with the same object reference are silently ignored,
-    // leaving persistedVars stale → hasChanges stays true forever.
+    // leaving persistedVars stale -> hasChanges stays true forever.
     //
     // track the last-processed response by reference. When actionData is a
     // new object (every successful POST creates a new one) we run the sync.
@@ -136,17 +137,19 @@ export function useCustomizePage(loaderData, actionData) {
     // BUG FIX (preserved from original): compare vs persistedWidgetConfig, not
     // WIDGET_CONFIG_DEFAULTS. Using defaults meant badge never cleared after
     // saving non-default values.
+    //
+    // Generic dot-path comparison — same fix class as handleConfigChange
+    // above and getConfigValue/getConfigDefault in _data.js: this used to
+    // be a hardcoded if/else per known prefix, which silently miscounted
+    // (both sides read as undefined, "coincidentally" always equal) any
+    // section not in that list — e.g. "resync." before this fix.
     const configSectionDirtyCount = useCallback((section) => {
         return section.fields.filter((f) => {
-            if (f.configKey.startsWith("labels.")) {
-                const labelKey = f.configKey.slice(7);
-                return widgetConfig.labels?.[labelKey] !== persistedWidgetConfig.labels?.[labelKey];
-            }
-            if (f.configKey.startsWith("prize.")) {
-                const prizeKey = f.configKey.slice(6);
-                return widgetConfig.prize?.[prizeKey] !== persistedWidgetConfig.prize?.[prizeKey];
-            }
-            return widgetConfig[f.configKey] !== persistedWidgetConfig[f.configKey];
+            const dotIndex = f.configKey.indexOf(".");
+            if (dotIndex === -1) return widgetConfig[f.configKey] !== persistedWidgetConfig[f.configKey];
+            const key = f.configKey.slice(0, dotIndex);
+            const fieldKey = f.configKey.slice(dotIndex + 1);
+            return widgetConfig[key]?.[fieldKey] !== persistedWidgetConfig[key]?.[fieldKey];
         }).length;
     }, [widgetConfig, persistedWidgetConfig]);
 
@@ -161,16 +164,29 @@ export function useCustomizePage(loaderData, actionData) {
         setCssVars((prev) => ({ ...prev, ...updates }));
     }, []);
 
+    // Generic dot-path setter — configKey is either flat ("paginationMode")
+    // or one level deep ("labels.headerLabel", "referral.redirectEnabled",
+    // "resync.showUpdateBanner", etc., matching cssVarsConfig.js's
+    // WIDGET_CONFIG_SECTIONS `configKey` values). Previously this was a
+    // hardcoded if/else per known prefix ("labels."/"prize."/"referral.") —
+    // adding a new section (e.g. "resync") without also adding a branch
+    // here silently fell through to the `else`, which set the LITERAL
+    // dotted string as a flat top-level key (e.g.
+    // widgetConfig["resync.showUpdateBanner"] = true) instead of nesting
+    // it — the saved value existed, but nothing ever read it from that key,
+    // so the toggle appeared to save with no visible effect. Splitting
+    // generically on the first "." removes the whole class of bug: any
+    // section added to cssVarsConfig.js just works, no second place to
+    // remember to update.
     const handleConfigChange = useCallback((key, value) => {
-        if (key.startsWith("labels.")) {
-            const labelKey = key.slice(7);
-            setWidgetConfig((prev) => ({ ...prev, labels: { ...prev.labels, [labelKey]: value } }));
-        } else if (key.startsWith("prize.")) {
-            const prizeKey = key.slice(6);
-            setWidgetConfig((prev) => ({ ...prev, prize: { ...prev.prize, [prizeKey]: value } }));
-        } else {
+        const dotIndex = key.indexOf(".");
+        if (dotIndex === -1) {
             setWidgetConfig((prev) => ({ ...prev, [key]: value }));
+            return;
         }
+        const section = key.slice(0, dotIndex);
+        const fieldKey = key.slice(dotIndex + 1);
+        setWidgetConfig((prev) => ({ ...prev, [section]: { ...prev[section], [fieldKey]: value } }));
     }, []);
 
     const handlePresetApply = useCallback((preset) => {
@@ -214,7 +230,7 @@ export function useCustomizePage(loaderData, actionData) {
 
     return {
         cssVars, deferredCssVars, widgetConfig,
-        activePreset, activeSimpleSection, activeConfigSection, activeSimpleSectionDef,
+        activePreset, activeSimpleSection, activeConfigSection, activeLabelGroup, activeSimpleSectionDef,
         pageTab, setPageTab,
         notificationPreviewType, setNotificationPreviewType,
 
@@ -222,7 +238,7 @@ export function useCustomizePage(loaderData, actionData) {
         totalDirtyVarCount,
         simpleSectionDirtyCount, configSectionDirtyCount,
 
-        setActiveSimpleSection, setActiveConfigSection,
+        setActiveSimpleSection, setActiveConfigSection, setActiveLabelGroup,
         setWidgetConfig,
 
         handleSimpleChange, handleConfigChange, handlePresetApply,

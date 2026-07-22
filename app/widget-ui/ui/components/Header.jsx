@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/Header.jsx
+// app/widget-ui/ui/components/Header.jsx
 // Header-top (title+points / guest title) + Nav — purono html.js headerTopHTML
 // + navHTML-er replacement. compact prop -> useCompactHeader hook theke ashe.
 // =============================================================================
@@ -13,7 +13,7 @@ import { Text } from './Text.jsx';
 import { usePointsBump } from '../hooks/usePointsBump.js';
 import { formatNumber } from '../utils.js';
 
-export function Header({ isLoggedIn, customerName, points, compact, activeTab, onNavChange, onClose, lbl }) {
+export function Header({ isLoggedIn, customerName, points, compact, activeTab, onNavChange, onClose, lbl, pointsPending }) {
     const bump = usePointsBump(points);
     const [ready, setReady] = useState(false);
 
@@ -33,7 +33,7 @@ export function Header({ isLoggedIn, customerName, points, compact, activeTab, o
     const [ptsBefore, ptsAfter] = pointsLabelTemplate.split('[points]');
 
     return (
-        <div class={`nbl-header${compact ? ' compact' : ''}${ready ? ' ready' : ''}`}>
+        <div class={`nbl-header${compact ? ' compact' : ''}${ready ? ' ready' : ''}${isLoggedIn ? '' : ' nbl-header--standalone'}`}>
             <Button bare extraClass="nbl-header__close" aria-label="Close" onClick={onClose}>
                 <span
                     class="nbl-icon"
@@ -53,9 +53,22 @@ export function Header({ isLoggedIn, customerName, points, compact, activeTab, o
                                 {titleAfter || ''}
                             </Heading>
                             <div class={`nbl-header__points${bump ? ' bump' : ''}`}>
-                                {ptsBefore}
-                                <Text as="span" bare extraClass="nbl-customer-points">{formatNumber(points)}</Text>
-                                {ptsAfter || ''}
+                                {pointsPending ? (
+                                    // Same rule, same visual language as
+                                    // LauncherButton.jsx — see App.jsx's
+                                    // pointsPending for why this and the
+                                    // launcher button now always agree
+                                    // instead of one hiding the number and
+                                    // the other showing it with just a
+                                    // small dot next to it.
+                                    <span class="nbl-spinner nbl-spinner--sync" aria-label="Updating" />
+                                ) : (
+                                    <>
+                                        {ptsBefore}
+                                        <Text as="span" bare extraClass="nbl-customer-points">{formatNumber(points)}</Text>
+                                        {ptsAfter || ''}
+                                    </>
+                                )}
                             </div>
                         </>
                     ) : (

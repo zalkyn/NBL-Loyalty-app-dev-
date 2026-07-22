@@ -1,6 +1,7 @@
 import { logger } from "app/utils/logger";
 import { normalizeCustomerGid } from "../../../controller/customers/normalizeCustomerGid";
 import { generateDiscountCode } from "../../../utils/generateDiscountCode";
+import { callShopifyGraphql } from "../../../utils/shopifyGraphql.js";
 
 /**
  * Generates a reward voucher/discount code for a customer via Shopify GraphQL.
@@ -12,7 +13,7 @@ import { generateDiscountCode } from "../../../utils/generateDiscountCode";
  * @param {"fixed"|"percentage"} rewardRule.discountType - Discount type
  * @param {number} rewardRule.rewardValue - Discount amount or percentage
  *
- * @returns {Promise<string>} Generated discount code
+ * @returns {Promise<{code: string, discountNodeId: string|null}>} Generated discount code and its Shopify GID
  *
  * @throws {Error} Customer-friendly error message
  */
@@ -52,15 +53,21 @@ export const generateRewardVoucher = async (admin, customerId, rewardRule) => {
 
     const discountCode =
         json?.data?.discountCodeBasicCreate?.codeDiscountNode?.codeDiscount?.codes?.nodes?.[0]?.code;
+    const discountNodeId = json?.data?.discountCodeBasicCreate?.codeDiscountNode?.id || null;
 
     if (!discountCode) {
         logger.error("Discount code missing in response", { json, ...ctx });
         throw new Error("Something went wrong while generating your reward. Please try again.");
     }
 
-    logger.success("Reward voucher created", { discountCode, ...ctx });
+    logger.success("Reward voucher created", { discountCode, discountNodeId, ...ctx });
 
-    return discountCode;
+    // Callers previously got just the code string back — now an object, so
+    // the codeDiscountNode GID can be persisted on the Reward row at
+    // creation time (see Reward.discountNodeId's schema comment for why:
+    // it's needed later by discountDeleteJob.js, and there's no cheaper way
+    // to get it than capturing it right here).
+    return { code: discountCode, discountNodeId };
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -100,7 +107,8 @@ function buildDiscountValue({ discountType, rewardValue }) {
  * @returns {Promise<Object>} Raw Shopify GraphQL JSON response
  */
 async function runDiscountMutation(admin, { code, customerGid, discountValue }) {
-    const response = await admin.graphql(
+    return callShopifyGraphql(
+        admin,
         `#graphql
         mutation CreateDiscountCode($basicCodeDiscount: DiscountCodeBasicInput!) {
             discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
@@ -119,25 +127,21 @@ async function runDiscountMutation(admin, { code, customerGid, discountValue }) 
             }
         }`,
         {
-            variables: {
-                basicCodeDiscount: {
-                    title: code,
-                    code,
-                    startsAt: new Date().toISOString(),
-                    endsAt: null,
-                    customerSelection: { customers: { add: [customerGid] } },
-                    customerGets: {
-                        appliesOnOneTimePurchase: true,
-                        appliesOnSubscription: true,
-                        value: discountValue,
-                        items: { all: true },
-                    },
-                    usageLimit: 1,
-                    appliesOncePerCustomer: true,
+            basicCodeDiscount: {
+                title: code,
+                code,
+                startsAt: new Date().toISOString(),
+                endsAt: null,
+                customerSelection: { customers: { add: [customerGid] } },
+                customerGets: {
+                    appliesOnOneTimePurchase: true,
+                    appliesOnSubscription: true,
+                    value: discountValue,
+                    items: { all: true },
                 },
+                usageLimit: 1,
+                appliesOncePerCustomer: true,
             },
         }
     );
-
-    return response.json();
 }

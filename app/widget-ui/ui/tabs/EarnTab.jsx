@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/module-preact/EarnTab.jsx
+// app/widget-ui/ui/tabs/EarnTab.jsx
 // Earn Points tab — purono tabs/earn.js-er replacement.
 // =============================================================================
 
@@ -99,7 +99,12 @@ function PointRuleItem({ rule, currencySymbol, onOpenInfo }) {
     return (
         <Item
             active={true}
-            onClick={() => onOpenInfo({ text: label })}
+            onClick={() =>
+                onOpenInfo({
+                    text: label,
+                    ...(type === 'REFERRAL' && { goToReferralTab: true }),
+                })
+            }
             leading={<Icon name={ICON_MAP[type] || 'earn-points'} size="lg" />}
             content={
                 <div class="nbl-item__content">

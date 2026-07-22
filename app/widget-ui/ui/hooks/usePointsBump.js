@@ -1,5 +1,5 @@
 // =============================================================================
-// modules/components/hooks/usePointsBump.js
+// app/widget-ui/ui/hooks/usePointsBump.js
 // Points change hole ekta CSS class briefly retrigger kore (bump animation) —
 // purono widget.js-er uiRender.pointsUpdate()-er bump part-er replacement.
 // =============================================================================

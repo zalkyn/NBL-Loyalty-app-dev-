@@ -14,11 +14,11 @@
  *   ?page=1&perPage=10&status=ALL&sortBy=date_desc&dateFrom=&dateTo=
  *
  * Layout follows the app.points-rules.* module pattern:
- *   route.jsx        → loader, thin action dispatcher, page composition
- *   _data.js         → client-safe constants + pure helpers (loader and client both import this)
- *   _data.server.js  → server-only per-submitType handlers (prisma, transactions)
- *   _hooks.js        → all client-side state + handlers
- *   components/      → presentational pieces
+ *   route.jsx        -> loader, thin action dispatcher, page composition
+ *   _data.js         -> client-safe constants + pure helpers (loader and client both import this)
+ *   _data.server.js  -> server-only per-submitType handlers (prisma, transactions)
+ *   _hooks.js        -> all client-side state + handlers
+ *   components/      -> presentational pieces
  */
 
 import { useLoaderData, useActionData } from "react-router";
@@ -61,6 +61,7 @@ export const loader = async ({ request }) => {
     const rawDateTo = url.searchParams.get("dateTo") ?? "";
     const rawPage = url.searchParams.get("page") ?? "1";
     const rawPerPage = url.searchParams.get("perPage") ?? String(DEFAULT_PER_PAGE);
+    const rawClaimId = url.searchParams.get("claimId") ?? "";
 
     const status = VALID_STATUSES.includes(rawStatus) ? rawStatus : "ALL";
     const sortBy = VALID_SORT_OPTIONS.includes(rawSort) ? rawSort : "date_desc";
@@ -136,11 +137,34 @@ export const loader = async ({ request }) => {
         const newIdSet = new Set(newIds);
         const claimsWithNewFlag = claims.map((c) => ({ ...c, _isNew: newIdSet.has(c.id) }));
 
+        // ── 3. Direct-open claim (deep link, e.g. from customer details page) ──
+        // Fetched independently of the current filter/sort/page so the target
+        // claim is always found, regardless of where it'd fall in the list.
+        let directClaim = null;
+        const claimId = parseIntParam(rawClaimId, null, 1);
+        if (claimId) {
+            directClaim = await prisma.physicalPrizeClaim.findFirst({
+                where: { id: claimId, prize: { sessionId: session.id } },
+                include: {
+                    prize: {
+                        select: { id: true, title: true, imageUrl: true, productValue: true },
+                    },
+                    customer: {
+                        select: {
+                            id: true, shopifyId: true, name: true,
+                            firstName: true, lastName: true, email: true, points: true,
+                        },
+                    },
+                },
+            });
+        }
+
         return {
             claims: claimsWithNewFlag,
             stats,
             newIds,          // sent to client for ref tracking
             pagination: { page, perPage, totalItems, totalPages },
+            directClaim,
         };
 
     } catch (err) {
@@ -151,6 +175,7 @@ export const loader = async ({ request }) => {
             stats: { total: 0, new: 0, pending: 0, fulfilled: 0, completed: 0, cancelled: 0 },
             newIds: [],
             pagination: { page: 1, perPage, totalItems: 0, totalPages: 1 },
+            directClaim: null,
             loaderError: "Failed to load claims. Please refresh.",
         };
     }

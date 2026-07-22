@@ -3,11 +3,11 @@
  * @description Points Events management page — simple shop-scoped CRUD.
  *
  * Layout follows the app.points-rules.* module pattern:
- *   route.jsx        → loader, thin action dispatcher, page composition
- *   _data.js         → client-safe constants + pure helpers (loader/action and client both import this)
- *   _data.server.js  → server-only per-submitType handlers (prisma)
- *   _hooks.js        → all client-side state + handlers
- *   components/      → presentational pieces
+ *   route.jsx        -> loader, thin action dispatcher, page composition
+ *   _data.js         -> client-safe constants + pure helpers (loader/action and client both import this)
+ *   _data.server.js  -> server-only per-submitType handlers (prisma)
+ *   _hooks.js        -> all client-side state + handlers
+ *   components/      -> presentational pieces
  */
 
 import { useLoaderData, useActionData } from "react-router";

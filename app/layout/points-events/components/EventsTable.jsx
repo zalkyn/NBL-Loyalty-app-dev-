@@ -31,7 +31,7 @@ export function EventsTable({
                                 <s-table-cell>{ev.name}</s-table-cell>
                                 <s-table-cell>{ev.type}</s-table-cell>
                                 <s-table-cell>{ev.description || "—"}</s-table-cell>
-                                <s-table-cell>{ev.isActive ? "✅ Yes" : "❌ No"}</s-table-cell>
+                                <s-table-cell><s-badge tone={ev.isActive ? "success" : "critical"}>{ev.isActive ? "Yes" : "No"}</s-badge></s-table-cell>
                                 <s-table-cell>
                                     {new Date(ev.createdAt).toLocaleDateString()}
                                 </s-table-cell>
@@ -66,7 +66,7 @@ export function EventsTable({
                         disabled={currentPage === 1 || isAnyBusy}
                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     >
-                        ← Prev
+                        Previous
                     </s-button>
                     <s-text>Page {currentPage} of {totalPages}</s-text>
                     <s-button
@@ -74,7 +74,7 @@ export function EventsTable({
                         disabled={currentPage === totalPages || isAnyBusy}
                         onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                     >
-                        Next →
+                        Next
                     </s-button>
                 </s-stack>
             )}

@@ -11,8 +11,8 @@
  *   "bottom-left"   "bottom-center"   "bottom-right"
  *
  *   Shorthand aliases:
- *   "top"    → "top-center"
- *   "bottom" → "bottom-center"
+ *   "top"    -> "top-center"
+ *   "bottom" -> "bottom-center"
  *
  * ─── Features ──────────────────────────────────────────────────────────────
  *  - Fixed viewport position — never moves on scroll
@@ -112,8 +112,8 @@ import "./saveBar.css";
 ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * Normalize shorthand aliases → full position string.
- * "top" → "top-center"  |  "bottom" → "bottom-center"
+ * Normalize shorthand aliases -> full position string.
+ * "top" -> "top-center"  |  "bottom" -> "bottom-center"
  * @param {string} pos
  * @returns {string}
  */
@@ -124,7 +124,7 @@ function normalizePosition(pos) {
 }
 
 /**
- * Map normalized position → CSS modifier class.
+ * Map normalized position -> CSS modifier class.
  * Each class sets the fixed coordinates + correct slide animation.
  * @param {string} pos
  * @returns {string}
@@ -181,7 +181,7 @@ const Spinner = () => <span className="savebar-spinner" aria-hidden="true" />;
  *   Fixed viewport position. Accepted values:
  *   "top-left" | "top-center" | "top-right" |
  *   "bottom-left" | "bottom-center" | "bottom-right" |
- *   "top" (→ top-center) | "bottom" (→ bottom-center)
+ *   "top" (-> top-center) | "bottom" (-> bottom-center)
  *
  * @param {string}   [props.message="You have unsaved changes"]
  *   Status message shown on the left side.
@@ -253,7 +253,7 @@ export function SaveBar({
     const [portalTarget, setPortalTarget] = useState(null);
     useEffect(() => { setPortalTarget(document.body); }, []);
 
-    /* ── Keyboard: Escape → onSecondary (skipped when custom actions are used) ── */
+    /* ── Keyboard: Escape -> onSecondary (skipped when custom actions are used) ── */
     const handleKeyDown = useCallback((e) => {
         if (!visible || !closeOnEscape || actions) return;
         if (e.key === "Escape") { e.preventDefault(); onSecondary?.(); }

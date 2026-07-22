@@ -11,6 +11,36 @@ import { dbRetry } from "app/utils/retry/dbRetry.js";
 
 const MODULE = "api.loox-new-review-trigger";
 
+/**
+ * Resolves which shop a request belongs to from the `:token` URL segment
+ * (see app/routes.js: "api/loox-new-review-trigger/:token").
+ *
+ * This endpoint is called by a Shopify Flow workflow ("Loox new review
+ * trigger"), not directly by Loox — Flow's HTTP request action has no
+ * built-in request signing, and the review payload itself carries no shop
+ * identifier. Each shop gets its own unique, unguessable token (generated
+ * and shown on app/loox-setup — see ensureLooxFlowToken.js), baked directly
+ * into the URL the merchant pastes into their Flow workflow. This one
+ * lookup both authenticates the call AND tells us which shop it's for —
+ * a wrong/missing/revoked token resolves to null and the request is
+ * rejected before the body is even parsed.
+ *
+ * @param {string|undefined} token
+ * @returns {Promise<{ sessionId: string, shop: string }|null>}
+ */
+const resolveShopFromToken = async (token) => {
+    if (!token) return null;
+
+    return dbRetry(
+        () =>
+            prisma.appSettings.findUnique({
+                where: { looxFlowToken: token },
+                select: { sessionId: true, shop: true },
+            }),
+        { module: MODULE, token }
+    );
+};
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -91,32 +121,18 @@ const detectReviewType = async (photoUrl) => {
 };
 
 /**
- * Loads the customer record and REVIEW points rule in parallel.
+ * Loads the customer record for a given email, scoped to the shop resolved
+ * from the request's token — so a duplicate email across two different
+ * shops can never match the wrong one.
  *
  * @param {string} email
- * @returns {Promise<{ customer: Object|null, rule: Object|null }>}
- */
-const loadCustomerAndRule = async (email) => {
-    const [customer, rule] = await Promise.all([
-        dbRetry(
-            () => prisma.customer.findFirst({ where: { email }, select: { id: true, shopifyId: true, sessionId: true } }),
-            { module: MODULE, email }
-        ),
-        getPointRuleByEvent("REVIEW"),
-    ]);
-    return { customer, rule };
-};
-
-/**
- * Loads the session record for a customer.
- *
  * @param {string} sessionId
- * @returns {Promise<{ id: string, shop: string }|null>}
+ * @returns {Promise<Object|null>} Customer with `id`, `shopifyId`, or null
  */
-const loadSession = (sessionId) =>
+const loadCustomer = (email, sessionId) =>
     dbRetry(
-        () => prisma.session.findUnique({ where: { id: sessionId }, select: { id: true, shop: true } }),
-        { module: MODULE, sessionId }
+        () => prisma.customer.findFirst({ where: { email, sessionId }, select: { id: true, shopifyId: true } }),
+        { module: MODULE, email, sessionId }
     );
 
 /**
@@ -261,7 +277,7 @@ const issueReward = async ({
     const label = reviewType.charAt(0) + reviewType.slice(1).toLowerCase();
     const reason = `${label} review submitted for "${productTitle}"`;
     const activity = points > 0
-        ? `+${points} points for ${label.toLowerCase()} review on "${productTitle}"`
+        ? `+${Number(points).toLocaleString()} points for ${label.toLowerCase()} review on "${productTitle}"`
         : `${label} review submitted for "${productTitle}" -- no points for this review type`;
 
     const sharedMetadata = {
@@ -296,7 +312,7 @@ const issueReward = async ({
             status: "COMPLETED",
             title: `${label} review reward`,
             description: points > 0
-                ? `You earned ${points} points for submitting a ${label.toLowerCase()} review on "${productTitle}".`
+                ? `You earned ${Number(points).toLocaleString()} points for submitting a ${label.toLowerCase()} review on "${productTitle}".`
                 : `Thank you for your ${label.toLowerCase()} review on "${productTitle}".`,
             rewardKey,
             metadata: { ...sharedMetadata, author },
@@ -319,19 +335,25 @@ const jsonResponse = (data, status, headers) =>
 // ============================================================
 
 /**
- * POST /api/loox-new-review-trigger
+ * POST /api/loox-new-review-trigger/:token
  *
- * Receives Loox HTTP webhook on new review submission.
- * Always returns 200 immediately to prevent Loox retries.
- * All processing runs in the background after the response is sent.
+ * Called by the "Loox new review trigger" Shopify Flow workflow (its "New
+ * review" trigger + "Send HTTP request" action) — not directly by Loox.
+ * `:token` is the per-shop secret from app/loox-setup (see
+ * resolveShopFromToken above); an unresolvable token is rejected with 401
+ * before the body is even parsed.
  *
- * Loox payload shape:
+ * Once authenticated, always returns 200 for a well-formed request so Flow
+ * sees a clean success — all review processing runs in the background
+ * after the response is sent.
+ *
+ * Flow request body shape (see the workflow's "Send HTTP request" body):
  * {
  *   author, email, rating, review_body, review_date,
  *   product_title, product_id, product_url, photo_url, order_id
  * }
  */
-export const action = async ({ request }) => {
+export const action = async ({ request, params }) => {
     const corsHeaders = getCorsHeaders(request);
 
     if (request.method === "OPTIONS") {
@@ -342,17 +364,30 @@ export const action = async ({ request }) => {
         return jsonResponse({ error: "Method not allowed" }, 405, corsHeaders);
     }
 
+    // Reject before touching the body — an unauthenticated caller should
+    // never reach JSON parsing or the review-processing pipeline. Unlike
+    // the "always 200" policy below (which exists to stop a real webhook
+    // provider from retry-storming us), this is a 401: the caller here is
+    // our own Shopify Flow workflow, and a real auth failure should show
+    // up as a failed step in Flow's run history, not look like success.
+    const shopContext = await resolveShopFromToken(params.token);
+    if (!shopContext) {
+        logger.warn(MODULE, "Rejected request with missing/invalid Flow token", { token: params.token });
+        return jsonResponse({ error: "Unauthorized" }, 401, corsHeaders);
+    }
+
     let data;
     try {
         data = await request.json();
     } catch (error) {
-        logger.error(MODULE, "Failed to parse request body", { error: error?.message });
+        logger.error(MODULE, "Failed to parse request body", { error: error?.message, shop: shopContext.shop });
         return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
-    // Fire and forget -- Loox requires a fast response
-    handleLooxReview(data).catch((err) =>
+    // Fire and forget -- Flow requires a fast response
+    handleLooxReview(data, shopContext).catch((err) =>
         logger.error(MODULE, "Background review handler failed", {
+            shop: shopContext.shop,
             error: err?.message,
             stack: err?.stack,
         })
@@ -392,17 +427,21 @@ export const loader = async ({ request }) => {
  * Steps:
  *   1. validateReview        -- required fields
  *   2. detectReviewType      -- TEXT / PHOTO / VIDEO from photo_url
- *   3. loadCustomerAndRule   -- parallel DB fetch
- *   4. loadSession           -- needs customer.sessionId
+ *   3. loadCustomer          -- resolve customer, scoped to shopContext.sessionId
+ *   4. getPointRuleByEvent   -- REVIEW rule, scoped to shopContext.sessionId
  *   5. resolveRewardConfig   -- points + rewardMode from rule conditions
  *   6. checkIdempotency      -- build key + duplicate check
  *   7. issueReward           -- transaction + reward record in parallel
  *   8. syncCustomerConfig    -- push updated balance to Shopify metafields
  *
- * @param {Object} reviewData - Raw Loox webhook payload
+ * @param {Object} reviewData            - Raw Flow request body
+ * @param {Object} shopContext           - Resolved from the request's token
+ * @param {string} shopContext.sessionId
+ * @param {string} shopContext.shop
  */
-const handleLooxReview = async (reviewData) => {
+const handleLooxReview = async (reviewData, shopContext) => {
     const { email, author, rating, product_title, product_id, photo_url, order_id } = reviewData;
+    const { sessionId, shop } = shopContext;
 
     // 1. Validate
     if (!validateReview(email, product_id)) return;
@@ -410,61 +449,58 @@ const handleLooxReview = async (reviewData) => {
     // 2. Detect review type
     const reviewType = await detectReviewType(photo_url);
 
-    // 3. Load customer + rule
-    const { customer, rule } = await loadCustomerAndRule(email);
+    // 3. Load customer + REVIEW rule in parallel, both scoped to the shop
+    // resolved from the request's token.
+    const [customer, rule] = await Promise.all([
+        loadCustomer(email, sessionId),
+        getPointRuleByEvent("REVIEW", sessionId),
+    ]);
 
     if (!customer) {
-        logger.warn(MODULE, "Customer not found, skipping", { email });
+        logger.warn(MODULE, "Customer not found, skipping", { shop, email });
         return;
     }
     if (!rule) {
-        logger.warn(MODULE, "REVIEW rule not found, skipping");
+        logger.warn(MODULE, "REVIEW rule not found, skipping", { shop, customerId: customer.id });
         return;
     }
     if (!rule.isActive) {
-        logger.warn(MODULE, "REVIEW rule is inactive, skipping");
+        logger.warn(MODULE, "REVIEW rule is inactive, skipping", { shop, customerId: customer.id });
         return;
     }
 
-    // 4. Load session (needs customer.sessionId)
-    const dbSession = await loadSession(customer.sessionId);
-    if (!dbSession) {
-        logger.warn(MODULE, "Session not found, skipping", { customerId: customer.id });
-        return;
-    }
-
-    // 5. Resolve reward config — returns null if review type is disabled
+    // 4. Resolve reward config — returns null if review type is disabled
     const rewardConfig = resolveRewardConfig(rule.conditions, reviewType);
 
     if (!rewardConfig) {
-        logger.info(MODULE, `${reviewType} review type is disabled, skipping`, { email });
+        logger.info(MODULE, `${reviewType} review type is disabled, skipping`, { shop, email });
         return;
     }
 
     const { points, rewardMode, typeConfig } = rewardConfig;
 
-    logger.info(MODULE, "Review resolved", { reviewType, rewardMode, points, email, product_title });
+    logger.info(MODULE, "Review resolved", { shop, reviewType, rewardMode, points, email, product_title });
 
-    // 6. Idempotency check
+    // 5. Idempotency check
     const { isDuplicate, eventKey } = await checkIdempotency({
         email,
         productId: product_id,
         reviewType,
         rewardMode,
-        shop: dbSession.shop,
+        shop,
     });
 
     if (isDuplicate) {
-        logger.warn(MODULE, "Duplicate review event skipped", { eventKey, rewardMode });
+        logger.warn(MODULE, "Duplicate review event skipped", { shop, eventKey, rewardMode });
         return;
     }
 
-    // 7. Issue reward
-    const { admin } = await unauthenticated.admin(dbSession.shop);
+    // 6. Issue reward
+    const { admin } = await unauthenticated.admin(shop);
 
     await issueReward({
         customerId: customer.id,
-        sessionId: dbSession.id,
+        sessionId,
         eventId: rule.event.id,
         reviewType,
         rewardMode,
@@ -476,10 +512,11 @@ const handleLooxReview = async (reviewData) => {
         orderId: order_id || null,
     });
 
-    // 8. Sync metafields
+    // 7. Sync metafields
     await syncCustomerConfig(admin, customer.shopifyId);
 
     logger.success(MODULE, "Loox review handled", {
+        shop,
         email,
         customerId: customer.id,
         reviewType,

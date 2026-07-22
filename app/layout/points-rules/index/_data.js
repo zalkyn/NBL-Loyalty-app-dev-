@@ -2,7 +2,7 @@
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** event type → manage route */
+/** event type -> manage route */
 export const EVENT_ROUTES = {
     ORDER: "/app/points-rules/order",
     REFERRAL: "/app/points-rules/referral",

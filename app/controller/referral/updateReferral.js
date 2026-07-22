@@ -1,6 +1,6 @@
-import prisma from "db-server";
-import { logger } from "@app/utils/logger";
-import { dbRetry } from "@app/utils/retry/dbRetry.js";
+import prisma from "../../db.server.js";
+import { logger } from "../../utils/logger.js";
+import { dbRetry } from "../../utils/retry/dbRetry.js";
 import { DEFAULT_REFERRAL_SELECT } from "./referralSelect.js";
 
 /**
@@ -18,7 +18,14 @@ import { DEFAULT_REFERRAL_SELECT } from "./referralSelect.js";
  * @param {string}        [input.subscriptionContractId]
  * @param {Object}        [input.metadata]
  * @param {Object}        [select]                 - Prisma select object to control returned fields.
- * @returns {Promise<Object|null>} Updated referral or null on failure.
+ * @returns {Promise<Object|null>} Updated referral, or null specifically when
+ *   the referral doesn't exist (P2025 — expected if it was deleted between
+ *   lookup and update).
+ * @throws {Error} Any other database error is re-thrown rather than
+ *   swallowed. This matters most for callers like the order-paid job, whose
+ *   cron-level retry/lock mechanism only re-attempts a cycle when a handler
+ *   throws — silently returning null here would make a transient DB failure
+ *   look like a successful update and the job would never retry it.
  *
  * @example
  * // Mark referral as used after order is placed
@@ -72,6 +79,9 @@ export const updateReferral = async (referralId, input, select = DEFAULT_REFERRA
             stack: error?.stack,
         });
 
-        return null;
+        // Re-throw so job-level retry (see server/jobManager) actually
+        // fires on transient failures instead of the cycle silently
+        // "succeeding" with an unapplied update.
+        throw error;
     }
 };

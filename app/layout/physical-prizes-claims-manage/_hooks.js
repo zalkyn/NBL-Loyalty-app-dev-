@@ -151,6 +151,32 @@ export function usePrizeClaimsPage(loaderData, actionData) {
         );
     }, [noteTarget, noteValue, submit]);
 
+    // ── Deep-linked claim (e.g. "View Details" from the customer page) ────────
+    // Auto-opens the view modal for loaderData.directClaim once, then strips
+    // ?claimId= from the URL so it doesn't reopen on later filter/page changes
+    // or on a manual refresh.
+    const openedDirectClaimIds = useRef(new Set());
+    useEffect(() => {
+        const dc = loaderData?.directClaim;
+        if (!dc || openedDirectClaimIds.current.has(dc.id)) return;
+        openedDirectClaimIds.current.add(dc.id);
+
+        setViewTarget(dc);
+        requestAnimationFrame(() => viewModalRef.current?.showOverlay());
+
+        if (!dc.viewedByAdmin) {
+            setOptimisticViewedIds((prev) => new Set([...prev, dc.id]));
+            sessionViewedIds.current.add(dc.id);
+            submit({ submitType: "markClaimSeen", claimId: String(dc.id) }, { method: "post" });
+        }
+
+        setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete("claimId");
+            return next;
+        }, { replace: true });
+    }, [loaderData, setSearchParams, submit]);
+
     // ── View modal ────────────────────────────────────────────────────────────
     const openViewModal = useCallback((claim) => {
         setViewTarget(claim);

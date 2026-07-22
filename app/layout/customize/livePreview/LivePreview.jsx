@@ -18,7 +18,9 @@ import { DS } from "../constants/cssVarsConfig";
 // Props:
 //   cssVars       {object}  CSS variable map (--nbl-* keys)
 //   previewScene  {string}  "home" | "earn" | "rewards" | "notification-reward"
-//                           "notification-info" | "launcher" | "referral" | "modal"
+//                           "notification-info" | "notification-toast" |
+//                           "notification-update-banner" | "join-program" |
+//                           "launcher" | "referral" | "modal"
 //   widgetConfig  {object}  widgetConfig state (labels, behaviour toggles)
 //   hidden        {bool}    true on the "config" tab — render nothing
 // ─────────────────────────────────────────────────────────────────────────────
@@ -58,7 +60,7 @@ const LivePreviewPanel = memo(function LivePreviewPanel({
         );
     };
 
-    // ── cssVars → debounced postMessage (slider drags fire fast) ──────────
+    // ── cssVars -> debounced postMessage (slider drags fire fast) ──────────
     useEffect(() => {
         if (!iframeReady) return;
         if (cssVarsDebounceRef.current) clearTimeout(cssVarsDebounceRef.current);
@@ -68,17 +70,28 @@ const LivePreviewPanel = memo(function LivePreviewPanel({
         return () => clearTimeout(cssVarsDebounceRef.current);
     }, [cssVars, iframeReady]);
 
-    // ── widgetConfig → immediate postMessage (label edits aren't high-frequency) ─
+    // ── widgetConfig -> immediate postMessage (label edits aren't high-frequency) ─
     useEffect(() => {
         if (!iframeReady) return;
         post("widgetConfig", widgetConfig);
     }, [widgetConfig, iframeReady]);
 
-    // ── previewScene → immediate postMessage ───────────────────────────────
+    // ── previewScene -> immediate postMessage ───────────────────────────────
+    // Also re-fires on widgetConfig changes (Reset all, Save, any field
+    // edit) — not just when previewScene's own value changes. Without this,
+    // an action that resets widgetConfig while sitting on a section whose
+    // scene is unchanged (e.g. "Header", scene="home", before and after
+    // Reset all) never re-sends the scene message at all — so the iframe's
+    // bridgeRef.setScene() never re-runs, and any active preview override
+    // (e.g. previewJoinProgram from a PREVIOUS visit to "New Customer
+    // Onboarding") stays stuck instead of being cleared. Re-sending the
+    // scene alongside every widgetConfig change guarantees the preview's
+    // override state always reflects the currently active section, not
+    // just the section that was active the last time it literally changed.
     useEffect(() => {
         if (!iframeReady) return;
         post("scene", previewScene);
-    }, [previewScene, iframeReady]);
+    }, [previewScene, widgetConfig, iframeReady]);
 
     // if (hidden) return null;
 

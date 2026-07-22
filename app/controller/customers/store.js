@@ -64,6 +64,12 @@ export const storeCustomer = async (session, customer) => {
                         referralCode: referralCode,
                         sessionId: session.id,
                         metadata: customer,
+                        // "orders" deliberately omitted (stays null) — this
+                        // path bulk-syncs customers who may already have real
+                        // order history on Shopify; defaulting to 0 here
+                        // would be a false "confirmed zero orders" rather
+                        // than "unknown". Lazily backfilled on next admin
+                        // customer-detail view — see schema.prisma.
                     },
                 }),
             { shopifyId }
