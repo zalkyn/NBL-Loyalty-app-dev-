@@ -45,7 +45,7 @@ export function getCache(customerId, code) {
     return item.data;
 }
 export function setCache(customerId, code, data) {
-    const duration = data.success ? 60000 : 30000;
+    const duration = 0;
     const store = getCacheStore(customerId);
     store[code] = { data, expiresAt: Date.now() + duration };
     setCacheStore(customerId, store);

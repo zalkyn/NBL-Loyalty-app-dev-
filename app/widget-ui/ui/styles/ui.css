@@ -27,21 +27,21 @@ input:not([type=checkbox], [type=radio]) {
 :host {
 
     /* ── Brand ── */
-    --nbl-primary: #8b5cf6;
+    --nbl-primary: #FEC643;
     --nbl-primary-hover: color-mix(in srgb, var(--nbl-primary) 85%, #000);
     --nbl-primary-light: color-mix(in srgb, var(--nbl-primary) 12%, var(--nbl-surface));
-    --nbl-accent: #4ecba8;
+    --nbl-accent: #EF633B;
     --nbl-accent-hover: color-mix(in srgb, var(--nbl-accent) 85%, #000);
     --nbl-accent-light: color-mix(in srgb, var(--nbl-accent) 12%, var(--nbl-surface));
 
     /* ── Surfaces ── */
-    --nbl-surface: #ffffff;
-    --nbl-surface-2: #f8f7ff;
+    --nbl-surface: #0a0a0a;
+    --nbl-surface-2: #171717;
     --nbl-surface-hover: #f3f1fc;
 
     /* ── Typography ── */
-    --nbl-text: #1a1a1a;
-    --nbl-text-muted: #6b7280;
+    --nbl-text: #fafafa;
+    --nbl-text-muted: #a3a3a3;
     --nbl-text-xs: 11px;
     --nbl-text-sm: 12px;
     --nbl-text-base: 13px;
@@ -49,7 +49,7 @@ input:not([type=checkbox], [type=radio]) {
     --nbl-text-lg: 16px;
 
     /* ── Borders ── */
-    --nbl-border: #e9e7f0;
+    --nbl-border: #262626;
     --nbl-border-width: 1px;
     --nbl-border-width-md: 1.5px;
 
@@ -77,7 +77,7 @@ input:not([type=checkbox], [type=radio]) {
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        LAUNCHER BUTTON
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-    --nbl-launcher-bg: var(--nbl-primary);
+    --nbl-launcher-bg: #ef633b;
     --nbl-launcher-color: #ffffff;
     --nbl-launcher-border-radius: 999px;
     --nbl-launcher-shadow: 0 6px 24px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.14), 0 0 0 3px rgba(255, 255, 255, 0.15) inset;
@@ -97,7 +97,7 @@ input:not([type=checkbox], [type=radio]) {
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        WIDGET SHELL (container / header / nav / body)
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-    --nbl-header-bg: var(--nbl-primary);
+    --nbl-header-bg: #ef633b;
     --nbl-header-color: #ffffff;
     --nbl-header-padding: 22px 20px 18px;
     --nbl-header-compact-padding: 10px 20px 8px;
@@ -111,11 +111,11 @@ input:not([type=checkbox], [type=radio]) {
     --nbl-points-border-radius: 99px;
     --nbl-points-border-color: rgba(255, 255, 255, 0.3);
 
-    --nbl-nav-bg: #ffffff;
-    --nbl-nav-border-color: #e9e7f0;
+    --nbl-nav-bg: #0a0a0a;
+    --nbl-nav-border-color: #262626;
     --nbl-nav-active-color: var(--nbl-primary);
     --nbl-nav-active-border: var(--nbl-primary);
-    --nbl-nav-item-color: #6b7280;
+    --nbl-nav-item-color: #a3a3a3;
     --nbl-nav-item-font-size: 13px;
     --nbl-nav-item-font-weight: 500;
     --nbl-nav-item-padding: 13px 4px 11px;
@@ -134,22 +134,22 @@ input:not([type=checkbox], [type=radio]) {
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        BUTTON (shared primary action token set)
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-    --nbl-btn-bg: var(--nbl-accent);
-    --nbl-btn-color: #ffffff;
-    --nbl-btn-border: var(--nbl-accent);
+    --nbl-btn-bg: #FEC643;
+    --nbl-btn-color: #1a1208;
+    --nbl-btn-border: #FEC643;
     --nbl-btn-radius: 10px;
     --nbl-btn-font-size: 14px;
     --nbl-btn-font-weight: 600;
     --nbl-btn-padding: 10px 20px;
 
-    --nbl-referral-copy-btn-bg: #4ecba8;
-    --nbl-referral-copy-btn-color: #ffffff;
-    --nbl-referral-copy-btn-border: #4ecba8;
+    --nbl-referral-copy-btn-bg: #FEC643;
+    --nbl-referral-copy-btn-color: #000000;
+    --nbl-referral-copy-btn-border: #FEC643;
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        CARD (shared shell for all card-style containers)
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-    --nbl-card-bg: var(--nbl-surface);
+    --nbl-card-bg: #171717;
     --nbl-card-border: var(--nbl-border);
     --nbl-card-radius: 14px;
     --nbl-card-padding: 14px 13px;
@@ -162,8 +162,8 @@ input:not([type=checkbox], [type=radio]) {
     --nbl-section-header-padding: 10px 14px 10px 12px;
     --nbl-section-title-font-size: var(--nbl-text-base);
     --nbl-section-title-font-weight: 600;
-    --nbl-section-title-color: var(--nbl-text);
-    --nbl-home-nav-color: #ffffff;
+    --nbl-section-title-color: #FEC643;
+    --nbl-home-nav-color: #1a1208;
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        ITEM — the single shared style for every list-row
@@ -172,7 +172,7 @@ input:not([type=checkbox], [type=radio]) {
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
     --nbl-item-bg: var(--nbl-surface-2);
     --nbl-item-border: var(--nbl-border);
-    --nbl-item-active-bg: var(--nbl-surface);
+    --nbl-item-active-bg: #1a1208;
     --nbl-item-active-border: var(--nbl-accent);
     --nbl-item-radius: var(--nbl-card-radius);
     --nbl-item-padding: var(--nbl-card-padding);
@@ -223,9 +223,9 @@ input:not([type=checkbox], [type=radio]) {
     --nbl-pagination-dot-active-width: 18px;
     --nbl-pagination-dot-radius: 4px;
     --nbl-loadmore-radius: 12px;
-    --nbl-loadmore-border: var(--nbl-border);
-    --nbl-loadmore-bg: var(--nbl-surface);
-    --nbl-loadmore-color: var(--nbl-primary);
+    --nbl-loadmore-border: #FEC643;
+    --nbl-loadmore-bg: #FEC643;
+    --nbl-loadmore-color: #1a0011;
     --nbl-loadmore-font-size: var(--nbl-text-base);
     --nbl-loadmore-font-weight: 600;
     --nbl-loadmore-padding: 11px 20px;
@@ -234,12 +234,12 @@ input:not([type=checkbox], [type=radio]) {
        NOTIFICATION — unified slide-up panel
        ONE solid color per surface. No gradients, no badges.
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-    --nbl-notify-bg: #15803d;
+    --nbl-notify-bg: #1e1a1a;
     --nbl-notify-text-color: #ffffff;
-    --nbl-notify-border-color: #166534;
-    --nbl-notify-btn-bg: #ffffff;
-    --nbl-notify-btn-text-color: #15803d;
-    --nbl-notify-btn-border-color: #ffffff;
+    --nbl-notify-border-color: #FEC643;
+    --nbl-notify-btn-bg: #FEC643;
+    --nbl-notify-btn-text-color: #1a1208;
+    --nbl-notify-btn-border-color: #FEC643;
     /* structural (not merchant-facing) */
     --nbl-notify-max-height: 78%;
     --nbl-notify-heading-size: 16px;
@@ -254,14 +254,14 @@ input:not([type=checkbox], [type=radio]) {
        this feature won't have these keys in its JSON at all, so without a
        baseline declared directly in this stylesheet, var() would resolve to
        nothing and the banner would render with invisible/blank colors. ── */
-    --nbl-update-banner-bg: var(--nbl-primary);
+    --nbl-update-banner-bg: #EF633B;
     --nbl-update-banner-border-color: var(--nbl-primary);
-    --nbl-update-banner-icon-color: var(--nbl-primary);
-    --nbl-update-banner-title-color: var(--nbl-text);
-    --nbl-update-banner-desc-color: var(--nbl-text);
+    --nbl-update-banner-icon-color: #1a1208;
+    --nbl-update-banner-title-color: #1a1208;
+    --nbl-update-banner-desc-color: #FFFFFF;
     --nbl-update-banner-btn-bg: var(--nbl-primary);
     --nbl-update-banner-btn-color: var(--nbl-btn-color);
-    --nbl-update-banner-close-color: var(--nbl-text);
+    --nbl-update-banner-close-color: #FFFFFF;
 
 
     /* ── Status colors (claims, referral messages — NOT notification) ── */
@@ -290,23 +290,28 @@ input:not([type=checkbox], [type=radio]) {
     --nbl-modal-subtitle-color: #4b5563;
     --nbl-modal-text-color: #374151;
     --nbl-modal-muted-color: #9ca3af;
-    --nbl-modal-brand-bg: #ecfdf5;
-    --nbl-modal-brand-color: #15803d;
+    --nbl-modal-brand-bg: #FEC643;
+    --nbl-modal-brand-color: #000000;
     --nbl-modal-input-bg: #f9fafb;
-    --nbl-modal-input-border: #e5e7eb;
-    --nbl-modal-input-focus: #16a34a;
+    --nbl-modal-input-border: #EF633B;
+    --nbl-modal-input-focus: #EF633B;
     --nbl-modal-input-readonly: #f3f4f6;
-    --nbl-modal-btn-primary-bg: #111827;
-    --nbl-modal-btn-primary-hover: #1f2937;
-    --nbl-modal-btn-primary-color: #ffffff;
-    --nbl-modal-btn-finish-bg: #15803d;
-    --nbl-modal-btn-finish-hover: #166534;
-    --nbl-modal-btn-finish-color: #ffffff;
-    --nbl-referral-copy-btn-color: #ffffff;
+    --nbl-modal-btn-primary-bg: #FEC643;
+    --nbl-modal-btn-primary-hover: #e6b93c;
+    --nbl-modal-btn-primary-color: #000000;
+    --nbl-modal-btn-finish-bg: #FEC643;
+    --nbl-modal-btn-finish-hover: #e6b93c;
+    --nbl-modal-btn-finish-color: #000000;
+    /* NOTE: this re-declares --nbl-referral-copy-btn-color, already set
+       above near the BUTTON block (line ~146) — CSS cascade means THIS
+       later value was always the one actually winning, silently shadowing
+       the earlier one. Kept in sync with it here rather than removed, to
+       avoid changing unrelated behaviour while fixing the theme defaults. */
+    --nbl-referral-copy-btn-color: #000000;
     --nbl-modal-code-bg: #f8fafc;
-    --nbl-modal-code-border: #d1d5db;
-    --nbl-modal-code-hover-bg: #f0fdf4;
-    --nbl-modal-code-hover-border: #16a34a;
+    --nbl-modal-code-border: #EF633B;
+    --nbl-modal-code-hover-bg: #fff4d6;
+    --nbl-modal-code-hover-border: #FEC643;
     --nbl-modal-scrollbar-color: #d1d5db;
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1180,7 +1185,6 @@ input:not([type=checkbox], [type=radio]) {
     border-radius: var(--nbl-radius);
     z-index: 1000000002;
     background: var(--nbl-surface);
-    /* NO overflow:hidden here — notification lives as absolute child */
     isolation: isolate;
     transform: scale(0) translateY(12px);
     opacity: 0;
@@ -1188,6 +1192,12 @@ input:not([type=checkbox], [type=radio]) {
     transform-origin: var(--nbl-widget-origin, bottom left);
     transition: transform 0.45s var(--nbl-ease-spring), opacity 0.3s ease;
     box-shadow: var(--nbl-shadow);
+    /* Safe to clip here — the notification panel and image-preview overlay
+       (WidgetShell.jsx's notificationSlot/previewSlot) are absolute children
+       positioned with inset:0, i.e. contained WITHIN this box, never meant
+       to extend past it. This also enforces the border-radius clip on this
+       outer box itself, as a second layer alongside .nbl-widget-scroll-area's
+       own overflow:hidden right below. */
     overflow: hidden;
 }
 
@@ -1243,21 +1253,24 @@ input:not([type=checkbox], [type=radio]) {
     overflow-x: hidden;
     display: flex;
     flex-direction: column;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+    /* Scrollbar hidden entirely (not just thinned) — .nbl-sticky-top (the
+       Header) is a CHILD of this scrollable element and its width always
+       equals this element's content-box width, which "classic" (space-
+       reserving) scrollbars shrink by their own track width. On platforms
+       that don't use overlay scrollbars (e.g. Windows with a mouse), that
+       shrinkage left a thin vertical sliver of the widget's raw background
+       exposed at the top-right corner, right where the header's rounded
+       corner should have reached the container's edge — scrolling itself
+       still works fine (wheel/trackpad/touch/drag), only the visible
+       scrollbar track is removed. */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
 .nbl-widget-wrapper::-webkit-scrollbar {
-    width: 4px;
-}
-
-.nbl-widget-wrapper::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--nbl-primary) 30%, transparent);
-    border-radius: 99px;
-}
-
-.nbl-widget-wrapper::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in srgb, var(--nbl-primary) 50%, transparent);
+    display: none;
+    width: 0;
+    height: 0;
 }
 
 .nbl-widget-body {
