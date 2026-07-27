@@ -6,6 +6,8 @@ import { runEmptyCustomerConfigJob } from "../jobs/emptyCustomerConfigJob.js";
 import { runCustomerSyncJob } from "../jobs/customerSyncJob.js";
 import { runJobCleanupJob } from "../jobs/jobCleanupJob.js";
 import { runJobAutoRetryJob } from "../jobs/jobAutoRetryJob.js";
+import { runPointsBackfillJob } from "../jobs/pointsBackfillJob.js";
+import { runSnapshotBuildJob } from "../jobs/snapshotBuildJob.js";
 import { logger } from "../../app/utils/logger.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,6 +206,57 @@ export const JOB_CONFIGS = [
         preHooks: [],
         handlers: [
             async () => runBulkCustomerSyncJob(),
+        ],
+        retry: { maxAttempts: 3 },
+    },
+
+    // ── Backfill Snapshot ────────────────────────────────────────────────────
+    // Builds the frozen customer list a POINTS_BACKFILL run is approved
+    // against, enqueued from
+    // controller/backfillAudience/snapshot.js's enqueueSnapshotBuild().
+    // Walks one page of a Shopify customer Segment per cycle, verifying the
+    // CustomerSegmentMember -> Customer id mapping on every page before
+    // writing anything (see snapshotBuildJob.js's header for why that check
+    // is not optional).
+    //
+    // Faster cadence than points_backfill, deliberately. A merchant is
+    // sitting on the page watching a progress indicator and waiting to
+    // review the result — this is interactive work in a way the run itself
+    // isn't. At 250 members per cycle every 10 seconds, a 2,000-member
+    // segment previews in well under a minute.
+    {
+        name: "backfill_snapshot",
+        cron: cron("*/10 * * * * *", "*/3 * * * * *"), // production: every 10 sec | dev: every 3 sec
+        lockTimeout: 10 * 60 * 1000,          // 10 minute stale-lock threshold — see snapshotBuildJob.js's own STALE_LOCK_TIMEOUT_MS comment
+        immediate: false,
+        jobTimeout: 5 * 60 * 1000,            // 5 minutes hard timeout per cycle
+        preHooks: [],
+        handlers: [
+            async () => runSnapshotBuildJob(),
+        ],
+        retry: { maxAttempts: 3 },
+    },
+
+    // ── Points Backfill ──────────────────────────────────────────────────────
+    // Processes pending POINTS_BACKFILL jobs, enqueued from
+    // controller/jobs/pointsBackfill.js's enqueuePointsBackfill() — one-time
+    // retroactive points for the customers in an approved
+    // BackfillAudienceSnapshot, based on Shopify lifetime spend captured at
+    // preview time. See server/jobs/pointsBackfillJob.js: each cycle
+    // processes one batch of snapshot members and makes NO Shopify API
+    // calls, so pacing is bounded only by local DB throughput.
+    // Same cadence as bulk_customer_sync — admin-initiated, deliberate,
+    // occasional work, each cycle bounded to one page regardless of shop
+    // size.
+    {
+        name: "points_backfill",
+        cron: cron("*/30 * * * * *", "*/3 * * * * *"), // production: every 30 sec | dev: every 3 sec
+        lockTimeout: 10 * 60 * 1000,          // 10 minute stale-lock threshold — see pointsBackfillJob.js's own STALE_LOCK_TIMEOUT_MS comment
+        immediate: false,
+        jobTimeout: 5 * 60 * 1000,            // 5 minutes hard timeout per cycle
+        preHooks: [],
+        handlers: [
+            async () => runPointsBackfillJob(),
         ],
         retry: { maxAttempts: 3 },
     },

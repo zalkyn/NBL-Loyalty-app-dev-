@@ -2,9 +2,11 @@ import { useLoaderData, useActionData } from "react-router";
 import { authenticate } from "shopify-server";
 
 import { loadCustomers } from "./_loader.server";
-import { handleSyncCustomers } from "./_action.server";
+import { handleSyncCustomers, handleCustomerCount } from "./_action.server";
 import { useCustomersPage } from "./_hooks";
 import { CustomerTable } from "./components/CustomerTable";
+import { ConfirmSyncModal, SYNC_MODAL_ID } from "./components/ConfirmSyncModal";
+import { SyncProgressSection } from "./components/SyncProgressSection";
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
@@ -24,6 +26,7 @@ export const action = async ({ request }) => {
 
     switch (submitType) {
         case "sync-customers": return handleSyncCustomers(ctx);
+        case "customer-count": return handleCustomerCount(ctx);
         default: return Response.json({ message: "Unknown action.", isError: true });
     }
 };
@@ -37,16 +40,52 @@ export default function Customers() {
 
     return (
         <s-page title="Customers" inlineSize="base">
+            {/* onClick fetches the counts; commandFor opens the modal. Both
+                are needed: the count has to be in flight by the time the
+                modal paints, and the modal has to open declaratively for
+                the web component to manage its own focus trap. The same
+                split is used by the Start button on the Points Backfill
+                page. */}
+            {/* accessibilityLabel because Polaris treats a button with an
+                icon as icon-only and warns without one — the visible label
+                below is a child, not the `label` property it checks. */}
             <s-button
                 slot="primary-action"
                 variant="primary"
                 icon="refresh"
+                accessibilityLabel="Sync customers from Shopify"
                 loading={page.isSyncRunning}
                 disabled={page.isSyncRunning}
-                onClick={page.handleSync}
+                commandFor={SYNC_MODAL_ID}
+                command="--show"
+                onClick={page.openSyncModal}
             >
                 {page.isSyncRunning ? "Syncing…" : "Sync Customers"}
             </s-button>
+
+            {/* Polling gives up eventually rather than pinging the server
+                every few seconds forever from a tab left open overnight.
+                The sync itself is unaffected — this is only about whether
+                this page keeps watching it. */}
+            {page.pollExpired && (
+                <s-box paddingBlockEnd="base">
+                    <s-banner tone="warning">
+                        <s-paragraph>
+                            <strong>Stopped watching for updates.</strong> This sync has been running a long time —
+                            it carries on regardless.
+                        </s-paragraph>
+                        <s-box paddingBlockStart="small">
+                            <s-button variant="secondary" size="small" onClick={page.resumePolling}>
+                                Check again
+                            </s-button>
+                        </s-box>
+                    </s-banner>
+                </s-box>
+            )}
+
+            {(page.isSyncRunning || page.syncJobStatus === "FAILED") && (
+                <SyncProgressSection status={page.syncJobStatus} progress={page.syncProgress} />
+            )}
 
             <CustomerTable
                 customers={page.customers}
@@ -66,6 +105,14 @@ export default function Customers() {
                 onPageChange={page.handlePageChange}
                 onPageSizeChange={page.handlePageSizeChange}
                 onDetails={page.handleDetails}
+            />
+
+            <ConfirmSyncModal
+                shopifyCount={page.shopifyCustomerCount}
+                shopifyCountPrecision={page.shopifyCountPrecision}
+                localCount={page.localCustomerCount}
+                isCounting={page.isCounting}
+                onConfirm={page.handleSync}
             />
         </s-page>
     );

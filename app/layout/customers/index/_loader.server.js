@@ -47,7 +47,7 @@ export async function loadCustomers(sessionId, shop, searchParams) {
     };
 
     try {
-        const [[customers, totalCount], activeSyncJob] = await Promise.all([
+        const [[customers, totalCount], activeSyncJob, unfilteredCount] = await Promise.all([
             prisma.$transaction([
                 prisma.customer.findMany({
                     where,
@@ -63,29 +63,52 @@ export async function loadCustomers(sessionId, shop, searchParams) {
                 prisma.customer.count({ where }),
             ]),
 
-            // Check for an active sync job for this shop
+            // Check for an active sync job for this shop.
+            //
+            // payload comes along for its `progress` block — the only
+            // window into a job that runs for twenty minutes. Everything
+            // else in payload is job-internal and is dropped below rather
+            // than shipped to the browser.
             prisma.job.findFirst({
                 where: {
                     type:   "CUSTOMER_SYNC",
                     shop,
                     status: { in: ["PENDING", "PROCESSING"] },
                 },
-                select: { id: true, status: true },
+                select: { id: true, status: true, payload: true },
                 orderBy: { createdAt: "desc" },
             }),
+
+            // Every customer this app knows about, ignoring the search
+            // filter above. `totalCount` is filtered and would read as "12
+            // customers" on a page showing 12 search results — the wrong
+            // number entirely for a confirmation screen about syncing the
+            // whole shop.
+            //
+            // Only actually queried when a search is active. With no search
+            // the two counts are the same COUNT(*) over the same 80,000
+            // rows, and running it twice per load — three times a minute
+            // while a sync polls — is paying twice for one number. The
+            // no-search path is also the overwhelmingly common one.
+            search ? prisma.customer.count({ where: { sessionId } }) : Promise.resolve(null),
         ]);
+
+        const progress = activeSyncJob?.payload?.progress ?? null;
 
         return {
             customers, totalCount, page, pageSize, search, sortBy, error: null,
+            localCustomerCount: unfilteredCount ?? totalCount,
             syncJobId:     activeSyncJob?.id    ?? null,
             syncJobStatus: activeSyncJob?.status ?? null,
+            syncProgress:  progress && typeof progress.processed === "number" ? progress : null,
         };
     } catch (err) {
         logger.error("Failed to load customers", { module: MODULE, error: err?.message, sessionId, shop });
         return {
             customers: [], totalCount: 0, page: 1, pageSize, search, sortBy,
             error: "Failed to load customers.",
-            syncJobId: null, syncJobStatus: null,
+            localCustomerCount: 0,
+            syncJobId: null, syncJobStatus: null, syncProgress: null,
         };
     }
 }
