@@ -4,4 +4,17 @@ webhooks_path = "/webhooks/app/uninstalled"
 
 [commands]
 predev = "npx prisma generate"
+# Deliberately does NOT run background jobs.
+#
+# `react-router dev` starts the app only. initJobs() lives in server.js and
+# is never loaded here, so no cron poller runs under `shopify app dev` —
+# POINTS_BACKFILL, BACKFILL_SNAPSHOT, BULK_CUSTOMER_SYNC, ORDER_PAID and
+# every maintenance cron will queue as PENDING rows that nothing picks up.
+#
+# Run the poller alongside this, in a second terminal:
+#
+#     npm run jobs
+#
+# See server/jobsRunner.js. Job locking is DB-backed (the JobLock table), so
+# a separate process is safe — two pollers can never run the same job twice.
 dev = "npx prisma migrate deploy && npm exec react-router dev"

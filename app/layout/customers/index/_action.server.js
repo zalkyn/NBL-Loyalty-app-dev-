@@ -1,9 +1,57 @@
 import prisma from "db-server";
 import { processCustomerSync } from "@controller/customers/customerSyncProcessor";
+import { customersCount } from "@graphql/query/customers";
 import { logger } from "app/utils/logger.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "layout/customers/index/_action.server.js";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Customer count (for the confirmation modal)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns how many customers Shopify currently has.
+ *
+ * Its own action rather than part of the loader, because the loader is
+ * pure Prisma today and runs on every navigation, every search, every
+ * page change — and, while a sync is running, every three-second poll.
+ * Hanging a Shopify API call off all of that to populate one number on a
+ * modal nobody has opened yet would be paying for it constantly and using
+ * it rarely.
+ *
+ * Fetched when the modal opens instead: one call, at the one moment the
+ * number is about to be read.
+ *
+ * A null count is not an error. The modal drops the comparison line and
+ * still lets the sync start — refusing to sync because a decorative
+ * figure was unavailable would be the tail wagging the dog.
+ */
+export async function handleCustomerCount({ admin }) {
+    const submitType = "customer-count";
+
+    try {
+        const counted = await customersCount(admin);
+
+        return Response.json({
+            submitType,
+            isError: false,
+            shopifyCustomerCount: counted?.count ?? null,
+            // EXACT below Shopify's aggregation ceiling, AT_LEAST above it.
+            // Passed through so the modal can say "at least" when that's
+            // the honest word.
+            shopifyCountPrecision: counted?.precision ?? null,
+        });
+    } catch (err) {
+        logger.error("Failed to count Shopify customers", { module: MODULE, error: err?.message });
+        return Response.json({
+            submitType,
+            isError: false,
+            shopifyCustomerCount: null,
+            shopifyCountPrecision: null,
+        });
+    }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sync Customers
