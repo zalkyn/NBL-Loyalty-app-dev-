@@ -3,8 +3,8 @@
 client_id = "259e35bb9c2fefba898dd1a11710ef6e"
 application_url = "https://nbl-loyalty-and-referral-production.up.railway.app"
 embedded = true
-name = "Loyalty & Referral [PRE]"
-handle = "northborders-lnr"
+name = "NB Loyalty & Referral"
+handle = "north-borders-loyalty-and-referral"
 
 [webhooks]
 api_version = "2026-04"
