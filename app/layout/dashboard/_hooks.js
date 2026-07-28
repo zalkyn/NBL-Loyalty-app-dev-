@@ -103,6 +103,14 @@ export function useDashboardPage(loaderData) {
     // dashboard (see overviewStats.adjustmentsNet and the "adjustments"
     // chart series below) rather than disappearing silently.
     const adjustTx = useMemo(() => tx.filter((t) => t.type === "ADJUST"), [tx]);
+    // One-time retroactive award for a customer's pre-install lifetime spend
+    // (see ShadowRule/PointsBackfillEntry) — deliberately NOT folded into
+    // earnTx above. Right after a backfill run, lumping it into "Points
+    // earned" would make it look like real order-driven earning suddenly
+    // spiked; keeping it separate lets a merchant see backfill activity as
+    // its own, one-time thing (see overviewStats.pointsBackfilled and the
+    // "backfilled" chart series below).
+    const backfillTx = useMemo(() => tx.filter((t) => t.type === "BACKFILL"), [tx]);
 
     // ── Prize stat cards (derived from filtered pc — matches chart range) ──────
     const prizeStats = useMemo(() => ({
@@ -124,10 +132,11 @@ export function useDashboardPage(loaderData) {
         // large decrement (or vice versa).
         adjustmentsPositive: adjustTx.filter((t) => t.points > 0).reduce((s, t) => s + t.points, 0),
         adjustmentsNegative: adjustTx.filter((t) => t.points < 0).reduce((s, t) => s + Math.abs(t.points), 0),
+        pointsBackfilled: backfillTx.reduce((s, t) => s + t.points, 0),
         rewardsIssued: rw.length,
         activeRewards: rw.filter((r) => r.status === "ACTIVE").length,
         activeCustomers: customerCount,
-    }), [earnTx, redeemTx, adjustTx, rw, customerCount]);
+    }), [earnTx, redeemTx, adjustTx, backfillTx, rw, customerCount]);
 
     // ── Chart series ──────────────────────────────────────────────────────────
     const { granularity, labels, labelCount, data: chartData } = useMemo(
@@ -137,6 +146,7 @@ export function useDashboardPage(loaderData) {
                 { key: "earned", records: earnTx, getValue: (t) => t.points },
                 { key: "redeemed", records: redeemTx, getValue: (t) => Math.abs(t.points) },
                 { key: "adjustments", records: adjustTx, getValue: (t) => t.points },
+                { key: "backfilled", records: backfillTx, getValue: (t) => t.points },
                 { key: "rewards", records: rw, getValue: () => 1 },
                 { key: "prizePending", records: pc.filter((c) => c.status === "PENDING"), getValue: () => 1 },
                 { key: "prizeFulfilled", records: pc.filter((c) => c.status === "FULFILLED"), getValue: () => 1 },
@@ -144,7 +154,7 @@ export function useDashboardPage(loaderData) {
                 { key: "prizeCancelled", records: pc.filter((c) => c.status === "CANCELLED"), getValue: () => 1 },
             ],
         }),
-        [start, end, preset, interval, earnTx, redeemTx, adjustTx, rw, pc]
+        [start, end, preset, interval, earnTx, redeemTx, adjustTx, backfillTx, rw, pc]
     );
 
     const rangeKey = `${preset}-${customStart}-${customEnd}-${interval ?? "auto"}`;

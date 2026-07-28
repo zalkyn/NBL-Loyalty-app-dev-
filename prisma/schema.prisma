@@ -8,6 +8,7 @@ datasource db {
 }
 
 model Session {
+  backfillSnapshots BackfillAudienceSnapshot[]
   id                  String    @id
   shop                String    @unique
   state               String
@@ -33,6 +34,7 @@ model Session {
   styles         Style?
   appSettings    AppSettings?
   physicalPrizes PhysicalPrize[]
+  shadowRules    ShadowRule[]
 
   @@index([shop])
 }
@@ -78,6 +80,7 @@ model Customer {
   referralsUsed Referral?            @relation("Referred")
   rewards       Reward[]
   prizeClaims   PhysicalPrizeClaim[]
+  backfillEntries PointsBackfillEntry[]
 
   session   Session @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   sessionId String
@@ -182,6 +185,17 @@ model RewardRule {
 model Transaction {
   id           Int       @id @default(autoincrement())
   customerId   Int
+  // type is plain String, not a Prisma enum (deliberate — see the other
+  // type-value comments throughout this schema). Known values as of this
+  // writing: EARN | REDEEM | ADJUST | EXPIRE | REVERSAL | REFERRAL | BACKFILL.
+  // BACKFILL — one-time retroactive points awarded for a customer's
+  // pre-install lifetime spend (see ShadowRule + PointsBackfillEntry below).
+  // Always positive/signed like EARN, counts toward lifetimePoints, but kept
+  // as its own type (not EARN) so it can be filtered/reported on separately
+  // from real order-driven earning — see createTransaction.js's BACKFILL
+  // case. Anywhere in the app that branches on Transaction.type (dashboard
+  // stat cards, admin tables) must be checked when this type is introduced,
+  // since nothing here enforces that automatically.
   type         String
   points       Int
   balanceAfter Int
@@ -208,6 +222,7 @@ model Transaction {
   referralId   Int?
 
   physicalPrizeClaim PhysicalPrizeClaim? // opposite side of PhysicalPrizeClaim.transaction
+  backfillEntry      PointsBackfillEntry? // opposite side of PointsBackfillEntry.transaction
 
   @@index([customerId])
   @@index([customerId, createdAt])
@@ -255,25 +270,25 @@ model Referral {
 }
 
 model Reward {
-  id           Int       @id @default(autoincrement())
-  title        String?
-  event        String?
-  type         String?   @default("DEFAULT")
-  code         String?
+  id             Int       @id @default(autoincrement())
+  title          String?
+  event          String?
+  type           String?   @default("DEFAULT")
+  code           String?
   // Shopify GID of the codeDiscountNode behind `code` — see Referral.discountNodeId's
   // matching comment for why this is captured at creation time.
   discountNodeId String?
-  rewardKey    String?   @unique
-  orderId      String?
-  pointsCost   Int?
-  status       String?   @default("PENDING")
-  discountUsed Boolean   @default(false)
-  usedAt       DateTime?
-  expiresAt    DateTime?
-  metadata     Json?
-  description  String?   @db.Text
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  rewardKey      String?   @unique
+  orderId        String?
+  pointsCost     Int?
+  status         String?   @default("PENDING")
+  discountUsed   Boolean   @default(false)
+  usedAt         DateTime?
+  expiresAt      DateTime?
+  metadata       Json?
+  description    String?   @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   rewardRule   RewardRule? @relation(fields: [rewardRuleId], references: [id], onDelete: SetNull)
   rewardRuleId Int?
@@ -407,7 +422,13 @@ model Job {
   id Int @id @default(autoincrement())
 
   // ── Job identity ──────────────────────────────────────
-  // type: "ORDER_PAID" | "METAFIELD_SYNC" | "REFERRAL_EXPIRE"
+  // type: "ORDER_PAID" | "METAFIELD_SYNC" | "REFERRAL_EXPIRE" |
+  //       "BULK_CUSTOMER_SYNC" | "EMPTY_CUSTOMER_CONFIG" | "POINTS_BACKFILL" |
+  //       "BACKFILL_SNAPSHOT"
+  // (this comment lists every type this app's own jobs actually enqueue;
+  // kept here because Job itself has no type column constraint to enforce
+  // it — see server/jobManager/jobConfig.js for the handler registered
+  // against each one)
   type String
 
   // status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED"
@@ -423,9 +444,32 @@ model Job {
 
   // ── Payload ───────────────────────────────────────────
   // Structure varies by job type:
-  //   ORDER_PAID      -> { shop, orderId, customerId, webhookId }
-  //   METAFIELD_SYNC  -> { shop, customerId }
-  //   REFERRAL_EXPIRE -> { shop, referralId }
+  //   ORDER_PAID          -> { shop, orderId, customerId, webhookId }
+  //   METAFIELD_SYNC      -> { shop, customerId }
+  //   REFERRAL_EXPIRE     -> { shop, referralId }
+  //   BULK_CUSTOMER_SYNC  -> { scope: "all"|"unsynced", cursor }
+  //   POINTS_BACKFILL     -> { shadowRuleId, audience: { tags?, excludeTags?,
+  //                            createdBefore? }, cursor, counts: { awarded,
+  //                            skipped, failed } }
+  //                          cursor here is Shopify's own opaque endCursor
+  //                          string (from customersPage() in
+  //                          graphql/query/customers.js) — NOT a local DB
+  //                          id like BULK_CUSTOMER_SYNC's cursor above.
+  //                          audience matching (tags/createdBefore) happens
+  //                          entirely client-side against already-fetched
+  //                          Customer fields — see
+  //                          utils/backfill/matchesAudience.js's header
+  //                          comment for why this deliberately does NOT use
+  //                          Shopify's customers(query:) search filters.
+  //                          counts/resumability otherwise mirror
+  //                          bulkCustomerSyncJob.js's own chunk pattern —
+  //                          see that file's header comment. Per-customer
+  //                          detail (which customer, how many points, why
+  //                          skipped/failed) is NOT kept here — this JSON
+  //                          isn't queryable per-row, and would grow
+  //                          unbounded for a 100k+ customer shop. That
+  //                          detail lives in PointsBackfillEntry instead,
+  //                          one row per customer, FK'd to this job.
   payload Json
 
   // ── Idempotency ───────────────────────────────────────
@@ -463,6 +507,9 @@ model Job {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   completedAt DateTime?
+
+  // Only populated for POINTS_BACKFILL jobs — see PointsBackfillEntry.
+  backfillEntries PointsBackfillEntry[]
 
   // Primary poller query: WHERE status = 'PENDING' AND runAt <= NOW()
   @@index([status, runAt])
@@ -507,4 +554,336 @@ model ConfigUpdateVersion {
 
   // Primary lookup: "what's the current active version for this shop"
   @@index([shop, isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Points Backfill — one-time retroactive points for a customer's pre-install
+// lifetime spend.
+//
+// Deliberately NOT the same model as PointsRule: PointsRule's calculation
+// (resolveLineItemPoints/calcPoints in orderPaidJob.js) is per-order-line-item
+// — groups, subscription intervals, excludedProducts, all keyed off Shopify
+// product IDs in a live order payload. A backfill run has none of that; its
+// only input is a single number (Customer.amountSpent, shop-currency total),
+// so it needs its own, much simpler amount->points rate. Reusing PointsRule
+// for this would mean either stuffing meaningless per-order fields with
+// placeholder values, or — worse — accidentally making a backfill rule
+// selectable from the normal points-rules admin UI, where merchants would
+// have no idea what it does. Kept intentionally separate and never exposed
+// on /app/points-rules; only reachable from its own dev-config tool, same
+// as bulk_customer_sync/empty_customer_config are dev-config-only.
+//
+// A ShadowRule is NEVER passed as Transaction.pointsRuleId — that FK only
+// accepts real PointsRule ids (see schema below). Note this is NOT a
+// guarantee Postgres enforces reliably: PointsRule and ShadowRule are
+// separate tables with independent autoincrement sequences, so a
+// ShadowRule's id can coincidentally equal a REAL PointsRule id (e.g.
+// both tables' first-ever row gets id=1) — in that case the FK
+// constraint is satisfied by accident, silently linking to the wrong
+// rule instead of raising anything (confirmed by actually hitting this
+// in scripts/test/backfillIntegration.test.js against a real database
+// that already had points rules configured). The real protection is
+// entirely in application code: PointsBackfillEntry.shadowRuleId below
+// is the correct, collision-proof link from a backfill Transaction back
+// to the ShadowRule that produced it — pointsRuleId is simply never
+// touched.
+model ShadowRule {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?  @db.Text
+
+  // rateType: "FIXED" | "PER_AMOUNT"
+  //   FIXED      — every matched customer gets `fixedPoints`, regardless of
+  //                how much they've spent (e.g. a flat "welcome back" grant).
+  //   PER_AMOUNT — floor(customer.amountSpent / perAmount) * pointsPerUnit —
+  //                same floor()-based integer math as calcPoints()'s
+  //                "incremental" branch in orderPaidJob.js, applied once to
+  //                the customer's lifetime total instead of per order.
+  rateType      String
+  fixedPoints   Int?
+  perAmount     Float?
+  pointsPerUnit Int?
+
+  // Optional ceiling on points awarded to any single customer under this
+  // rule — mirrors PointsRule.maxPoints. Applied after the rateType
+  // calculation above, before creating the Transaction.
+  maxPoints Int?
+
+  // The shop's currency (from shopCurrency.js) at the moment this rule was
+  // created. amountSpent is always in shop currency (Shopify's
+  // Customer.amountSpent), so a run must verify the shop's CURRENT currency
+  // still matches this before using the rule — if a merchant changes their
+  // shop currency after creating a rule, running it unchanged would
+  // silently misprice every customer.
+  currencyCode String
+
+  // Shadow rules are created inactive by default and must be explicitly
+  // switched on before a POINTS_BACKFILL job can use them — a deliberate
+  // extra confirmation step, since running one awards real points to real
+  // customers and (unlike a normal PointsRule toggle) can't be casually
+  // undone by flipping it back off.
+  isActive Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+
+  entries   PointsBackfillEntry[]
+  snapshots BackfillAudienceSnapshot[]
+
+  @@index([sessionId])
+  @@index([isActive])
+}
+
+// One row per customer processed by a POINTS_BACKFILL job. This is the
+// per-customer detail the Job.payload JSON deliberately does NOT carry (see
+// Job.payload's comment) — queryable/indexable, unlike a JSON blob, so the
+// admin UI can show "X awarded, Y skipped, Z failed" and let a merchant
+// inspect exactly why any one customer was skipped.
+//
+// @@unique([shadowRuleId, customerId]) below is the idempotency guarantee:
+// a customer can only ever have ONE entry per shadow rule, no matter how
+// many times a job resumes after a crash or how many separate
+// POINTS_BACKFILL jobs later reuse the same rule — re-processing a customer
+// who already has an entry is always a no-op, never a second award.
+model PointsBackfillEntry {
+  id Int @id @default(autoincrement())
+
+  job   Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId Int
+
+  // Restrict, not Cascade/SetNull — once a ShadowRule has produced real,
+  // already-awarded entries, it must not be deletable (mirrors why
+  // Customer.session is the only other Restrict relation in this schema:
+  // protecting real financial/business history from disappearing out from
+  // under a still-referenced row). The admin UI should also simply not
+  // offer a delete button once entries.length > 0; this is the DB-level
+  // backstop if that check is ever missed.
+  shadowRule   ShadowRule @relation(fields: [shadowRuleId], references: [id], onDelete: Restrict)
+  shadowRuleId Int
+
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId Int
+
+  // Snapshot of Customer.amountSpent (shop currency) at the moment this
+  // entry was computed. Kept even if the customer's real spend changes
+  // afterward, so a completed run stays auditable/reproducible — "why did
+  // this customer get exactly N points" must always be answerable from
+  // this row alone, without needing today's live Shopify data.
+  amountSpent   Float
+  pointsAwarded Int
+
+  // status: "PENDING" | "AWARDED" | "SKIPPED" | "FAILED"
+  //   PENDING  — row exists (idempotency claimed) but not yet resolved
+  //   AWARDED  — Transaction created successfully, transactionId set
+  //   SKIPPED  — rule conditions correctly excluded this customer (e.g.
+  //              amountSpent is 0, or below a future minimum-spend field)
+  //              — not an error, nothing to retry
+  //   FAILED   — createTransaction returned null, or some other error;
+  //              see `reason`. Distinct from SKIPPED so the admin UI can
+  //              show these as needing attention, not as expected no-ops.
+  status String @default("PENDING")
+
+  // Human-readable reason for SKIPPED/FAILED, e.g. "amountSpent is 0",
+  // "createTransaction returned null — see server logs for this job cycle".
+  reason String? @db.Text
+
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  transactionId Int?         @unique
+
+  createdAt DateTime @default(now())
+
+  @@unique([shadowRuleId, customerId])
+  @@index([jobId])
+  @@index([customerId])
+  @@index([status])
+}
+
+/// A FROZEN list of the customers a POINTS_BACKFILL run will touch,
+/// captured from a Shopify customer Segment at one moment in time.
+///
+/// Why frozen rather than reading the Segment live during the run — three
+/// separate reasons, any one of which would be sufficient on its own:
+///
+///  1. UNVERIFIED ID CONTRACT. customerSegmentMembers returns
+///     `gid://shopify/CustomerSegmentMember/<n>`, and <n> happens to equal
+///     the Customer id — confirmed by Shopify staff on the developer forum
+///     (June/July 2025) and shown in Shopify's own segments guide example,
+///     but NOT documented as a guarantee in the API reference. Building a
+///     snapshot gives exactly one place to VERIFY that assumption against
+///     real Customer records before a single point is awarded (see
+///     verifyMemberGidMapping in controller/backfillAudience/buildSnapshot.js).
+///     Reading the segment live mid-run offers no such checkpoint.
+///
+///  2. SEGMENT MEMBERSHIP LAGS. Shopify segments are not recomputed
+///     synchronously when the underlying customer data changes (a
+///     merchant adding a tag doesn't immediately move that customer into
+///     a tag-based segment — see the "Customer segment search does not
+///     contain customer with recently added tag" thread on
+///     community.shopify.dev, Oct 2025). A run that spans many poller
+///     cycles would therefore see a membership list that shifts under it.
+///
+///  3. AUDITABILITY. The entire point of the preview/CSV-export step is
+///     that a merchant approves a specific list of people before real
+///     points are granted. If the run re-reads the segment, what was
+///     approved and what actually happened are two different sets, and
+///     the CSV stops being evidence of anything.
+///
+/// A secondary benefit: a POINTS_BACKFILL run driven by a snapshot makes
+/// ZERO Shopify API calls. No rate limiting, no mid-run network failure,
+/// and no dependency on Shopify's opaque pagination cursor still being
+/// valid hours after it was issued (something Shopify nowhere guarantees,
+/// yet the current cursor-in-job-payload design silently depends on).
+model BackfillAudienceSnapshot {
+  id Int @id @default(autoincrement())
+
+  // ── Source segment ───────────────────────────────────────────────────
+  // Stored as the full GID. name/query are DENORMALISED COPIES taken at
+  // build time, deliberately not re-read later: a merchant can rename or
+  // edit a segment (or delete it outright) after a run, and the record of
+  // what was actually run must survive that intact.
+  segmentId    String
+  segmentName  String
+  segmentQuery String? @db.Text
+
+  // ── Build state ──────────────────────────────────────────────────────
+  // status: "BUILDING" | "READY" | "FAILED" | "CONSUMED"
+  //   BUILDING — snapshotBuildJob is still paginating the segment
+  //   READY    — complete and verified; safe to preview, export, and run
+  //   FAILED   — build aborted (see lastError). Never runnable. The most
+  //              important case is a GID verification failure, which means
+  //              the CustomerSegmentMember -> Customer id assumption broke
+  //              and awarding points off this data would hit the WRONG
+  //              PEOPLE. Fail loudly, never degrade gracefully.
+  //   CONSUMED — a POINTS_BACKFILL run has already been started from this
+  //              snapshot. Kept (not deleted) as the permanent record of
+  //              what that run was approved to do.
+  status String @default("BUILDING")
+
+  // Shopify's own reported totalCount for the segment at build time.
+  // Compared against the number of member rows actually persisted — a
+  // mismatch means the segment shifted mid-build, which is surfaced to
+  // the merchant rather than silently accepted.
+  reportedTotalCount Int?
+  memberCount        Int  @default(0)
+
+  // Sum of BackfillAudienceMember.projectedPoints. Precomputed here so
+  // the preview UI can show "this run will award N points in total"
+  // without aggregating thousands of rows on every page load.
+  projectedTotalPoints Int @default(0)
+
+  // Opaque Shopify endCursor for the build's own pagination — only
+  // meaningful while status is BUILDING, cleared on completion.
+  buildCursor String? @db.Text
+
+  /// How many members have had their rewritten Customer GID checked
+  /// against a real Customer record during this build (see
+  /// controller/backfillAudience/verifyMemberGidMapping.js).
+  ///
+  /// A snapshot is NEVER marked READY while this is 0. Verification
+  /// samples only members that have an email address, so a small segment
+  /// where nobody has one produces zero checks — and an unverifiable
+  /// snapshot must not be treated as a verified one just because nothing
+  /// contradicted it. Failing closed here costs a merchant an error
+  /// message; failing open costs them points awarded to the wrong people.
+  gidChecked Int @default(0)
+
+  lastError String? @db.Text
+
+  // The rule the preview was costed against. Restrict for the same reason
+  // PointsBackfillEntry.shadowRule is: once a snapshot exists showing what
+  // a rule would pay out, that rule must not vanish underneath it.
+  shadowRule   ShadowRule @relation(fields: [shadowRuleId], references: [id], onDelete: Restrict)
+  shadowRuleId Int
+
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+  shop      String
+
+  members BackfillAudienceMember[]
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  builtAt    DateTime?
+  consumedAt DateTime?
+
+  // Loader's main query: this shop's snapshots for one rule, newest first.
+  @@index([sessionId, shadowRuleId, createdAt(sort: Desc)])
+  @@index([status])
+}
+
+/// One customer inside a frozen snapshot.
+///
+/// Holds a COPY of every field the run and the CSV export need, so that
+/// neither ever has to call Shopify again. That duplication is the point,
+/// not an oversight: the CSV a merchant approved and the rows the job
+/// processes must be the same bytes.
+model BackfillAudienceMember {
+  id Int @id @default(autoincrement())
+
+  snapshot   BackfillAudienceSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  snapshotId Int
+
+  /// Normalised to `gid://shopify/Customer/<n>` — NOT the raw
+  /// `gid://shopify/CustomerSegmentMember/<n>` Shopify returns. The
+  /// rewrite happens once, at build time, in
+  /// utils/backfill/normalizeSegmentMemberGid.js, and is verified against
+  /// real Customer records before the snapshot is marked READY. Storing
+  /// the normalised form means nothing downstream ever has to know this
+  /// quirk exists.
+  shopifyId String
+
+  // Contact/profile copy for the CSV. Nullable because
+  // CustomerSegmentMember genuinely may not have them — a customer with
+  // no email is the case that makes getOrCreateCustomer return null, and
+  // it's better to show the merchant that gap in the preview CSV than to
+  // discover it as a SKIPPED row after the run.
+  email       String?
+  phone       String?
+  displayName String?
+  firstName   String?
+  lastName    String?
+
+  // Snapshot of CustomerSegmentMember.amountSpent, in shop currency.
+  amountSpent  Float
+  currencyCode String?
+
+  /// computePoints(shadowRule, amountSpent) evaluated AT BUILD TIME.
+  ///
+  /// This is what makes the preview genuinely useful rather than just a
+  /// customer list: the merchant sees exactly what each person will get,
+  /// and what the run costs in total, before approving it.
+  ///
+  /// The run recomputes rather than trusting this value — see
+  /// pointsBackfillJob.js — because a merchant could edit the ShadowRule
+  /// between preview and start. The recomputed figure is what's actually
+  /// awarded; a divergence from this column is detected and reported
+  /// instead of being silently applied.
+  projectedPoints Int @default(0)
+
+  // Reason this member is expected to be skipped (no email, computes to 0
+  // points, currency mismatch). Populated at build time so these appear in
+  // the preview CSV rather than surfacing only in the post-run report.
+  skipReason String? @db.Text
+
+  /// Run progress. Deliberately a boolean on this table rather than a
+  /// cursor in the job payload: resuming after a crash is
+  /// `WHERE processed = false ORDER BY id ASC LIMIT n`, which cannot go
+  /// stale, cannot expire, and needs no reconciliation. Set to true only
+  /// AFTER the customer's PointsBackfillEntry has reached a terminal
+  /// status, so a crash between the two re-processes that one customer —
+  /// harmless, because PointsBackfillEntry's own
+  /// @@unique([shadowRuleId, customerId]) makes the retry a no-op.
+  processed   Boolean   @default(false)
+  processedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  // A customer can't appear twice in one snapshot. Also makes the build
+  // itself idempotent: a retried page re-inserts nothing.
+  @@unique([snapshotId, shopifyId])
+  // The run's hot query — next unprocessed batch within one snapshot.
+  @@index([snapshotId, processed, id])
 }

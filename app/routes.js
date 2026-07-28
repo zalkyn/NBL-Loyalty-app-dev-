@@ -31,16 +31,45 @@ export default [
         // point events
         route("app/points-events", "./layout/points-events/route.jsx"),
 
+        // points backfill — reuses the exact same route.jsx files as the
+        // dev-config/ registrations below (see routes.js comment there and
+        // DevConfigNav.jsx's own comment on why this pair is the one
+        // exception to "dev-config only"). Genuinely merchant-facing:
+        // deciding to backfill points for existing customers is a real
+        // business decision, not a dangerous/destructive dev tool like the
+        // rest of dev-config — so it belongs in the main nav too.
+        //
+        // Explicit `id` on each is required, not optional decoration —
+        // React Router derives a route's internal id from its FILE PATH by
+        // default, so registering the same .jsx file at a second URL
+        // without an explicit id collides with the dev-config registration
+        // of that same file below ("Unable to define routes with duplicate
+        // route id"). Confirmed against react-router's own GitHub
+        // discussions on reusing a route module at multiple paths.
+        route("app/points-backfill-rules", "./dev-config/shadow-rules/route.jsx", { id: "app-points-backfill-rules" }),
+        route("app/points-backfill", "./dev-config/points-backfill/route.jsx", { id: "app-points-backfill" }),
+        route("app/points-backfill/export", "./dev-config/points-backfill/export/route.jsx"),
+        route("app/points-backfill/preview-export", "./dev-config/points-backfill/preview-export/route.jsx"),
+
         // ── Developer-only tools ────────────────────────────────────────────
         // Deliberately NOT linked from AppNav.jsx (see that file's comment) —
         // sensitive/destructive operations (bulk customer metafield writes/
         // deletes, raw job queue management) that only someone with direct
         // codebase + database access should ever touch. Reachable by exact
         // URL only.
+        //
+        // Points Backfill Rules and Points Backfill are ALSO registered
+        // above, at plain /app/ paths, for the main nav — same route.jsx
+        // files, no duplicated implementation. Kept registered here too,
+        // unchanged, since /app/dev-config/points-backfill-rules and
+        // /app/dev-config/points-backfill remain valid, working URLs
+        // exactly as before.
         route("app/dev-config", "./dev-config/index/route.jsx"),
         route("app/dev-config/customer-sync", "./dev-config/customer-sync/route.jsx"),
         route("app/dev-config/queue-jobs", "./dev-config/queue-jobs/route.jsx"),
         route("app/dev-config/version-tracking", "./dev-config/version-tracking/route.jsx"),
+        route("app/dev-config/points-backfill-rules", "./dev-config/shadow-rules/route.jsx"),
+        route("app/dev-config/points-backfill", "./dev-config/points-backfill/route.jsx"),
 
         // Loox review points — Shopify Flow setup guide
         route("app/loox-setup", "./layout/loox-setup/route.jsx"),

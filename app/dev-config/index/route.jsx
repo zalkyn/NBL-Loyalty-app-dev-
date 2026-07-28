@@ -81,6 +81,23 @@ const TOOLS = [
             "View and manually cancel/retry/force-reset/delete background Job rows (order-paid processing, " +
             "customer resync batches, bulk config sync, etc.) — filter by status, single/bulk/group actions.",
     },
+    {
+        key: "points-backfill-rules",
+        title: "Points Backfill Rules",
+        href: "/app/dev-config/points-backfill-rules",
+        description:
+            "Create and manage the amount-to-points rate rules used for one-time retroactive points backfills " +
+            "on a shop's existing customers. Separate from the normal Points Earning Rules — never shown there. " +
+            "To actually run one, use the Points Backfill page below.",
+    },
+    {
+        key: "points-backfill",
+        title: "Points Backfill",
+        href: "/app/dev-config/points-backfill",
+        description:
+            "Trigger a backfill run using a Points Backfill Rule, optionally narrowed by customer tags or a \"joined " +
+            "before\" cutoff date, and watch live progress (awarded/skipped/failed) as it runs in the background.",
+    },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────

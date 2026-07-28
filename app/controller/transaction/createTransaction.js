@@ -40,11 +40,22 @@ const DEFAULT_TRANSACTION_SELECT = {
  *                        negative (a real "debt" if the customer already
  *                        spent points a cancelled/refunded order earned;
  *                        see the REVERSAL case below), lifetimePoints untouched
+ * - BACKFILL          -> always non-negative (throws otherwise — use ADJUST/
+ *                        REVERSAL to correct an existing backfill, never a
+ *                        negative BACKFILL), adds points, increases
+ *                        lifetimePoints — same arithmetic as EARN, but kept
+ *                        as its own `type` value so a one-time retroactive
+ *                        award (see ShadowRule/PointsBackfillEntry) can be
+ *                        filtered/reported on separately from real,
+ *                        order-driven earning. Any code that branches on
+ *                        Transaction.type (dashboard stats, admin tables)
+ *                        needs to decide explicitly what to do with this
+ *                        type — nothing here does that automatically.
  *
  * @param {Object}                                                    input
  * @param {number}                                                    input.customerId
- * @param {"EARN"|"REDEEM"|"ADJUST"|"EXPIRE"|"REVERSAL"|"REFERRAL"}  input.type
- * @param {number}                                                    input.points        - EARN/REDEEM/EXPIRE/REFERRAL: always positive. ADJUST/REVERSAL: signed (+/-)
+ * @param {"EARN"|"REDEEM"|"ADJUST"|"EXPIRE"|"REVERSAL"|"REFERRAL"|"BACKFILL"}  input.type
+ * @param {number}                                                    input.points        - EARN/REDEEM/EXPIRE/REFERRAL/BACKFILL: always positive (BACKFILL throws otherwise). ADJUST/REVERSAL: signed (+/-)
  * @param {string}                                                    [input.status]      - "ACTIVE" | "PENDING" | "COMPLETED" | "CANCELLED" | "REVERSED" (default: "ACTIVE")
  * @param {string}                                                    [input.reason]
  * @param {number}                                                    [input.eventId]
@@ -93,11 +104,37 @@ const DEFAULT_TRANSACTION_SELECT = {
  *
  * // Minimal select — only return what's needed
  * await createTransaction(input, session, { id: true, points: true, balanceAfter: true })
+ *
+ * // Points Backfill — one-time retroactive award for pre-install lifetime
+ * // spend. NEVER pass a ShadowRule id as pointsRuleId: that FK only
+ * // accepts real PointsRule ids. This is NOT reliably self-enforcing —
+ * // ShadowRule and PointsRule have independent id sequences, so a
+ * // ShadowRule id CAN coincidentally match a real PointsRule id (e.g.
+ * // both tables' first row is id=1), in which case Postgres sees a
+ * // valid reference and silently links to the wrong rule instead of
+ * // erroring. (When the id genuinely doesn't exist in PointsRule, THAT
+ * // case does throw a Postgres FK-violation inside the $transaction
+ * // below, which this function's own catch block turns into a silent
+ * // `return null` — so a caller must still always check the return
+ * // value regardless.) Link back to the ShadowRule via metadata (and
+ * // PointsBackfillEntry, which is the queryable, collision-proof record
+ * // of this) instead — never pointsRuleId.
+ * await createTransaction(
+ *     {
+ *         customerId: 12,
+ *         type:       "BACKFILL",
+ *         points:     250,
+ *         activity:   "Backfilled 250 pts for lifetime spend",
+ *         status:     "COMPLETED",
+ *         metadata:   { source: "BACKFILL", shadowRuleId: 3, jobId: 42, amountSpent: 500 },
+ *     },
+ *     session
+ * )
  */
 export default async function createTransaction(input, session, select = DEFAULT_TRANSACTION_SELECT) {
     try {
         // Wrapped in dbRetry: the $transaction below is atomic (all-or-nothing)
-        // AND runs at Serializable isolation (see isolationLevel below), so a
+        // AND runs at Repeatable Read isolation (see isolationLevel below), so a
         // transient DB error (connection reset) or a genuine write conflict
         // (two concurrent redemptions/earn events for the same customer —
         // e.g. an order-paid webhook and a live widget redemption landing at
@@ -106,134 +143,188 @@ export default async function createTransaction(input, session, select = DEFAULT
         // type) don't match dbRetry's retryable patterns, so they still fail
         // immediately without wasted retry attempts.
         //
-        // Why Serializable specifically: the balance update below reads
-        // customer.points, computes newBalance in JS, then writes that
-        // literal number back — NOT an atomic SQL `points = points - X`.
-        // Under the default READ COMMITTED isolation, two concurrent calls
-        // for the same customer can both read the same starting balance,
-        // and whichever commits second silently overwrites the first's
-        // update with its own stale-based number — a classic "lost update"
-        // that would let a customer redeem two rewards while only ever
-        // having enough points for one. Serializable makes PostgreSQL
-        // detect that exact conflict and abort one of the two transactions
-        // with a retryable serialization-failure error instead, so dbRetry
-        // re-runs it against the now-current balance.
-        return await dbRetry(
+        // ── Why an isolation level above READ COMMITTED at all ────────────
+        // The balance update below reads customer.points, computes
+        // newBalance in JS, then writes that literal number back — NOT an
+        // atomic SQL `points = points - X`. Under READ COMMITTED, two
+        // concurrent calls for the same customer can both read the same
+        // starting balance, and whichever commits second silently
+        // overwrites the first's update with its own stale-based number —
+        // a classic lost update that would let a customer redeem two
+        // rewards while only ever having enough points for one.
+        //
+        // ── Why REPEATABLE READ and not SERIALIZABLE ──────────────────────
+        // This was Serializable, and that was over-strong for what the
+        // transaction actually does. The dangerous interleaving here is
+        // read-then-write against ONE row: customer X is read and customer
+        // X is written. PostgreSQL's Repeatable Read already makes that
+        // safe — a transaction whose snapshot predates a committed update
+        // to a row it then tries to update is aborted with 40001, which
+        // dbRetry re-runs against the current balance. Serializable adds
+        // protection against write skew across DIFFERENT rows, and nothing
+        // in this function does that.
+        //
+        // What it cost: Serializable uses SSI, whose predicate locks are
+        // taken on index and heap PAGES rather than individual rows.
+        // pointsBackfillJob processes members in id order, ten at a time,
+        // so those ten customers reliably live on the same page — and SSI
+        // reported them as conflicting even though every one is a
+        // different customer with a different balance. The result was a
+        // retry storm of pure false positives: near enough every award
+        // failing its first attempt, recovering on the second, and paying
+        // ~1.3s of backoff for the privilege. A 250-member batch that
+        // should take a few seconds was taking 75.
+        const result = await dbRetry(
             () =>
                 prisma.$transaction(
                     async (tx) => {
-                    const customer = await tx.customer.findUnique({
-                        where: { id: input.customerId },
-                        select: {
-                            points: true,
-                            lifetimePoints: true,
-                            sessionId: true,
-                        },
-                    });
+                        const customer = await tx.customer.findUnique({
+                            where: { id: input.customerId },
+                            select: {
+                                points: true,
+                                lifetimePoints: true,
+                                sessionId: true,
+                            },
+                        });
 
-                    if (!customer) {
-                        throw new Error("Customer not found");
-                    }
+                        if (!customer) {
+                            throw new Error("Customer not found");
+                        }
 
-                    if (customer.sessionId !== session.id) {
-                        throw new Error("Unauthorized: customer does not belong to this shop");
-                    }
+                        if (customer.sessionId !== session.id) {
+                            throw new Error("Unauthorized: customer does not belong to this shop");
+                        }
 
-                    const amount = Number(input.points);
-                    let signedPoints;
-                    let newBalance;
-                    let newLifetimePoints = customer.lifetimePoints;
+                        const amount = Number(input.points);
+                        let signedPoints;
+                        let newBalance;
+                        let newLifetimePoints = customer.lifetimePoints;
 
-                    switch (input.type) {
-                        case "EARN":
-                        case "REFERRAL":
-                            signedPoints = amount;
-                            newBalance = customer.points + amount;
-                            newLifetimePoints += amount;
-                            break;
+                        switch (input.type) {
+                            case "EARN":
+                            case "REFERRAL":
+                                signedPoints = amount;
+                                newBalance = customer.points + amount;
+                                newLifetimePoints += amount;
+                                break;
 
-                        case "REDEEM":
-                        case "EXPIRE":
-                            if (amount > customer.points) {
-                                throw new Error(
-                                    `Insufficient points: has ${customer.points.toLocaleString()}, attempted ${amount.toLocaleString()}`
-                                );
-                            }
-                            signedPoints = -amount;
-                            newBalance = customer.points - amount;
-                            break;
+                            case "REDEEM":
+                            case "EXPIRE":
+                                if (amount > customer.points) {
+                                    throw new Error(
+                                        `Insufficient points: has ${customer.points.toLocaleString()}, attempted ${amount.toLocaleString()}`
+                                    );
+                                }
+                                signedPoints = -amount;
+                                newBalance = customer.points - amount;
+                                break;
 
-                        case "ADJUST":
-                            signedPoints = amount;
-                            newBalance = Math.max(0, customer.points + amount);
-                            newLifetimePoints += amount;
-                            break;
-                        case "REVERSAL":
-                            // Signed value passed directly from caller (+/-).
-                            // Deliberately NOT floored at 0 like ADJUST above:
-                            // a REVERSAL fires when an order is cancelled or
-                            // refunded, reversing points the customer earned
-                            // from it. If they already spent those points on
-                            // a reward/prize before the cancellation/refund,
-                            // flooring at 0 would silently forgive that
-                            // shortfall — letting a customer buy something,
-                            // immediately redeem the points it earned, then
-                            // cancel the order and keep the reward for free.
-                            // Instead the balance is allowed to go negative,
-                            // recording a real "debt" that blocks new reward/
-                            // prize claims (their pointsCost > any negative
-                            // balance) until it's paid down by future earning
-                            // or a manual admin adjustment.
-                            signedPoints = amount;
-                            newBalance = customer.points + amount;
-                            break;
+                            case "ADJUST":
+                                signedPoints = amount;
+                                newBalance = Math.max(0, customer.points + amount);
+                                newLifetimePoints += amount;
+                                break;
+                            case "REVERSAL":
+                                // Signed value passed directly from caller (+/-).
+                                // Deliberately NOT floored at 0 like ADJUST above:
+                                // a REVERSAL fires when an order is cancelled or
+                                // refunded, reversing points the customer earned
+                                // from it. If they already spent those points on
+                                // a reward/prize before the cancellation/refund,
+                                // flooring at 0 would silently forgive that
+                                // shortfall — letting a customer buy something,
+                                // immediately redeem the points it earned, then
+                                // cancel the order and keep the reward for free.
+                                // Instead the balance is allowed to go negative,
+                                // recording a real "debt" that blocks new reward/
+                                // prize claims (their pointsCost > any negative
+                                // balance) until it's paid down by future earning
+                                // or a manual admin adjustment.
+                                signedPoints = amount;
+                                newBalance = customer.points + amount;
+                                break;
 
-                        default:
-                            throw new Error(`Unknown transaction type: ${input.type}`);
-                    }
+                            case "BACKFILL":
+                                // Always non-negative — a BACKFILL is a one-time
+                                // retroactive award for pre-install lifetime
+                                // spend (see ShadowRule/PointsBackfillEntry), and
+                                // should never itself carry a negative value.
+                                // Correcting an existing backfill (wrong amount,
+                                // reversing it entirely) is what ADJUST/REVERSAL
+                                // are for — mixing a negative into BACKFILL would
+                                // break the "BACKFILL = one-time award" audit
+                                // meaning that's the whole reason this type
+                                // exists separately from ADJUST in the first
+                                // place.
+                                if (amount < 0) {
+                                    throw new Error(
+                                        `BACKFILL points must be non-negative (got ${amount}) — use ADJUST or REVERSAL to correct an existing backfill`
+                                    );
+                                }
+                                signedPoints = amount;
+                                newBalance = customer.points + amount;
+                                newLifetimePoints += amount;
+                                break;
 
-                    const transaction = await tx.transaction.create({
-                        data: {
-                            customerId: input.customerId,
-                            type: input.type,
-                            points: signedPoints,
-                            balanceAfter: newBalance,
-                            status: input.status ?? "COMPLETED",
-                            reason: input.reason ?? null,
-                            activity: input.activity ?? null,
-                            eventId: input.eventId ?? null,
-                            rewardId: input.rewardId ?? null,
-                            referralId: input.referralId ?? null,
-                            pointsRuleId: input.pointsRuleId ?? null,
-                            expiresAt: input.expiresAt ?? null,
-                            metadata: input.metadata ?? {},
-                            notifiedAt: input.notifiedAt ?? null,
-                        },
-                        select,
-                    });
+                            default:
+                                throw new Error(`Unknown transaction type: ${input.type}`);
+                        }
 
-                    await tx.customer.update({
-                        where: { id: input.customerId },
-                        data: {
-                            points: newBalance,
-                            lifetimePoints: newLifetimePoints,
-                        },
-                    });
+                        const transaction = await tx.transaction.create({
+                            data: {
+                                customerId: input.customerId,
+                                type: input.type,
+                                points: signedPoints,
+                                balanceAfter: newBalance,
+                                status: input.status ?? "COMPLETED",
+                                reason: input.reason ?? null,
+                                activity: input.activity ?? null,
+                                eventId: input.eventId ?? null,
+                                rewardId: input.rewardId ?? null,
+                                referralId: input.referralId ?? null,
+                                pointsRuleId: input.pointsRuleId ?? null,
+                                expiresAt: input.expiresAt ?? null,
+                                metadata: input.metadata ?? {},
+                                notifiedAt: input.notifiedAt ?? null,
+                            },
+                            select,
+                        });
 
-                    logger.info("Transaction created", {
-                        transactionId: transaction.id,
-                        customerId: input.customerId,
-                        type: input.type,
-                        points: signedPoints,
-                        balanceAfter: newBalance,
-                    });
+                        await tx.customer.update({
+                            where: { id: input.customerId },
+                            data: {
+                                points: newBalance,
+                                lifetimePoints: newLifetimePoints,
+                            },
+                        });
 
-                    return transaction;
-                },
-                    { isolationLevel: "Serializable" }
+                        // Deliberately NOT logged here. This callback is the
+                        // transaction — every millisecond spent inside it is a
+                        // millisecond the row locks stay held, and console I/O
+                        // is not free at ten concurrent awards per batch. The
+                        // log is emitted after commit instead, where it also
+                        // becomes truthful: a line saying a transaction was
+                        // created, written before the commit that creates it,
+                        // is a line that can be followed by a rollback.
+                        return { transaction, signedPoints, newBalance };
+                    },
+                    { isolationLevel: "RepeatableRead" }
                 ),
             { customerId: input.customerId, type: input.type }
         );
+
+        logger.info("Transaction created", {
+            transactionId: result.transaction.id,
+            customerId: input.customerId,
+            type: input.type,
+            points: result.signedPoints,
+            balanceAfter: result.newBalance,
+        });
+
+        // The transaction row itself, exactly as before — the wrapper above
+        // exists only to carry the two figures the log line needs out past
+        // the commit, and must not leak into what callers receive.
+        return result.transaction;
     } catch (error) {
         logger.error("Failed to create transaction", {
             error: error?.message,

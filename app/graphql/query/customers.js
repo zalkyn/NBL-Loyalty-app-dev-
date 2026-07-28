@@ -41,8 +41,155 @@ const CUSTOMER_FIELDS = `#graphql
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Fetches ONE page of customers — no retry of its own (the two callers
+ * below each wrap this in `withRetry` with their own context/error
+ * handling, same division of responsibility as callShopifyGraphql vs
+ * shopifyGraphqlWithRetry in utils/shopifyGraphql.js).
+ *
+ * @param {Object} admin
+ * @param {Object} [params]
+ * @param {string|null} [params.cursor] - Opaque `endCursor` from a
+ *   previous page, or null for the first page.
+ * @param {number} [params.pageSize=250]
+ * @returns {Promise<{ nodes: Array, pageInfo: { hasNextPage: boolean, endCursor: string|null } }>}
+ * @throws {Error} "Invalid response from Shopify API" if the shape is
+ *   unexpected, or whatever callShopifyGraphql itself throws (network,
+ *   Throttled).
+ */
+async function fetchCustomersPage(admin, { cursor = null, pageSize = 250 } = {}) {
+    const json = await callShopifyGraphql(
+        admin,
+        `#graphql
+        query CustomerList($cursor: String, $first: Int!) {
+            customers(first: $first, after: $cursor) {
+                nodes {
+                    ${CUSTOMER_FIELDS}
+                }
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+            }
+        }`,
+        { cursor, first: pageSize }
+    );
+
+    const page = json.data?.customers;
+    if (!page) throw new Error("Invalid response from Shopify API");
+    return page;
+}
+
+/**
+ * Total customers in the shop, without fetching any of them.
+ *
+ * Root-level aggregation, same approach and same reasoning as
+ * ordersCount() further down: asking for a count is a different question
+ * from asking for a list, and answering it by paging 80,000 records to
+ * call .length on the result is not the same thing done more slowly — it
+ * is a different, far more expensive query that also happens to produce
+ * the number.
+ *
+ * `precision` is EXACT below Shopify's aggregation ceiling and AT_LEAST
+ * above it. Both are returned rather than flattened: a confirmation
+ * screen that says "80,278 customers" when the truth is "at least 80,278"
+ * has quietly promised something it can't keep, and the caller is the
+ * only one who knows whether that distinction matters to it.
+ *
+ * @param {Object} admin - Shopify Admin GraphQL client
+ * @returns {Promise<{ count: number, precision: string }|null>} null on
+ *   failure — the caller decides whether a missing count is fatal.
+ */
+export async function customersCount(admin) {
+    try {
+        const json = await shopifyGraphqlWithRetry(
+            admin,
+            `#graphql
+            query CustomersCount {
+                customersCount(limit: null) {
+                    count
+                    precision
+                }
+            }`,
+            {},
+            { context: { module: MODULE } }
+        );
+
+        const result = json.data?.customersCount;
+        if (!result || typeof result.count !== "number") return null;
+
+        return { count: result.count, precision: result.precision ?? "EXACT" };
+    } catch (error) {
+        logger.error(MODULE, "Failed to count customers", { error: error?.message });
+        return null;
+    }
+}
+
+/**
+ * Yields the shop's customers ONE PAGE AT A TIME.
+ *
+ * This exists because customers() below — which accumulates every page
+ * into a single array before its caller sees anything — has two problems
+ * that are really the same problem:
+ *
+ *   1. MEMORY. A shop with 80,000 customers gets 80,000 fully-hydrated
+ *      objects resident at once, each with nested email, phone and money
+ *      sub-objects. That figure is set by how many customers the merchant
+ *      has, not by anything this app controls, so it only goes up.
+ *
+ *   2. PROGRESS. Nothing outside can observe a loop that only speaks when
+ *      it's finished. A sync built on it can report "started" and
+ *      "done" and nothing in between — which, over the twenty-odd minutes
+ *      80,000 customers takes, is indistinguishable from being stuck.
+ *
+ * A generator fixes both at once: the consumer processes each page and
+ * drops it before the next is fetched, and it gets a natural point to
+ * record how far along it is.
+ *
+ * Errors are THROWN, not swallowed into a null the way customers() does.
+ * A partial sync that reports success is worse than a failed one — the
+ * merchant would have no reason to run it again.
+ *
+ * @param {Object} admin
+ * @param {Object} [options]
+ * @param {number} [options.pageSize=250]
+ * @yields {Array<Object>} one page of customer nodes
+ */
+export async function* customerPages(admin, { pageSize = 250 } = {}) {
+    let cursor = null;
+    let hasNextPage = true;
+    let fetched = 0;
+
+    while (hasNextPage) {
+        // Each page retried independently on transient network failure —
+        // without it a single blip late in an 80k sync throws away
+        // everything already written.
+        const data = await withRetry(
+            () => fetchCustomersPage(admin, { cursor, pageSize }),
+            {
+                maxAttempts: 3,
+                baseDelayMs: 800,
+                retryableErrors: SHOPIFY_RETRYABLE_ERRORS,
+                context: { module: MODULE, fetchedSoFar: fetched },
+            }
+        );
+
+        fetched += data.nodes.length;
+
+        yield data.nodes;
+
+        hasNextPage = data.pageInfo.hasNextPage;
+        cursor = data.pageInfo.endCursor;
+    }
+}
+
+/**
  * Fetches all customers from the store using cursor-based pagination.
  * Iterates through all pages until no more results remain.
+ *
+ * PREFER customerPages() above for anything that processes what it gets.
+ * This variant holds the entire result set in memory and reports nothing
+ * until it's finished; it remains only for callers that genuinely need
+ * the whole list at once.
  *
  * @param {Object} admin - Shopify Admin GraphQL client
  * @returns {Promise<{ customers: { nodes: Array } }|null>}
@@ -58,28 +205,7 @@ export default async function customers(admin) {
             // Without this, a single blip late in a 100k+ customer sync would
             // discard every page already fetched and fail the whole sync.
             const data = await withRetry(
-                async () => {
-                    const json = await callShopifyGraphql(
-                        admin,
-                        `#graphql
-                        query CustomerList($cursor: String) {
-                            customers(first: 250, after: $cursor) {
-                                nodes {
-                                    ${CUSTOMER_FIELDS}
-                                }
-                                pageInfo {
-                                    hasNextPage
-                                    endCursor
-                                }
-                            }
-                        }`,
-                        { cursor }
-                    );
-
-                    const page = json.data?.customers;
-                    if (!page) throw new Error("Invalid response from Shopify API");
-                    return page;
-                },
+                () => fetchCustomersPage(admin, { cursor, pageSize: 250 }),
                 {
                     maxAttempts: 3,
                     baseDelayMs: 800,
@@ -102,6 +228,20 @@ export default async function customers(admin) {
         return null;
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Customers (single page)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// The `customersPage` export that used to live here has been removed. It
+// existed solely for POINTS_BACKFILL, which paged the shop's entire
+// customer list because Shopify deprecated the Customer search filters
+// that would have narrowed it (Admin API 2024-07). That feature now reads
+// a Shopify customer Segment instead — see
+// graphql/query/customerSegmentMembers.js and
+// server/jobs/snapshotBuildJob.js — so nothing called this any more, and
+// leaving it in place would have left a documented rationale for a design
+// the codebase no longer uses.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Single Customer
