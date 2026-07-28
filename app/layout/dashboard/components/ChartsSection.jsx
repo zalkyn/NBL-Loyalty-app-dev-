@@ -6,11 +6,12 @@ export function ChartsSection({ chartData, rangeKey, chartOptions }) {
             <ChartCard
                 heading="Points activity"
                 chartKey={`points-${rangeKey}`}
-                options={chartOptions(["#1D9E75", "#E24B4A", "#8C6D1F"])}
+                options={chartOptions(["#1D9E75", "#E24B4A", "#8C6D1F", "#7A4FBF"])}
                 series={[
                     { name: "Earned", data: chartData.earned },
                     { name: "Redeemed", data: chartData.redeemed },
                     { name: "Adjustments", data: chartData.adjustments },
+                    { name: "Backfilled", data: chartData.backfilled },
                 ]}
                 type="bar"
                 height={320}
