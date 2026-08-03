@@ -7,22 +7,55 @@ import { h } from 'preact';
 import { useRef, useEffect } from 'preact/hooks';
 import { useNavChevrons } from '../hooks/useNavChevrons.js';
 
+// Rail order. `configKey` maps to widgetConfig.nav.* (admin Customize >
+// Widget Config > Navigation Tabs); `defaultVisible` mirrors that group's
+// entry in WIDGET_CONFIG_DEFAULTS and is what applies when a shop has no
+// saved `nav` group at all. "home" deliberately has no configKey — it's
+// the fallback tab (App.jsx resets to it on close, and whenever the active
+// tab stops being visible), so it can never be switched off.
 const NAV_ITEMS = [
     { key: 'home', labelKey: 'navHome' },
-    { key: 'points', labelKey: 'navEarn' },
-    { key: 'rewards', labelKey: 'navRewards' },
-    { key: 'prizes', labelKey: 'navPrizes' },
-    { key: 'referral', labelKey: 'navReferral', fallback: 'Referral' },
-    { key: 'activities', labelKey: 'navActivity' },
-    { key: 'active-rewards', labelKey: 'navMyRewards' },
-    { key: 'my-prizes', labelKey: 'navMyPrizes' },
+    { key: 'referral', labelKey: 'navReferral', fallback: 'Referral', configKey: 'showReferral', defaultVisible: true },
+    { key: 'points', labelKey: 'navEarn', configKey: 'showEarn', defaultVisible: true },
+    { key: 'rewards', labelKey: 'navRewards', configKey: 'showRewards', defaultVisible: true },
+    { key: 'prizes', labelKey: 'navPrizes', configKey: 'showPrizes', defaultVisible: true },
+    { key: 'active-rewards', labelKey: 'navMyRewards', configKey: 'showMyRewards', defaultVisible: false },
+    { key: 'my-prizes', labelKey: 'navMyPrizes', configKey: 'showMyPrizes', defaultVisible: false },
+    { key: 'activities', labelKey: 'navActivity', configKey: 'showActivities', defaultVisible: false },
 ];
 
-export function Nav({ activeTab, onChange, lbl }) {
-    const scrollRef = useRef(null);
-    const { atStart, atEnd, scrollBy } = useNavChevrons(scrollRef, activeTab);
+// Single source of truth for "is this tab on?" — App.jsx uses it too, for
+// the active-tab fallback and for hiding the Home shortcut cards / the
+// Earn tab's "go to Referral" button that point at these same tabs.
+// Only an explicit boolean overrides the item's own default: an absent or
+// malformed value falls back to defaultVisible rather than being coerced,
+// which is what keeps the three off-by-default tabs off for shops whose
+// saved widgetConfig predates this group.
+export function getVisibleNavItems(navConfig) {
+    const cfg = navConfig || {};
+    return NAV_ITEMS.filter(function (item) {
+        if (!item.configKey) return true;
+        const value = cfg[item.configKey];
+        return typeof value === 'boolean' ? value : item.defaultVisible;
+    });
+}
 
-    const showChevrons = NAV_ITEMS.length > 3;
+export function isTabVisible(tabKey, navConfig) {
+    return getVisibleNavItems(navConfig).some(function (item) { return item.key === tabKey; });
+}
+
+export function Nav({ activeTab, onChange, lbl, navConfig }) {
+    const scrollRef = useRef(null);
+    const visibleItems = getVisibleNavItems(navConfig);
+    // Based on what's actually rendered, not the full catalogue — otherwise
+    // a merchant who trims the rail down to two or three tabs still gets
+    // chevrons flanking a rail with nothing to scroll.
+    const showChevrons = visibleItems.length > 3;
+    // Re-measure on tab-set changes too, not just activeTab: toggling a tab
+    // in the admin live preview changes the rail's scrollWidth, and without
+    // this the atStart/atEnd state stays stuck on the old measurement until
+    // the next actual scroll event.
+    const { atStart, atEnd, scrollBy } = useNavChevrons(scrollRef, activeTab + '|' + visibleItems.length);
 
     useEffect(() => {
         const scrollEl = scrollRef.current;
@@ -108,7 +141,7 @@ export function Nav({ activeTab, onChange, lbl }) {
                 }}
             />
             <div class="nbl-nav__scroll" ref={scrollRef}>
-                {NAV_ITEMS.map((item) => (
+                {visibleItems.map((item) => (
                     <button
                         key={item.key}
                         class={`nbl-nav__item${activeTab === item.key ? ' active' : ''}`}

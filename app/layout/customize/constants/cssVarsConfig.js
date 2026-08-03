@@ -137,6 +137,30 @@ export const WIDGET_CONFIG_DEFAULTS = {
     // brief silent-provisioning attempt shows a loading overlay in the
     // widget, or provisions invisibly in the background.
     showProvisionLoadingOverlay: true,
+    // Which nav tabs appear in the widget's tab rail. "home" has no flag —
+    // it's the fallback tab everything falls back to (App.jsx resets to it
+    // on close, and when an active tab gets hidden), so it must always
+    // exist. My Rewards / My Prizes / Activities default to FALSE because
+    // their content is already surfaced by the Home tab's own sections
+    // (showHomeRewardsSection / showHomePrizeRequestsSection /
+    // showHomeActivitiesSection) — a merchant who wants them as dedicated
+    // tabs too can switch them on here.
+    //
+    // IMPORTANT: because three of these default to false, these flags must
+    // never be read with the `cfg.someFlag !== false` idiom used elsewhere
+    // in this file's older toggles ("show unless explicitly disabled") —
+    // that would force the three off-by-default tabs on for every shop
+    // that has no saved `nav` group. Nav.jsx's isTabVisible() is the one
+    // reader, and it resolves each flag against the per-item default below.
+    nav: {
+        showReferral: true,
+        showEarn: true,
+        showRewards: true,
+        showPrizes: true,
+        showMyRewards: false,
+        showMyPrizes: false,
+        showActivities: false,
+    },
     labels: { ...LABEL_DEFAULTS },
     prize: {
         contactUrl: "",
@@ -278,6 +302,69 @@ export const WIDGET_CONFIG_SECTIONS = [
                 default: 8,
                 parseValue: (v) => Number(v),
                 displayValue: (v) => Number(v),
+            },
+        ],
+    },
+    {
+        key: "navTabs",
+        label: "Navigation Tabs",
+        description: "Choose which tabs appear in the widget's navigation bar. The Home tab is always shown. My Rewards, My Prizes and Activities are off by default because the Home tab already shows that content in its own sections — switch them on to give each one a dedicated tab as well.",
+        fields: [
+            {
+                key: "nav_showReferral",
+                label: "Referral tab",
+                hint: "Where a customer copies and shares their referral link",
+                type: "toggle",
+                configKey: "nav.showReferral",
+                default: true,
+            },
+            {
+                key: "nav_showEarn",
+                label: "Earn tab",
+                hint: "Lists all the ways a customer can earn points",
+                type: "toggle",
+                configKey: "nav.showEarn",
+                default: true,
+            },
+            {
+                key: "nav_showRewards",
+                label: "Rewards tab",
+                hint: "Lists the rewards a customer can redeem points for",
+                type: "toggle",
+                configKey: "nav.showRewards",
+                default: true,
+            },
+            {
+                key: "nav_showPrizes",
+                label: "Prizes tab",
+                hint: "Lists the physical prizes a customer can request with points",
+                type: "toggle",
+                configKey: "nav.showPrizes",
+                default: true,
+            },
+            {
+                key: "nav_showMyRewards",
+                label: "My Rewards tab",
+                hint: "A dedicated tab for the customer's own redeemed vouchers. Off by default — the Home tab's 'Active Rewards' section already shows these.",
+                type: "toggle",
+                configKey: "nav.showMyRewards",
+                default: false,
+            },
+            {
+                key: "nav_showMyPrizes",
+                label: "My Prizes tab",
+                hint: "A dedicated tab for the customer's own prize requests. Off by default — the Home tab's 'My Prize Requests' section already shows these.",
+                type: "toggle",
+                configKey: "nav.showMyPrizes",
+                default: false,
+            },
+            {
+                key: "nav_showActivities",
+                label: "Activities tab",
+                hint: "A dedicated tab for the customer's full points history. Off by default — the Home tab's 'Recent Activity' section already shows this.",
+                type: "toggle",
+                configKey: "nav.showActivities",
+                default: false,
             },
         ],
     },
@@ -1489,10 +1576,11 @@ export function buildInitialVars(savedCssVars) {
 }
 
 export function buildInitialWidgetConfig(saved) {
-    const base = { ...WIDGET_CONFIG_DEFAULTS, labels: { ...LABEL_DEFAULTS }, prize: { ...WIDGET_CONFIG_DEFAULTS.prize }, referral: { ...WIDGET_CONFIG_DEFAULTS.referral }, resync: { ...WIDGET_CONFIG_DEFAULTS.resync } };
+    const base = { ...WIDGET_CONFIG_DEFAULTS, labels: { ...LABEL_DEFAULTS }, prize: { ...WIDGET_CONFIG_DEFAULTS.prize }, referral: { ...WIDGET_CONFIG_DEFAULTS.referral }, resync: { ...WIDGET_CONFIG_DEFAULTS.resync }, nav: { ...WIDGET_CONFIG_DEFAULTS.nav } };
     if (!saved || typeof saved !== "object") return base;
     const merged = { ...base, ...saved };
     merged.labels = { ...LABEL_DEFAULTS, ...(saved.labels || {}) };
+    merged.nav = { ...WIDGET_CONFIG_DEFAULTS.nav, ...(saved.nav || {}) };
     merged.prize = { ...WIDGET_CONFIG_DEFAULTS.prize, ...(saved.prize || {}) };
     merged.referral = { ...WIDGET_CONFIG_DEFAULTS.referral, ...(saved.referral || {}) };
     merged.resync = { ...WIDGET_CONFIG_DEFAULTS.resync, ...(saved.resync || {}) };
@@ -1550,6 +1638,7 @@ export const SECTION_TO_SCENE = {
 // SECTION_TO_SCENE already uses for its own style-only sections above.
 export const CONFIG_SECTION_TO_SCENE = {
     behaviour: "home",
+    navTabs: "home",
     prizeNotifications: "home",
     referral: "referral",
     resync: "notification-update-banner",
