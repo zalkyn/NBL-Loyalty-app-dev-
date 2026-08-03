@@ -102,6 +102,9 @@ function PrizeClaimRow({ claim, physicalPrizes, onOpenClaim, onViewImage, lbl })
 }
 
 export function HomeTab({
+    showRewardsCard,
+    showEarnCard,
+    showReferralCard,
     showRewardsSection,
     showPrizeRequestsSection,
     showActivitiesSection,
@@ -127,11 +130,17 @@ export function HomeTab({
 
     return (
         <div class="nbl-home-tab">
-            <div class="nbl-home-nav">
-                <HomeNavCard navKey="rewards" iconName="rewards" label={lbl('homeCardBrowse') || 'Browse rewards'} onNavigate={onNavigate} />
-                <HomeNavCard navKey="points" iconName="lightning" label={lbl('homeCardEarn') || 'Earn points'} onNavigate={onNavigate} />
-                <HomeNavCard navKey="referral" iconName="referral" label={lbl('homeCardRefer') || 'Refer a friend'} onNavigate={onNavigate} />
-            </div>
+            {/* Each shortcut card is just a jump to another nav tab, so a card
+                for a tab the merchant switched off (Customize > Widget Config >
+                Navigation Tabs) would be a dead end. Hidden with the tab
+                instead. The whole row goes away only if all three are off. */}
+            {(showRewardsCard || showEarnCard || showReferralCard) && (
+                <div class="nbl-home-nav">
+                    {showRewardsCard && <HomeNavCard navKey="rewards" iconName="rewards" label={lbl('homeCardBrowse') || 'Browse rewards'} onNavigate={onNavigate} />}
+                    {showEarnCard && <HomeNavCard navKey="points" iconName="lightning" label={lbl('homeCardEarn') || 'Earn points'} onNavigate={onNavigate} />}
+                    {showReferralCard && <HomeNavCard navKey="referral" iconName="referral" label={lbl('homeCardRefer') || 'Refer a friend'} onNavigate={onNavigate} />}
+                </div>
+            )}
 
             <div class="nbl-home-sections">
                 {showRewardsSection && (

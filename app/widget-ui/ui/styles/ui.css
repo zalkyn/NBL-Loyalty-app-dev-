@@ -3821,3 +3821,57 @@ input:not([type=checkbox], [type=radio]) {
         padding: 24px 18px 20px;
     }
 }
+
+/* ── Large desktop — 125% UI scale ────────────────────────────────────────
+   Scales the ENTIRE widget chrome — text, icons, padding, borders, the
+   panel itself — not just the panel's footprint. 13px body text renders as
+   a true 16.25px, so it stays vector-sharp at any device pixel ratio.
+
+   `zoom`, deliberately, NOT `transform: scale()`. They look equivalent and
+   are not: `transform` paints the widget at its normal size and then
+   stretches that finished bitmap, which is exactly the soft, fuzzy text
+   we're trying to avoid here. `zoom` re-runs layout at the larger size, so
+   every glyph is rasterised at its real final size. `transform` would also
+   collide with this element's own open/close animation, which already
+   owns the transform property (see .nbl-widget-container.active and
+   @keyframes nbl-widget-entrance).
+
+   Firefox below 126 doesn't support `zoom` and simply ignores this block —
+   the widget stays at 100% there. A clean no-op fallback, nothing breaks.
+
+   Applied to the three fixed-position roots rather than one shared parent
+   so nothing else inherits it — see the referral-modal note below for why
+   that distinction matters. All three must move together: zooming the
+   launcher without the toast stack would let the (taller) launcher overlap
+   the toasts that sit just above it.
+
+   Gated on viewport HEIGHT as well as width. The panel is anchored
+   `bottom: 88px`, and zoom scales that offset too, so a 125% panel needs
+   110 + 650 = 760px of usable height. A 1366x768 laptop passes the width
+   test but has only ~660px of viewport once browser chrome is subtracted —
+   without the height condition the panel would run off the top of the
+   screen there, taking the header and nav rail with it.
+
+   To tune the scale (the client's "or whatever feels right"), change the
+   one value below; the height floor should stay at roughly
+   (88 + 520) * scale + 40px of headroom.
+
+   NOT applied to .nbl-refer-modal-overlay, on purpose. That modal is capped
+   at `max-height: 90vh`, and viewport units don't scale with zoom the way
+   px lengths do — at 1.25 a 90vh modal would paint past the bottom of the
+   screen on exactly the ~800px-tall viewports this block targets. It's also
+   already 520px wide (wider than the panel) and is shown to referred
+   friends on a landing page, a different context from the widget chrome.
+
+   This never triggers inside the admin Customize live preview: that renders
+   the real bundle in a 390px-wide <iframe> (LivePreview.jsx), and media
+   queries resolve against the iframe's own viewport, not the admin window.
+   Intentional — the preview keeps showing the base size. */
+@media (min-width: 1200px) and (min-height: 800px) {
+
+    .nbl-widget-container,
+    .nbl-launcher,
+    .nbl-toast-stack {
+        zoom: 1.25;
+    }
+}

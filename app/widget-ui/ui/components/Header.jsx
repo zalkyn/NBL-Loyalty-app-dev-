@@ -13,7 +13,7 @@ import { Text } from './Text.jsx';
 import { usePointsBump } from '../hooks/usePointsBump.js';
 import { formatNumber } from '../utils.js';
 
-export function Header({ isLoggedIn, customerName, points, compact, activeTab, onNavChange, onClose, lbl, pointsPending }) {
+export function Header({ isLoggedIn, customerName, points, compact, activeTab, onNavChange, onClose, lbl, pointsPending, navConfig }) {
     const bump = usePointsBump(points);
     const [ready, setReady] = useState(false);
 
@@ -75,7 +75,7 @@ export function Header({ isLoggedIn, customerName, points, compact, activeTab, o
                         <Heading as="h3" bare extraClass="nbl-header__title">NBL Loyalty Program</Heading>
                     )}
                 </div>
-                {isLoggedIn && <Nav activeTab={activeTab} onChange={onNavChange} lbl={lbl} />}
+                {isLoggedIn && <Nav activeTab={activeTab} onChange={onNavChange} lbl={lbl} navConfig={navConfig} />}
             </div>
         </div>
     );

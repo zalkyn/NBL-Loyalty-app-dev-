@@ -6,7 +6,7 @@
 // =============================================================================
 
 import { h, Fragment } from 'preact';
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { icon } from './icons.js';
 import { formatNumber, buildReferralLink } from './utils.js';
 import { LauncherButton } from './components/LauncherButton.jsx';
@@ -18,6 +18,7 @@ import { NotificationPanel } from './components/NotificationPanel.jsx';
 import { ImagePreviewOverlay } from './components/ImagePreviewOverlay.jsx';
 import { ReferralModal } from './components/ReferralModal.jsx';
 import { ToastStack } from './components/ToastStack.jsx';
+import { isTabVisible } from './components/Nav.jsx';
 import { useReferralModal } from './hooks/useReferralModal.js';
 import { useCustomerProvision } from './hooks/useCustomerProvision.js';
 import { useJoinProgram } from './hooks/useJoinProgram.js';
@@ -117,6 +118,14 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // re-render trigger hobe, label/show*Section/perPage sob live update pabe.
     const [widgetConfig, setWidgetConfig] = useState(initialData.widgetConfig || {});
     const prizeConfig = widgetConfig.prize || {};
+    // Admin Customize > Widget Config > Navigation Tabs. Read through
+    // Nav.jsx's isTabVisible() rather than directly, so the per-tab
+    // defaults (three tabs are off by default) live in exactly one place.
+    // Memoised: `widgetConfig.nav || {}` would hand back a brand-new empty
+    // object on every render for shops that have no saved nav group, which
+    // would re-fire the hidden-active-tab effect below on every render.
+    const navConfig = useMemo(() => widgetConfig.nav || {}, [widgetConfig.nav]);
+    const referralTabVisible = isTabVisible('referral', navConfig);
     const currencySymbol = (appConfig.shop && appConfig.shop.currencySymbol) || '$';
     const [referralLink, setReferralLink] = useState(initialData.referralLink || '');
     const shopUrl = initialData.shopUrl || '';
@@ -526,8 +535,22 @@ export function App({ initialData, bridgeRef, hostEl }) {
         });
     }
     function setActiveNavigation(tabKey) {
-        setActiveTab(tabKey || 'home');
+        const next = tabKey || 'home';
+        // Nothing in the UI should be able to reach a switched-off tab, but
+        // navigation comes from several places (nav rail, Home shortcut
+        // cards, the Earn tab's referral button, the preview bridge's
+        // setScene) — guarding centrally here means none of them can land
+        // the customer on a tab with no way back to it.
+        setActiveTab(isTabVisible(next, navConfig) ? next : 'home');
     }
+
+    // The merchant can switch off the tab a customer is currently sitting
+    // on — live, while the admin preview is open, or on the next page load
+    // after a save. Without this the widget would render an empty body with
+    // no matching nav button to leave it by.
+    useEffect(() => {
+        if (!isTabVisible(activeTab, navConfig)) setActiveTab('home');
+    }, [activeTab, navConfig]);
 
     // ── Notification panel control ────────────────────────────────────────────
 
@@ -799,6 +822,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
                 onClose={closeWidget}
                 lbl={lbl}
                 pointsPending={pointsPending && showSyncIndicator}
+                navConfig={navConfig}
                 notificationSlot={
                     <NotificationPanel
                         notification={notification}
@@ -858,6 +882,9 @@ export function App({ initialData, bridgeRef, hostEl }) {
                                     homePrizeRequestsPerPage={widgetConfig.homePrizeRequestsPerPage || 5}
                                     homeActivitiesPerPage={widgetConfig.homeActivitiesPerPage || 5}
                                     paginationMode={paginationMode}
+                                    showRewardsCard={isTabVisible('rewards', navConfig)}
+                                    showEarnCard={isTabVisible('points', navConfig)}
+                                    showReferralCard={referralTabVisible}
                                     onNavigate={setActiveNavigation}
                                     onOpenVoucher={openReward}
                                     onOpenClaim={openPrizeClaim}
@@ -866,7 +893,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
                                 />
                             </TabPanel>
                             <TabPanel tabKey="points" activeTab={activeTab}>
-                                <EarnTab pointRules={pointRules} currencySymbol={currencySymbol} onOpenInfo={openInfo} />
+                                <EarnTab pointRules={pointRules} currencySymbol={currencySymbol} referralTabVisible={referralTabVisible} onOpenInfo={openInfo} />
                             </TabPanel>
                             <TabPanel tabKey="rewards" activeTab={activeTab}>
                                 <RewardsTab

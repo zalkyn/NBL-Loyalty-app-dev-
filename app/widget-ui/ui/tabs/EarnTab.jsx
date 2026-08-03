@@ -91,7 +91,7 @@ function buildPointsText(rule, currencySymbol) {
 
 const ICON_MAP = { REVIEW: 'review', REFERRAL: 'referral', ORDER: 'purchase' };
 
-function PointRuleItem({ rule, currencySymbol, onOpenInfo }) {
+function PointRuleItem({ rule, currencySymbol, referralTabVisible, onOpenInfo }) {
     const type = rule.event && rule.event.type;
     const title = (rule.event && rule.event.name) || rule.title || 'Earn Points';
     const label = buildLabel(rule, currencySymbol);
@@ -102,7 +102,7 @@ function PointRuleItem({ rule, currencySymbol, onOpenInfo }) {
             onClick={() =>
                 onOpenInfo({
                     text: label,
-                    ...(type === 'REFERRAL' && { goToReferralTab: true }),
+                    ...(type === 'REFERRAL' && referralTabVisible && { goToReferralTab: true }),
                 })
             }
             leading={<Icon name={ICON_MAP[type] || 'earn-points'} size="lg" />}
@@ -121,7 +121,7 @@ function PointRuleItem({ rule, currencySymbol, onOpenInfo }) {
     );
 }
 
-export function EarnTab({ pointRules, currencySymbol, onOpenInfo }) {
+export function EarnTab({ pointRules, currencySymbol, referralTabVisible, onOpenInfo }) {
     const activeRules = (pointRules || []).filter((r) => r.isActive);
 
     return (
@@ -129,7 +129,7 @@ export function EarnTab({ pointRules, currencySymbol, onOpenInfo }) {
             <ItemList
                 items={activeRules}
                 emptyText="No earn rules available"
-                renderItem={(rule) => <PointRuleItem rule={rule} currencySymbol={currencySymbol || '$'} onOpenInfo={onOpenInfo} />}
+                renderItem={(rule) => <PointRuleItem rule={rule} currencySymbol={currencySymbol || '$'} referralTabVisible={referralTabVisible} onOpenInfo={onOpenInfo} />}
             />
         </div>
     );
