@@ -9,7 +9,7 @@ import { Button } from './Button.jsx';
 import { Text } from './Text.jsx';
 import { formatNumber } from '../utils.js';
 
-export function LauncherButton({ isLoggedIn, points, pointsPending, position, launcherIconName, onClick, lbl }) {
+export function LauncherButton({ isLoggedIn, points, pointsPending, position, launcherIconName, onClick, lbl, hidden }) {
     // Defense in depth: every other lbl() call site in the widget has a
     // matching hardcoded fallback (see GuestPanel.jsx, JoinProgramPanel.jsx,
     // etc.) — these two were the one place that didn't, so a widgetConfig
@@ -20,7 +20,7 @@ export function LauncherButton({ isLoggedIn, points, pointsPending, position, la
     const [subBefore, subAfter] = subtitleTemplate.split('[points]');
 
     return (
-        <div class={`nbl-launcher pos-${position}`}>
+        <div class={`nbl-launcher pos-${position}${hidden ? ' nbl-launcher--hidden' : ''}`}>
             <Button
                 bare
                 extraClass={`nbl-launcher__button${isLoggedIn ? '' : ' guest'}`}

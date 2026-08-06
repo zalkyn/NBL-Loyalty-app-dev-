@@ -1,0 +1,447 @@
+{% comment %}
+  ===========================================================================
+  loyalty-page.liquid — the "Loyalty & Rewards" APP BLOCK.
+
+  Added by the merchant to one of their own pages in the theme editor. It
+  renders the loyalty widget inline, in page mode, so the page can carry
+  explainer videos, FAQs, terms and anything else around it as ordinary
+  theme sections — content that would crowd the floating widget but has
+  plenty of room on a page.
+
+  This block deliberately loads NO javascript and NO data:
+
+    - The bundle is loaded by the app EMBED block (loyalty.liquid), which is
+      on every storefront page already. Two <script src="...same file"> tags
+      would execute it twice, mounting two widgets with two sets of timers.
+      (main.preact.jsx guards against that anyway — this is the belt to its
+      braces.)
+    - appConfig / customer / routes likewise come from that embed. Repeating
+      those liquid lookups here would double the metafield reads on this
+      page for identical values.
+
+  So all this block does is put a target element in the page, hand its
+  settings across as custom properties, and register it.
+  main.preact.jsx's findPageMount() picks it up at boot and mounts there
+  instead of on document.body, which is the entire mechanism.
+
+  WHY CUSTOM PROPERTIES, NOT CLASSES OR INLINE STYLES ON THE WIDGET:
+  the widget renders inside a shadow root, built by Preact, which knows
+  nothing about theme settings — and ui.css lives inside that shadow root
+  and can't see the light dom. Custom properties are the one thing that
+  crosses the boundary in that direction: set here on the block's wrapper,
+  inherited by everything in the shadow tree, read by ui.css's page-mode
+  rules. Every setting below is plumbed that way, including the on/off ones,
+  which pass their off state as the CSS value that means "off" (`none`,
+  `visible`, `static`) rather than as a flag ui.css would have to branch on.
+
+  REQUIRES the app embed to be enabled (Theme editor > App embeds >
+  "NB Loyalty"). Without it there's no bundle, and this block renders an
+  empty div. The theme-editor-only notice below is there to say so, since
+  that's a silent failure otherwise and an easy one for a merchant to hit.
+  ===========================================================================
+{% endcomment %}
+
+{%- liquid
+  assign mount_id = 'nbl-page-mount-' | append: block.id
+
+  # Alignment -> a pair of margins. Left/right are the interesting cases; a
+  # widget narrower than the page needs to be able to sit against the text
+  # column of whatever the merchant has built around it, not always dead
+  # centre of it.
+  case block.settings.alignment
+    when 'left'
+      assign margin_left = '0'
+      assign margin_right = 'auto'
+    when 'right'
+      assign margin_left = 'auto'
+      assign margin_right = '0'
+    else
+      assign margin_left = 'auto'
+      assign margin_right = 'auto'
+  endcase
+
+  # Internal scrolling, desktop. When off, the block grows to fit its tallest
+  # tab and the page does all the scrolling (the default, and the better
+  # default — see ui.css's note on nested scrollers). When on, the block is
+  # capped and scrolls inside itself, and the header becomes sticky within
+  # it so the tab rail stays reachable.
+  #
+  # `none` / `visible` / `static` are not placeholders — they're the real CSS
+  # values for "no cap", "don't scroll" and "don't stick", so the off state
+  # needs no special handling at the other end.
+  if block.settings.enable_scroll
+    assign max_height = block.settings.max_height | append: 'px'
+    assign overflow_x = 'hidden'
+    assign overflow_y = 'auto'
+    assign header_position = 'sticky'
+  else
+    assign max_height = 'none'
+    assign overflow_x = 'visible'
+    assign overflow_y = 'visible'
+    assign header_position = 'static'
+  endif
+
+  if block.settings.enable_scroll_mobile
+    assign max_height_mobile = block.settings.max_height_mobile | append: 'px'
+    assign overflow_x_mobile = 'hidden'
+    assign overflow_y_mobile = 'auto'
+    assign header_position_mobile = 'sticky'
+  else
+    assign max_height_mobile = 'none'
+    assign overflow_x_mobile = 'visible'
+    assign overflow_y_mobile = 'visible'
+    assign header_position_mobile = 'static'
+  endif
+
+  # A true percentage of the space the section gives this block. Safe now that
+  # the wrapper carries align-self/justify-self: stretch, because that space is
+  # the theme's own content column — so 100% lines up with every other section
+  # on the page and cannot overflow. (An earlier version used vw to dodge a
+  # shrink-to-fit parent; vw measures the whole viewport, so it overshot the
+  # gutters instead.)
+  assign max_width_mobile = block.settings.max_width_mobile | append: '%'
+-%}
+
+<div
+  class="nbl-page-block nbl-page-block--{{ block.settings.alignment | default: 'center' }}"
+  {%- comment -%}
+    Spacing rides in as custom properties rather than as real padding
+    declarations. An inline `padding-top` would beat the small-screen rule in
+    the stylesheet below on specificity, so the mobile clamp would silently
+    never apply. Custom properties carry the merchant's value without
+    claiming the property itself.
+  {%- endcomment -%}
+  style="
+    --nbl-page-max-width: {{ block.settings.max_width }}px;
+    --nbl-page-min-height: {{ block.settings.min_height }}px;
+    --nbl-page-max-height: {{ max_height }};
+    --nbl-page-overflow-x: {{ overflow_x }};
+    --nbl-page-overflow-y: {{ overflow_y }};
+    --nbl-page-header-position: {{ header_position }};
+
+    --nbl-page-max-width-mobile: {{ max_width_mobile }};
+    --nbl-page-min-height-mobile: {{ block.settings.min_height_mobile }}px;
+    --nbl-page-max-height-mobile: {{ max_height_mobile }};
+    --nbl-page-overflow-x-mobile: {{ overflow_x_mobile }};
+    --nbl-page-overflow-y-mobile: {{ overflow_y_mobile }};
+    --nbl-page-header-position-mobile: {{ header_position_mobile }};
+
+    --nbl-page-margin-left: {{ margin_left }};
+    --nbl-page-margin-right: {{ margin_right }};
+
+    --nbl-page-pad-top: {{ block.settings.padding_top }}px;
+    --nbl-page-pad-bottom: {{ block.settings.padding_bottom }}px;
+  "
+  {{ block.shopify_attributes }}
+>
+  {%- if block.settings.heading != blank -%}
+    <h2 class="nbl-page-block__heading">{{ block.settings.heading | escape }}</h2>
+  {%- endif -%}
+
+  {%- comment -%}
+    The widget's shadow host is appended INSIDE this element, never in place
+    of it — so this stays a stable, empty box that the theme editor can
+    still select and move even before/without the bundle running.
+  {%- endcomment -%}
+  <div id="{{ mount_id }}" data-nbl-page-mount></div>
+
+  {%- if request.design_mode -%}
+    <div class="nbl-page-block__notice" data-nbl-editor-notice>
+      <strong>Loyalty &amp; Rewards</strong>
+      <span>
+        If nothing appears here, check that the <em>NB Loyalty</em> app embed is
+        turned on under Theme settings &rarr; App embeds. Then set this page's
+        path (for example <code>/pages/rewards</code>) as the Loyalty page URL in
+        the app's Customize settings, so the widget's expand button links to it.
+      </span>
+    </div>
+  {%- endif -%}
+</div>
+
+<script>
+  window.NBL_v1 = window.NBL_v1 || {};
+  // First registration wins. A merchant can technically drop this block onto
+  // a page twice; mounting into both would give one customer two independent
+  // widgets side by side, each with its own points state. One is the correct
+  // number, and the first in document order is the predictable choice.
+  if (!window.NBL_v1.pageMount) {
+    window.NBL_v1.pageMount = { selector: {{ mount_id | prepend: '#' | json }} };
+  }
+  {%- if request.design_mode %}
+  // Theme editor only. This script re-runs every time the merchant edits
+  // this block (Shopify re-renders the section without reloading the page),
+  // but the widget bundle does not — so on the very edit that ADDS this
+  // block, the widget would otherwise stay mounted as a floating launcher on
+  // document.body and this box would sit empty until a manual refresh.
+  // main.preact.jsx's __remount tears the current widget down properly and
+  // boots it again against the element that now exists.
+  //
+  // The querySelector is the actual test: has a shadow host already been
+  // appended inside this mount point? Editing a setting re-renders this
+  // section's markup, which destroys the previous host along with it, so the
+  // answer is correctly "no" and we remount. It's "yes" only if this script
+  // somehow re-runs against markup the widget is still living in, where
+  // remounting would throw away the merchant's current tab for nothing.
+  if (
+    window.NBL_v1.__booted &&
+    typeof window.NBL_v1.__remount === 'function' &&
+    !document.querySelector({{ mount_id | prepend: '#' | json }} + ' > div')
+  ) {
+    window.NBL_v1.__remount();
+  }
+  {%- endif %}
+</script>
+
+<style>
+  .nbl-page-block {
+    /* NO `width` here, deliberately — see align-self below. Width must stay
+       `auto` or the stretch has no effect at all. */
+    box-sizing: border-box;
+    padding-top: var(--nbl-page-pad-top, 24px);
+    padding-bottom: var(--nbl-page-pad-bottom, 40px);
+    /* These two lines are the whole reason page-mode sizing works, and every
+       symptom that preceded them traces back to their absence.
+
+       Theme sections lay their blocks out in a flex or grid container and
+       expose the theme's own content-alignment setting on it. Horizon's page
+       sections are the flex case — `.layout-panel-flex--column` carrying
+       `--horizontal-alignment: flex-start`, which drives `align-items`. In a
+       COLUMN flex container the cross axis is horizontal, so `align-items:
+       flex-start` sizes every item to its own CONTENT instead of filling the
+       container. This wrapper therefore collapsed to exactly the width of the
+       widget inside it, and from there:
+
+         - the widget had nothing real to measure a percentage against, so
+           each tab rendered at whatever its content needed — Home (three
+           shortcut cards side by side) wider than Referral (one column);
+         - `max-width` had nothing to clamp, so a full-width mobile setting
+           spilled past the theme's right gutter;
+         - `margin: auto` had no free space to distribute, so the Alignment
+           setting did nothing at all.
+
+       `align-self` overrides `align-items` for this one item; `justify-self`
+       does the same for `justify-items` in themes that lay sections out with
+       grid instead.
+
+       CRITICAL, and the reason this took a second pass: `stretch` only
+       applies when the cross-size property is `auto`. An earlier version of
+       this rule also set `width: 100%`, which silently disabled both
+       declarations — the browser skips stretch for an item with a specified
+       width, and the percentage then resolved against the same shrink-to-fit
+       parent it was meant to escape. It looked correct in the theme editor
+       only because design mode also renders the setup notice below, whose
+       long text widened the wrapper by accident; on the live storefront,
+       with no notice, the block collapsed back to the widget's own content
+       width. Leave `width` unset. The wrapper then fills the section's content column —
+       gutters included, because that column IS the theme's own — while
+       everything else in the section keeps the merchant's chosen alignment.
+
+       Once that holds, plain percentages inside the widget are honest again,
+       and none of the clamping, JS measuring or viewport arithmetic that came
+       before is needed anywhere.
+
+       Deliberately NOT `grid-column: 1 / -1`: section grids commonly define
+       full-bleed tracks either side of the content column, and spanning them
+       would push the block edge-to-edge past the theme's gutters. Filling the
+       assigned column is the correct scope. */
+    align-self: stretch;
+    justify-self: stretch;
+  }
+
+  /* Matches the widget's own alignment, so a left-aligned block doesn't get
+     a centred heading floating above it. Width is capped to the same value
+     for the same reason — a full-width heading over a 700px widget reads as
+     belonging to the page, not to the block. */
+  .nbl-page-block__heading {
+    max-width: var(--nbl-page-max-width, 1100px);
+    margin-top: 0;
+    margin-bottom: 20px;
+    margin-left: var(--nbl-page-margin-left, auto);
+    margin-right: var(--nbl-page-margin-right, auto);
+  }
+
+  .nbl-page-block--left .nbl-page-block__heading {
+    text-align: left;
+  }
+
+  .nbl-page-block--center .nbl-page-block__heading {
+    text-align: center;
+  }
+
+  .nbl-page-block--right .nbl-page-block__heading {
+    text-align: right;
+  }
+
+  .nbl-page-block__notice {
+    max-width: var(--nbl-page-max-width, 1100px);
+    /* Follows the widget's alignment rather than always centring — otherwise
+       a left-aligned block gets a centred notice sitting under it, which
+       reads as a page element rather than as this block's own message. */
+    margin-top: 16px;
+    margin-bottom: 0;
+    margin-left: var(--nbl-page-margin-left, auto);
+    margin-right: var(--nbl-page-margin-right, auto);
+    padding: 12px 14px;
+    border: 1px dashed currentColor;
+    border-radius: 8px;
+    opacity: 0.7;
+    font-size: 0.85em;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* Vertical spacing scales down with the viewport — the merchant's setting
+     is chosen while looking at a desktop preview, and the same 40px below a
+     block that now fills a phone screen is dead space between it and the
+     FAQ underneath. Same 749px breakpoint the widget itself uses. */
+  @media (max-width: 749px) {
+    .nbl-page-block {
+      padding-top: min(var(--nbl-page-pad-top, 24px), 20px);
+      padding-bottom: min(var(--nbl-page-pad-bottom, 40px), 28px);
+    }
+
+    .nbl-page-block__heading,
+    .nbl-page-block__notice {
+      max-width: var(--nbl-page-max-width-mobile, 100%);
+    }
+  }
+</style>
+
+{% schema %}
+{
+  "name": "Loyalty & Rewards",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "info": "Optional. Leave empty if the page already has its own title above this block."
+    },
+    {
+      "type": "select",
+      "id": "alignment",
+      "label": "Alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Centre" },
+        { "value": "right", "label": "Right" }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "header",
+      "content": "Desktop"
+    },
+    {
+      "type": "range",
+      "id": "max_width",
+      "label": "Width",
+      "min": 400,
+      "max": 1600,
+      "step": 20,
+      "unit": "px",
+      "default": 1100,
+      "info": "Narrows automatically if the page has less room than this."
+    },
+    {
+      "type": "range",
+      "id": "min_height",
+      "label": "Minimum height",
+      "min": 300,
+      "max": 1000,
+      "step": 20,
+      "unit": "px",
+      "default": 560,
+      "info": "Keeps the block from collapsing when a tab has little content in it yet."
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_scroll",
+      "label": "Scroll inside the block",
+      "default": false,
+      "info": "Off (recommended): the block grows to fit its tallest tab and the page scrolls. On: the block is capped at the height below and scrolls internally, with the tab bar pinned."
+    },
+    {
+      "type": "range",
+      "id": "max_height",
+      "label": "Height when scrolling",
+      "min": 400,
+      "max": 1200,
+      "step": 20,
+      "unit": "px",
+      "default": 720,
+      "info": "Only used when 'Scroll inside the block' is on."
+    },
+    {
+      "type": "header",
+      "content": "Mobile"
+    },
+    {
+      "type": "range",
+      "id": "max_width_mobile",
+      "label": "Width",
+      "min": 50,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "default": 100,
+      "info": "Share of the width the page gives this block. 100% lines up with your other sections."
+    },
+    {
+      "type": "range",
+      "id": "min_height_mobile",
+      "label": "Minimum height",
+      "min": 240,
+      "max": 900,
+      "step": 20,
+      "unit": "px",
+      "default": 420
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_scroll_mobile",
+      "label": "Scroll inside the block",
+      "default": false,
+      "info": "Off is strongly recommended on phones: a scrolling area inside a scrolling page means a swipe goes to whichever of the two is under the thumb."
+    },
+    {
+      "type": "range",
+      "id": "max_height_mobile",
+      "label": "Height when scrolling",
+      "min": 300,
+      "max": 900,
+      "step": 20,
+      "unit": "px",
+      "default": 560,
+      "info": "Only used when 'Scroll inside the block' is on."
+    },
+    {
+      "type": "header",
+      "content": "Spacing"
+    },
+    {
+      "type": "range",
+      "id": "padding_top",
+      "label": "Top spacing",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "default": 24
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom",
+      "label": "Bottom spacing",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "default": 40
+    }
+  ]
+}
+{% endschema %}

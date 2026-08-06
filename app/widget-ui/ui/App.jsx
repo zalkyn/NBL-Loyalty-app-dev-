@@ -8,7 +8,7 @@
 import { h, Fragment } from 'preact';
 import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { icon } from './icons.js';
-import { formatNumber, buildReferralLink } from './utils.js';
+import { formatNumber, buildReferralLink, buildPageLink } from './utils.js';
 import { LauncherButton } from './components/LauncherButton.jsx';
 import { WidgetShell } from './components/WidgetShell.jsx';
 import { UpdateBanner } from './components/UpdateBanner.jsx';
@@ -37,6 +37,50 @@ import { ActiveRewardsTab } from './tabs/ActiveRewardsTab.jsx';
 import { MyPrizesTab } from './tabs/MyPrizesTab.jsx';
 import { requestRewardVoucher, requestClaimPrize, requestConfigResync } from './api.js';
 
+const FULLSCREEN_PREF_KEY = 'NBL_Fullscreen';
+
+// Deep links: /any-page?nbl=rewards opens the widget straight to a tab, so a
+// merchant can point a nav menu item or an email campaign at the loyalty
+// program without us needing a dedicated page URL. Same mechanism the
+// referral flow already uses via ?nbl-referral= (see referralCache.js).
+// Keys are the public, human-typeable names; values are the internal tab
+// keys, which aren't all guessable ('points' for Earn, 'active-rewards' for
+// My Rewards).
+const DEEP_LINK_TABS = {
+    open: 'home',
+    home: 'home',
+    referral: 'referral',
+    earn: 'points',
+    points: 'points',
+    rewards: 'rewards',
+    prizes: 'prizes',
+    'my-rewards': 'active-rewards',
+    'my-prizes': 'my-prizes',
+    activity: 'activities',
+    activities: 'activities',
+};
+
+// The reverse of DEEP_LINK_TABS, used when the widget WRITES a tab into the
+// URL rather than reading one out of it (page mode's syncPageUrl, and the
+// header's link to the dedicated page). DEEP_LINK_TABS can't just be
+// inverted at runtime: it's deliberately many-to-one (both 'earn' and
+// 'points' resolve to the 'points' tab) so customers and merchants can type
+// whichever name they'd naturally reach for. Inverting it would pick a
+// winner by object key order, which is not something to leave to chance for
+// a URL customers will see, bookmark and share. This picks explicitly.
+//
+// 'home' is intentionally absent — it's the default tab, so it writes no
+// param at all rather than a redundant ?nbl=home.
+const TAB_URL_NAMES = {
+    referral: 'referral',
+    points: 'earn',
+    rewards: 'rewards',
+    prizes: 'prizes',
+    'active-rewards': 'my-rewards',
+    'my-prizes': 'my-prizes',
+    activities: 'activity',
+};
+
 function TabPanel({ tabKey, activeTab, children }) {
     return (
         <div class={`nbl-tab-panel${activeTab === tabKey ? ' active' : ''}`} data-tab={tabKey}>
@@ -55,8 +99,34 @@ function fmtDate(iso) {
 }
 
 export function App({ initialData, bridgeRef, hostEl }) {
+    // 'page' when the widget mounted into the merchant's own loyalty page
+    // (main.preact.jsx's findPageMount), 'floating' everywhere else. Fixed
+    // for the lifetime of the page — it's decided by which DOM node we
+    // mounted into, which never changes — so it's a plain const, not state.
+    //
+    // Everything mode-dependent below keys off this one flag rather than
+    // each site sniffing initialData again, so there is exactly one place
+    // that decides what "page mode" means.
+    const isPage = initialData.mode === 'page';
+    // Inside the admin's Live Preview iframe. Set by preview-moc-config.js and
+    // passed through initialData — deliberately NOT `!!bridgeRef`, which is
+    // truthy in both builds (see main.preact.jsx) and so silently means
+    // "always".
+    const isPreview = !!initialData.isPreview;
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('home');
+    // Remembered per device (not per account) — a customer who expanded the
+    // widget once almost certainly wants it expanded next time, and having
+    // to click expand on every single page view would make the feature
+    // actively annoying. Read lazily so the very first paint is already in
+    // the right mode rather than snapping a frame later.
+    const [isFullscreen, setIsFullscreen] = useState(function () {
+        try {
+            return localStorage.getItem(FULLSCREEN_PREF_KEY) === '1';
+        } catch (e) {
+            return false; // storage blocked (private mode, cookie settings) — not an error worth surfacing
+        }
+    });
 
     // GuestPanel's Create Account / Sign In buttons (see GuestPanel.jsx)
     // save this flag right before navigating away, so that when the
@@ -107,9 +177,14 @@ export function App({ initialData, bridgeRef, hostEl }) {
     const customerName = initialData.customerName || '';
     // useState (not const) — the preview bridge needs to update these live as
     // the merchant tweaks position/icon in the dashboard, before saving.
-    // Production never calls the bridge (bridgeRef is undefined there), so
-    // these just keep their initial value for the lifetime of the page,
-    // exactly as before.
+    // Production never calls the bridge (nothing injects into bridgeRef
+    // outside the preview harness), so these just keep their initial value
+    // for the lifetime of the page, exactly as before.
+    //
+    // Note the bridge OBJECT exists in production too — main.preact.jsx
+    // creates it unconditionally, because the storefront and preview bundles
+    // are the same file. `!!bridgeRef` is therefore not a preview test; use
+    // the isPreview flag above.
     const [position, setPosition] = useState(initialData.buttonPosition === 'right' ? 'right' : 'left');
     const [launcherIconName, setLauncherIconName] = useState(initialData.launcherIconName || '');
     const appConfig = initialData.appConfig || {};
@@ -126,6 +201,42 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // would re-fire the hidden-active-tab effect below on every render.
     const navConfig = useMemo(() => widgetConfig.nav || {}, [widgetConfig.nav]);
     const referralTabVisible = isTabVisible('referral', navConfig);
+    // Defaults to true, so `!== false` is the correct read here (unlike the
+    // nav flags, three of which default to false and must go through
+    // isTabVisible instead).
+    const allowFullscreen = (widgetConfig.display && widgetConfig.display.allowFullscreen) !== false;
+    // Customize > Behaviour > "Expand button opens": 'fullscreen' | 'page' |
+    // 'none'. One explicit choice, because the merchant is picking between two
+    // destinations for one control — deriving it from "is this other text box
+    // filled in?" made the behaviour unpredictable from looking at the
+    // settings.
+    //
+    // The fallback reads the legacy allowFullscreen toggle, which is all a
+    // shop that saved its config before this setting existed has: they get
+    // 'fullscreen' if it was on, 'none' if they had deliberately switched the
+    // control off. Either way their widget behaves tomorrow exactly as it did
+    // yesterday, with no migration.
+    const expandAction = (widgetConfig.display && widgetConfig.display.expandAction)
+        || (allowFullscreen ? 'fullscreen' : 'none');
+    const pageUrl = (widgetConfig.display && widgetConfig.display.pageUrl) || '';
+    // buildPageLink() returns '' for anything that isn't a relative path, so a
+    // merchant who picks "Loyalty page" and then pastes a full https:// URL —
+    // or hasn't filled the field in yet — gets no control rather than a
+    // control that 404s.
+    const showPageLink = !isPage && expandAction === 'page' && !!buildPageLink(pageUrl, '');
+    const showFullscreenToggle = !isPage && expandAction === 'fullscreen';
+    // isFullscreen is a per-device localStorage preference, so it arrives
+    // already true for anyone who expanded the widget before — including
+    // after the merchant has since switched the expand button to "Loyalty
+    // page" or "Nothing". In those configurations there is no collapse
+    // control in the header, so honouring the stored preference would open
+    // the widget full screen with no way back out of it: the customer taps
+    // the launcher and the widget swallows the whole screen, permanently.
+    //
+    // Gated here rather than by clearing the stored value, because the
+    // merchant may switch back to "Full screen" tomorrow and the customer's
+    // preference should still be there when they do.
+    const fullscreenActive = isFullscreen && showFullscreenToggle;
     const currencySymbol = (appConfig.shop && appConfig.shop.currencySymbol) || '$';
     const [referralLink, setReferralLink] = useState(initialData.referralLink || '');
     const shopUrl = initialData.shopUrl || '';
@@ -354,11 +465,18 @@ export function App({ initialData, bridgeRef, hostEl }) {
         clearAll: clearToasts,
     } = useToastNotifications({
         isLoggedIn,
-        enabled: widgetConfig.enableToastNotifications,
+        // Off in page mode. Toasts exist to surface activity the customer
+        // would otherwise have to open the widget to discover — on the
+        // loyalty page the widget is already open in front of them, with
+        // that same activity listed in it, so a stack of floating cards
+        // announcing it is pure noise on top of the real thing. Leaving them
+        // unseen is also the correct outcome: they'll surface normally on
+        // the customer's next storefront page.
+        enabled: widgetConfig.enableToastNotifications && !isPage,
         transactions,
         customerId: customer && customer.id,
         proxyPath,
-        isPreview: !!bridgeRef,
+        isPreview,
     });
 
     // ── Preview-only dummy toasts (admin "Toast Notifications" customize
@@ -534,6 +652,49 @@ export function App({ initialData, bridgeRef, hostEl }) {
             return next;
         });
     }
+    // ── Page mode: keep the address bar in step with the active tab ─────────
+    // On a dedicated page the tab IS the page's view state, so it belongs in
+    // the URL: refresh, bookmark, browser back to the page, and "send me
+    // that link" all land on the tab the customer was actually looking at.
+    // (In floating mode the same param means something different — a one-shot
+    // "open the widget here" instruction — which is why the deep-link effect
+    // below strips it there and keeps it here.)
+    //
+    // replaceState, NOT pushState: pushing would make every tab click a
+    // history entry, so a customer who browsed four tabs would need five
+    // Back presses to leave the page. Nobody expects that from a tab rail.
+    // The trade-off — Back doesn't step between tabs — is the right one, and
+    // matches how tabs behave on most storefronts.
+    function syncPageUrl(tabKey) {
+        try {
+            const name = TAB_URL_NAMES[tabKey];
+            const url = new URL(window.location.href);
+            if (name) url.searchParams.set('nbl', name);
+            else url.searchParams.delete('nbl'); // 'home' — plain page URL, no redundant param
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) { /* History API unavailable — the tab still switches, only the URL doesn't follow */ }
+    }
+
+    // ── Page mode: don't switch tabs off screen ─────────────────────────────
+    // The widget sits in a page with the merchant's own content below it
+    // (that's the whole point of the page), so a customer can easily be
+    // reading the FAQ when they use the tab rail — which, on a page that
+    // doesn't scroll itself, would swap the content somewhere above them
+    // with no visible feedback at all.
+    //
+    // Only ever scrolls UP, never down: if the widget is already in view
+    // this is a no-op, so a normal tab click at the top of the page doesn't
+    // get an unnecessary animation. 16px of breathing room above it so the
+    // header isn't flush against the viewport edge.
+    function revealPageWidget() {
+        if (!hostEl) return;
+        try {
+            const top = hostEl.getBoundingClientRect().top;
+            if (top >= 0) return;
+            window.scrollTo({ top: window.scrollY + top - 16, behavior: 'smooth' });
+        } catch (e) { /* no layout info / scrollTo options unsupported — the tab still switches */ }
+    }
+
     function setActiveNavigation(tabKey) {
         const next = tabKey || 'home';
         // Nothing in the UI should be able to reach a switched-off tab, but
@@ -541,8 +702,87 @@ export function App({ initialData, bridgeRef, hostEl }) {
         // cards, the Earn tab's referral button, the preview bridge's
         // setScene) — guarding centrally here means none of them can land
         // the customer on a tab with no way back to it.
-        setActiveTab(isTabVisible(next, navConfig) ? next : 'home');
+        const resolved = isTabVisible(next, navConfig) ? next : 'home';
+        setActiveTab(resolved);
+        // Both are page-only, and both are driven from the RESOLVED tab, not
+        // the requested one — otherwise a link to a tab the merchant has
+        // since switched off would leave ?nbl= pointing at a tab the customer
+        // isn't on.
+        if (isPage) {
+            syncPageUrl(resolved);
+            revealPageWidget();
+        }
     }
+
+    function toggleFullscreen() {
+        setIsFullscreen(function (prev) {
+            const next = !prev;
+            try {
+                localStorage.setItem(FULLSCREEN_PREF_KEY, next ? '1' : '0');
+            } catch (e) { /* storage blocked — the mode still works, it just won't persist */ }
+            return next;
+        });
+    }
+
+    // Full screen covers the storefront completely, so letting the page keep
+    // scrolling underneath means the customer's wheel/touch gestures move
+    // content they can't see, and they come back to a page scrolled somewhere
+    // unexpected. The previous inline value is captured and restored rather
+    // than being reset to '' — themes do sometimes set body overflow
+    // themselves (drawer/menu open), and stomping it would break them.
+    //
+    // The isPage guard is load-bearing, not defensive: isFullscreen is
+    // seeded from a per-device localStorage preference, so a customer who
+    // once expanded the floating widget arrives at the loyalty page with it
+    // already true. Without this, that customer's page would silently lock
+    // its own scroll on load — the widget renders inline, nothing looks
+    // wrong, and the page simply refuses to move.
+    useEffect(() => {
+        if (isPage || !(isOpen && fullscreenActive)) return;
+        const previous = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = previous; };
+    }, [isOpen, fullscreenActive, isPage]);
+
+    // Deep link — runs once on mount. The param is stripped afterwards so a
+    // refresh, back-navigation or shared copy of the URL doesn't force the
+    // widget open again, and so the address bar stays clean (same treatment
+    // referralCache.js gives ?nbl-referral=).
+    useEffect(() => {
+        let target;
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const raw = params.get('nbl');
+            if (!raw) return;
+            target = DEEP_LINK_TABS[raw.toLowerCase()];
+
+            // Page mode KEEPS the param — see syncPageUrl above for why:
+            // there it's the page's own view state, not a one-shot
+            // instruction, so stripping it would break refresh, bookmarks
+            // and shared links. There's also no panel to open and no
+            // full-screen mode to enter, which is the rest of this block.
+            if (!isPage) {
+                const wantsFullscreen = (params.get('nbl-view') || '').toLowerCase() === 'full';
+
+                const url = new URL(window.location.href);
+                url.searchParams.delete('nbl');
+                url.searchParams.delete('nbl-view');
+                window.history.replaceState({}, '', url.toString());
+
+                if (!target) return;
+                if (wantsFullscreen && expandAction === 'fullscreen') setIsFullscreen(true);
+                setIsOpen(true);
+            }
+            if (!target) return;
+        } catch (e) {
+            return; // malformed URL / History API unavailable — just don't deep link
+        }
+        // Routed through the same guard as every other navigation, so a link
+        // pointing at a tab the merchant has since switched off lands on Home
+        // instead of an empty panel.
+        setActiveNavigation(target);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // The merchant can switch off the tab a customer is currently sitting
     // on — live, while the admin preview is open, or on the next page load
@@ -791,28 +1031,39 @@ export function App({ initialData, bridgeRef, hostEl }) {
         }
     }
 
+    // Both of these are floating-mode furniture with nothing to do on a
+    // dedicated page: the launcher opens a panel that's already open and
+    // permanently so, and the toast stack is switched off there anyway (see
+    // useToastNotifications above). Not rendered at all rather than hidden
+    // with CSS — there's no state to preserve across a mode change, because
+    // the mode can't change.
     return (
         <div id="nbl-loyalty-root">
-            <LauncherButton
-                isLoggedIn={isMember}
-                points={points}
-                pointsPending={pointsPending && showSyncIndicator}
-                position={position}
-                launcherIconName={launcherIconName}
-                onClick={toggleWidget}
-                lbl={lbl}
-            />
-            <ToastStack
-                toasts={effectiveToasts}
-                moreCount={effectiveToastsMore}
-                hidden={isPreviewToast ? false : isOpen}
-                position={position}
-                onOpenWidget={isPreviewToast ? function () { } : toggleWidget}
-                onDismissToast={isPreviewToast ? function () { } : dismissToast}
-                onExpand={isPreviewToast ? function () { } : expandToasts}
-            />
+            {!isPage && (
+                <LauncherButton
+                    hidden={isOpen && fullscreenActive}
+                    isLoggedIn={isMember}
+                    points={points}
+                    pointsPending={pointsPending && showSyncIndicator}
+                    position={position}
+                    launcherIconName={launcherIconName}
+                    onClick={toggleWidget}
+                    lbl={lbl}
+                />
+            )}
+            {!isPage && (
+                <ToastStack
+                    toasts={effectiveToasts}
+                    moreCount={effectiveToastsMore}
+                    hidden={isPreviewToast ? false : isOpen}
+                    position={position}
+                    onOpenWidget={isPreviewToast ? function () { } : toggleWidget}
+                    onDismissToast={isPreviewToast ? function () { } : dismissToast}
+                    onExpand={isPreviewToast ? function () { } : expandToasts}
+                />
+            )}
             <WidgetShell
-                isOpen={isOpen}
+                isOpen={isPage || isOpen}
                 isLoggedIn={isMember}
                 customerName={customerName}
                 points={points}
@@ -823,6 +1074,23 @@ export function App({ initialData, bridgeRef, hostEl }) {
                 lbl={lbl}
                 pointsPending={pointsPending && showSyncIndicator}
                 navConfig={navConfig}
+                mode={isPage ? 'page' : (fullscreenActive ? 'fullscreen' : 'floating')}
+                showFullscreenToggle={showFullscreenToggle}
+                onToggleFullscreen={toggleFullscreen}
+                pageHref={showPageLink ? buildPageLink(pageUrl, TAB_URL_NAMES[activeTab]) : ''}
+                // The admin's live preview renders this same widget inside an
+                // iframe on preview.html. A relative href there resolves
+                // against the admin origin, so clicking it navigated the
+                // iframe off the preview document entirely — the widget, the
+                // launcher and the preview itself all vanished, with no way
+                // back except reloading the settings page.
+                //
+                // The control still renders, because the merchant is here to
+                // see what their widget looks like and a button that's absent
+                // in the preview but present on the storefront is its own
+                // kind of wrong. It just doesn't navigate. bridgeRef is only
+                // ever defined in the preview, so this is inert in production.
+                onPageLinkClick={isPreview ? function (e) { e.preventDefault(); } : undefined}
                 notificationSlot={
                     <NotificationPanel
                         notification={notification}

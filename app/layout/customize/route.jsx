@@ -30,7 +30,7 @@ import { authenticate } from "shopify-server";
 import SaveBar from "@components/saveBar/SaveBar";
 
 import { loadCustomizeData } from "./_loader.server";
-import { handleUpdate, handleResetAll, handleClearAll } from "./_action.server";
+import { handleUpdate, handleResetAll, handleClearAll, handleSearchPages } from "./_action.server";
 import { useCustomizePage } from "./_hooks";
 import { SECTION_TO_SCENE, CONFIG_SECTION_TO_SCENE, LABEL_GROUP_TO_SCENE } from "./constants/cssVarsConfig";
 
@@ -64,6 +64,7 @@ export const action = async ({ request }) => {
         case "update": return handleUpdate(ctx);
         case "resetAll": return handleResetAll(ctx);
         case "clearAll": return handleClearAll(ctx);
+        case "searchPages": return handleSearchPages(ctx);
         default: return { ok: false, message: "Unknown intent." };
     }
 };

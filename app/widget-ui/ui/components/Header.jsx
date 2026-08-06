@@ -9,11 +9,19 @@ import { useState, useEffect } from 'preact/hooks';
 import { Nav } from './Nav.jsx';
 import { Heading } from './Heading.jsx';
 import { Button } from './Button.jsx';
+import { Icon } from './Icon.jsx';
 import { Text } from './Text.jsx';
 import { usePointsBump } from '../hooks/usePointsBump.js';
 import { formatNumber } from '../utils.js';
 
-export function Header({ isLoggedIn, customerName, points, compact, activeTab, onNavChange, onClose, lbl, pointsPending, navConfig }) {
+export function Header({ isLoggedIn, customerName, points, compact, activeTab, onNavChange, onClose, lbl, pointsPending, navConfig, mode, showFullscreenToggle, isFullscreen, onToggleFullscreen, pageHref, onPageLinkClick }) {
+    // In page mode the widget IS the page — there's nothing to close it back
+    // into and nothing bigger to expand it to, so both corner controls go.
+    // App.jsx already guarantees showFullscreenToggle/pageHref are falsy
+    // there; this is the second half of the same decision, kept here so the
+    // close button (which App.jsx says nothing about) is handled in the same
+    // place and by the same rule.
+    const isPage = mode === 'page';
     const bump = usePointsBump(points);
     const [ready, setReady] = useState(false);
 
@@ -34,6 +42,33 @@ export function Header({ isLoggedIn, customerName, points, compact, activeTab, o
 
     return (
         <div class={`nbl-header${compact ? ' compact' : ''}${ready ? ' ready' : ''}${isLoggedIn ? '' : ' nbl-header--standalone'}`}>
+            {/* A real anchor, not a button with a location assignment:
+                middle-click, cmd/ctrl-click, "open in new tab" and "copy
+                link address" are all things customers genuinely do with a
+                control that navigates, and all of them silently do nothing
+                on a <button>. It carries the current tab (App.jsx builds the
+                href), so expanding from Rewards lands on Rewards. */}
+            {!isPage && pageHref && (
+                <a
+                    class="nbl-button--bare-reset nbl-header__expand nbl-header__expand--link"
+                    href={pageHref}
+                    onClick={onPageLinkClick}
+                    aria-label={lbl('expandToPageAria') || 'Open the full rewards page'}
+                >
+                    <Icon name="open-page" px={13} />
+                </a>
+            )}
+            {!isPage && showFullscreenToggle && (
+                <Button
+                    bare
+                    extraClass="nbl-header__expand"
+                    aria-label={isFullscreen ? 'Exit full screen' : 'Expand to full screen'}
+                    onClick={onToggleFullscreen}
+                >
+                    <Icon name={isFullscreen ? 'collapse' : 'expand'} px={13} />
+                </Button>
+            )}
+            {!isPage && (
             <Button bare extraClass="nbl-header__close" aria-label="Close" onClick={onClose}>
                 <span
                     class="nbl-icon"
@@ -43,6 +78,7 @@ export function Header({ isLoggedIn, customerName, points, compact, activeTab, o
                     }}
                 />
             </Button>
+            )}
             <div>
                 <div class="nbl-header__top">
                     {isLoggedIn ? (

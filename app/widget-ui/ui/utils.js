@@ -27,6 +27,26 @@ export function buildReferralLink(shopUrl, linkPath, code) {
     return (shopUrl || '') + path + separator + 'nbl-referral=' + (code || '');
 }
 
+// Builds the storefront URL of the merchant's dedicated loyalty page
+// (Customize > Behaviour > "Loyalty page URL", cssVarsConfig.js's
+// display.pageUrl), optionally deep-linked to a specific tab via ?nbl=.
+//
+// Same defensive contract as buildReferralLink above, with one deliberate
+// difference: an invalid/empty setting returns '' rather than falling back
+// to "/". There is no sensible default page here — a merchant who hasn't
+// built one has no loyalty page — and the caller (App.jsx) uses that empty
+// string to hide the header control entirely, which is strictly better than
+// rendering an expand button that drops the customer on the homepage.
+//
+// tabName is the PUBLIC deep-link name (App.jsx's TAB_URL_NAMES), not the
+// internal tab key — 'earn', not 'points'.
+export function buildPageLink(pagePath, tabName) {
+    if (typeof pagePath !== 'string' || !pagePath.startsWith('/')) return '';
+    if (!tabName) return pagePath;
+    const separator = pagePath.indexOf('?') === -1 ? '?' : '&';
+    return pagePath + separator + 'nbl=' + encodeURIComponent(tabName);
+}
+
 export function formatPoints(n) {
     n = Number(n) || 0;
     return formatNumber(n) + ' ' + (n === 1 ? 'point' : 'points');

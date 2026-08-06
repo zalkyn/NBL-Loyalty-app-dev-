@@ -29,9 +29,10 @@
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
-    "widget:build": "node app/widget-ui/ui/build.js",
-    "widget:build:debug": "node app/widget-ui/ui/build.js --debug",
-    "widget:dev": "node app/widget-ui/ui/build.js --watch"
+    "widget:build": "node scripts/check-widget-css.js && node app/widget-ui/ui/build.js",
+    "widget:build:debug": "node scripts/check-widget-css.js && node app/widget-ui/ui/build.js --debug",
+    "widget:dev": "node app/widget-ui/ui/build.js --watch",
+    "widget:check": "node scripts/check-widget-css.js"
   },
   "type": "module",
   "engines": {
