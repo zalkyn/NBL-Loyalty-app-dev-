@@ -108,7 +108,7 @@ export function Header({ isLoggedIn, customerName, points, compact, activeTab, o
                             </div>
                         </>
                     ) : (
-                        <Heading as="h3" bare extraClass="nbl-header__title">NBL Loyalty Program</Heading>
+                        <Heading as="h3" bare extraClass="nbl-header__title">{lbl('guestHeaderTitle') || 'Northborders Loyalty Program'}</Heading>
                     )}
                 </div>
                 {isLoggedIn && <Nav activeTab={activeTab} onChange={onNavChange} lbl={lbl} navConfig={navConfig} />}

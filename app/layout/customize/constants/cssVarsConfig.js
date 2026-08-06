@@ -75,6 +75,7 @@ export const LABEL_DEFAULTS = {
     // Guest panel (logged-out view) — GuestPanel.jsx already reads all of
     // these via lbl() with matching hardcoded fallbacks; they just had no
     // admin field to edit them.
+    guestHeaderTitle: "Northborders Loyalty Program",
     guestTitle: "Earn & Redeem Rewards",
     guestSubtitle: "Join the loyalty program and start earning points on every purchase.",
     guestPerkEarn: "Earn on every order",
@@ -96,7 +97,7 @@ export const LABEL_DEFAULTS = {
 
     // Referral modal — previously entirely hardcoded, not wired to lbl()
     // at all (see ReferralModal.jsx).
-    referralModalBrand: "NBL Loyalty",
+    referralModalBrand: "Northborders Loyalty Program",
     referralLoginTitle: "Login to Claim Your Referral Discount",
     referralLoginSubtitle: "Log into your account to unlock your referral discount.",
     referralLoginNote: "Almost there! After you sign in, just head back to our store \u2014 your discount code will be waiting for you right here.",
@@ -670,6 +671,7 @@ export const WIDGET_CONFIG_SECTIONS = [
 
             { key: "lbl_navReferral", label: "Nav — Referral tab", hint: "Label shown on the Referral navigation tab", type: "label", configKey: "labels.navReferral", default: LABEL_DEFAULTS.navReferral },
 
+            { key: "lbl_guestHeaderTitle", label: "Guest — Header Title", hint: "Top header bar title shown to logged-out visitors and to logged-in customers who haven't joined yet", type: "label", configKey: "labels.guestHeaderTitle", default: LABEL_DEFAULTS.guestHeaderTitle },
             { key: "lbl_guestTitle", label: "Guest — Title", hint: "Heading shown to logged-out visitors", type: "label", configKey: "labels.guestTitle", default: LABEL_DEFAULTS.guestTitle },
             { key: "lbl_guestSubtitle", label: "Guest — Subtitle", hint: "Subtitle shown to logged-out visitors", type: "label", configKey: "labels.guestSubtitle", default: LABEL_DEFAULTS.guestSubtitle },
             { key: "lbl_guestPerkEarn", label: "Guest — Perk: Earn", hint: "First perk shown to logged-out visitors", type: "label", configKey: "labels.guestPerkEarn", default: LABEL_DEFAULTS.guestPerkEarn },
@@ -727,6 +729,7 @@ const LABEL_GROUP_FIELD_KEYS = {
     launcher: ["lbl_launcherTitle", "lbl_launcherSubtitle"],
     updateBanner: ["lbl_updateBannerTitle", "lbl_updateBannerDesc"],
     guestJoin: [
+        "lbl_guestHeaderTitle",
         "lbl_guestTitle", "lbl_guestSubtitle", "lbl_guestPerkEarn", "lbl_guestPerkRedeem", "lbl_guestPerkRefer",
         "lbl_guestCreateAccount", "lbl_guestCreateAccountHint", "lbl_guestSignIn", "lbl_guestSignInHint",
         "lbl_joinProgramTitle", "lbl_joinProgramSubtitle", "lbl_joinProgramAutoFailTitle", "lbl_joinProgramAutoFailSubtitle",
