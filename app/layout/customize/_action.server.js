@@ -1,5 +1,6 @@
 import prisma from "db-server";
 import syncAppConfig from "@controller/metafieldsSync/syncAppConfig";
+import searchPages from "@graphql/query/shop/searchPages";
 import { CSS_DEFAULTS, WIDGET_CONFIG_DEFAULTS, deepClone } from "./constants/cssVarsConfig";
 import { logger } from "app/utils/logger.js";
 
@@ -107,4 +108,17 @@ export async function handleClearAll({ session, admin }) {
         logger.error("Clear-all customize error", { module: MODULE, intent, error: err?.message, shop: session.shop });
         return { ok: false, intent, message: "Something went wrong. Please try again." };
     }
+}
+
+// ── SEARCH PAGES — backs the "Show widget on" page picker. Called via its
+//    own useFetcher (see ConfigPagePickerField.jsx), NOT through the main
+//    useSubmit()/actionData flow the other three intents share — so a
+//    search-as-you-type keystroke never touches isNetworkSubmitting or
+//    the save/discard state the rest of the page tracks. ─────────────────
+
+export async function handleSearchPages({ formData, admin }) {
+    const intent = "searchPages";
+    const term = formData.get("search") || "";
+    const pages = await searchPages(admin, term);
+    return { ok: true, intent, pages };
 }

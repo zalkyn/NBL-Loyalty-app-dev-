@@ -113,7 +113,9 @@ function reconcileSeenIds(customerId, transactions) {
  * @param {string|number} params.customerId - Shopify customer id, for localStorage scoping
  * @param {string}  params.proxyPath
  * @param {boolean} params.isPreview     - true inside the admin dashboard's Live Preview
- *   (same signal as `!!bridgeRef` in App.jsx — production never sets this).
+ *   (App.jsx's isPreview, sourced from window.NBL_v1.__isPreview, which only
+ *   preview-moc-config.js sets — NOT `!!bridgeRef`, which is truthy in both
+ *   builds and made this hook a no-op everywhere until it was corrected).
  *   Live Preview isn't reached through Shopify's storefront App Proxy, so
  *   `proxyPath` (e.g. "/apps/widget/...") doesn't resolve to any real route
  *   there — it 404s. There's no real customer/DB in preview anyway, so we
