@@ -83,7 +83,7 @@ export function ReferralModal({ refModal, pointRules, currencySymbol, onUpdateCl
     } = refModal;
 
     const rewardRows = buildFriendRewardRows(pointRules, currencySymbol);
-    const brand = lbl('referralModalBrand') || 'NBL Loyalty';
+    const brand = lbl('referralModalBrand') || 'NB Loyalty Program';
 
     return (
         <div class="nbl-refer-modal-overlay show" role="dialog" aria-modal="true" aria-labelledby="nbl-modal-title">
