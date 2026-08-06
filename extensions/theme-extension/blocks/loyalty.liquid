@@ -24,8 +24,70 @@
   assign nbl_customer_rewards = customer.metafields.app.nbl_customer_rewards_v1.value
   assign nbl_customer_prizeclaims = customer.metafields.app.nbl_customer_prizeclaims_v1.value
   assign nbl_referral_code = nbl_customer_core.referralCode | default: nbl_customer_legacy.referralCode
+
+  # ── Floating widget page visibility ──────────────────────────────────────
+  # Customize > Behaviour > "Show widget on" (ConfigPagePickerField.jsx).
+  # Only gates THIS block — the app EMBED, target: body, i.e. the floating
+  # launcher+panel that would otherwise render on every storefront page.
+  # loyalty-page.liquid (the dedicated-page BLOCK a merchant explicitly adds
+  # to one page in the theme editor) is a separate, deliberate placement and
+  # always renders regardless of this setting.
+  #
+  # Two independent selectors, OR'd together into a single "matched"
+  # boolean, then `mode` decides what "matched" means — see the
+  # pageVisibility comment in cssVarsConfig.js for the full shape.
+  assign nbl_visibility = nbl_config.styles.widgetConfig.display.pageVisibility
+  assign nbl_vis_mode = nbl_visibility.mode | default: 'hideOn'
+  assign nbl_vis_pages = nbl_visibility.pages
+  assign nbl_vis_types = nbl_visibility.pageTypes
+
+  # Specific-page match — only meaningful on an actual Page resource
+  # (page.handle is blank on every other template), matched against the
+  # {handle, title} pairs the admin picker stores.
+  assign nbl_page_matched = false
+  if page.handle != blank
+    for nbl_p in nbl_vis_pages
+      if nbl_p.handle == page.handle
+        assign nbl_page_matched = true
+        break
+      endif
+    endfor
+  endif
+
+  # Template-type match — template.name is Shopify's own value ('product',
+  # 'collection', 'cart', 'blog', 'article', 'search', ...) EXCEPT the home
+  # page, which Liquid calls 'index' but PAGE_TYPE_OPTIONS (cssVarsConfig.js)
+  # exposes to merchants as "Home page" / value "home" — translated back
+  # here so the two sides still match.
+  assign nbl_current_template = template.name
+  if nbl_current_template == 'index'
+    assign nbl_current_template = 'home'
+  endif
+  assign nbl_type_matched = false
+  for nbl_t in nbl_vis_types
+    if nbl_t == nbl_current_template
+      assign nbl_type_matched = true
+      break
+    endif
+  endfor
+
+  assign nbl_matched = false
+  if nbl_page_matched or nbl_type_matched
+    assign nbl_matched = true
+  endif
+
+  # hideOn: hide widget WHEN matched. showOnly: hide widget UNLESS matched.
+  assign nbl_widget_hidden = false
+  if nbl_vis_mode == 'showOnly'
+    unless nbl_matched
+      assign nbl_widget_hidden = true
+    endunless
+  elsif nbl_matched
+    assign nbl_widget_hidden = true
+  endif
 %}
 
+{% unless nbl_widget_hidden %}
 <script>
   window.NBL_v1 = window.NBL_v1 || {};
 
@@ -76,6 +138,7 @@
 </script>
 
 <script src="{{ 'nbl-loyalty-ui.min.js' | asset_url }}" defer></script>
+{% endunless %}
 
 {% schema %}
 {

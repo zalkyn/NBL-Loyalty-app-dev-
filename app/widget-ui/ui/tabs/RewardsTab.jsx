@@ -83,14 +83,20 @@ export function RewardsTab({ rewardRules, points, customerRewards, perPage, pagi
 
     return (
         <>
-            <div class="nbl-item-list">
-                <ItemList
-                    items={rules}
-                    emptyText="No rewards available"
-                    renderItem={(reward) => (
-                        <RewardRuleItem reward={reward} customerPoints={points} onOpenInfo={onOpenInfo} />
-                    )}
-                />
+            <div class="nbl-home-section-card nbl-home-section-card--standalone" data-home-section="rewards-tab-available-rewards">
+                <div class="nbl-section-header">
+                    <Icon name="tag" px={16} />
+                    <Text as="span" bare extraClass="nbl-section-title">{lbl('sectionAvailableRewards') || 'Available Rewards'}</Text>
+                </div>
+                <div class="nbl-item-list nbl-home-section-card__body--padded">
+                    <ItemList
+                        items={rules}
+                        emptyText="No rewards available"
+                        renderItem={(reward) => (
+                            <RewardRuleItem reward={reward} customerPoints={points} onOpenInfo={onOpenInfo} />
+                        )}
+                    />
+                </div>
             </div>
 
             <div class="nbl-home-section-card nbl-home-section-card--standalone" data-home-section="rewards-tab-active-rewards">

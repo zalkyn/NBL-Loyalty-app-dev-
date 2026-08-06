@@ -798,6 +798,15 @@ input:not([type=checkbox], [type=radio]) {
     animation: nbl-launcher-entrance 0.5s var(--nbl-ease-spring) both;
 }
 
+/* Hidden rather than unmounted while the widget is full screen — unmounting
+   replays .nbl-launcher's entrance animation every time the customer comes
+   back out of full screen. */
+.nbl-launcher--hidden {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
 .nbl-launcher.pos-left {
     left: var(--nbl-launcher-side-offset);
 }
@@ -1593,6 +1602,37 @@ input:not([type=checkbox], [type=radio]) {
     justify-content: center;
     transition: background 0.2s, transform 0.32s var(--nbl-ease-spring), box-shadow 0.2s;
     z-index: 5;
+}
+
+/* Sits immediately left of the close button (28px wide + 8px gap = 36px),
+   sharing its exact size/shape so the two read as one control cluster.
+   Deliberately no rotate-on-hover — that's the close button's own affordance
+   and copying it here would blur what each does. */
+.nbl-header__expand {
+    position: absolute;
+    right: 50px;
+    top: 14px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.2s ease, box-shadow 0.2s;
+    z-index: 5;
+}
+
+.nbl-header__expand:hover {
+    background: rgba(255, 255, 255, 0.35);
+    transform: scale(1.1);
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
+}
+
+.nbl-header__expand .nbl-icon {
+    color: var(--nbl-header-color);
 }
 
 .nbl-header__close:hover {
@@ -3863,15 +3903,730 @@ input:not([type=checkbox], [type=radio]) {
    already 520px wide (wider than the panel) and is shown to referred
    friends on a landing page, a different context from the widget chrome.
 
+   Scoped to --floating, NOT the full-screen mode. Full screen sizes itself
+   with `inset: 0`, and those offsets are resolved against the unzoomed
+   viewport before being painted at 1.25 — so a zoomed full-screen panel
+   would render at 125% of the screen and overflow it. Full screen gets its
+   readability from a larger type scale and a centred content column
+   instead; see .nbl-widget-container--fullscreen at the end of this file.
+
    This never triggers inside the admin Customize live preview: that renders
    the real bundle in a 390px-wide <iframe> (LivePreview.jsx), and media
    queries resolve against the iframe's own viewport, not the admin window.
    Intentional — the preview keeps showing the base size. */
 @media (min-width: 1200px) and (min-height: 800px) {
 
-    .nbl-widget-container,
+    .nbl-widget-container--floating,
     .nbl-launcher,
     .nbl-toast-stack {
         zoom: 1.25;
     }
+}
+
+/* ── Full-screen mode ─────────────────────────────────────────────────────
+   Toggled from the header's expand control (Header.jsx), gated by the
+   merchant's "Allow full-screen view" setting. WidgetShell always emits
+   exactly one nbl-widget-container--<mode> class, so this is a sibling of
+   the default --floating state rather than an override bolted on top; the
+   planned 'page' mode slots in the same way.
+
+   Selectors carry .nbl-widget-container as well so they beat
+   `.nbl-widget-container.pos-left/.pos-right` (which set left/right) and the
+   max-width:500px block (which sets width) on specificity, independent of
+   source order.
+
+   The open/close animation is untouched: .active resolves to
+   `scale(1) translateY(0)`, which is identity, so the panel still grows out
+   of nothing on open — just from the centre rather than from a corner. */
+.nbl-widget-container.nbl-widget-container--fullscreen {
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    border-radius: 0;
+    transform-origin: center center;
+}
+
+/* ── Expanded type scale ─────────────────────────────────────────────────
+   Split out of the geometry rule above: everything up to this point is "pin
+   this to the viewport", which is true only of full screen, while everything
+   below is "this view is much wider than 390px". Page mode wants the second
+   half too, but conditionally — it has a width setting and a phone to worry
+   about, neither of which full screen does — so it restates these inside a
+   container query further down rather than sharing the rule. */
+.nbl-widget-container.nbl-widget-container--fullscreen {
+
+    /* Type scale only — paddings and gaps stay put. The panel is now several
+       times wider than the 390px it was designed for, so 13px body text
+       reads as small; bumping the shared tokens lifts everything that
+       derives from them (item titles, section headings, activity rows,
+       load-more, buttons) in one place, with no risk of the layout drift a
+       per-rule pass would bring.
+
+       Roughly 1.15x throughout, and deliberately no further: row heights,
+       paddings and gaps are fixed px and do NOT scale with these, so a
+       larger jump would crowd the text inside its own rows rather than make
+       the view more readable. */
+    --nbl-text-xs: 12px;
+    --nbl-text-sm: 13px;
+    --nbl-text-base: 14px;
+    --nbl-text-md: 15px;
+    --nbl-text-lg: 18px;
+
+    /* These six are NOT derived from the --nbl-text-* scale above — they're
+       standalone tokens, so the block above never touched them. Left alone
+       they stayed at their 390px-panel sizes while everything around them
+       grew, which is why the nav labels and the greeting still read small
+       next to the item titles beside them. Same ~1.15x, applied explicitly. */
+    --nbl-header-title-font-size: 20px;
+    --nbl-points-font-size: 14px;
+    --nbl-nav-item-font-size: 15px;
+    --nbl-btn-font-size: 15px;
+    --nbl-activity-header-font-size: 11px;
+    --nbl-icon-size-sm: 16px;
+    --nbl-icon-size-md: 22px;
+    --nbl-icon-size-lg: 30px;
+}
+
+/* pos-left / pos-right set a side offset at equal specificity, so both edges
+   are pinned explicitly here rather than relying on `inset` winning a tie. */
+.nbl-widget-container.nbl-widget-container--fullscreen.pos-left,
+.nbl-widget-container.nbl-widget-container--fullscreen.pos-right {
+    left: 0;
+    right: 0;
+}
+
+.nbl-widget-container.nbl-widget-container--fullscreen .nbl-widget-scroll-area {
+    border-radius: 0;
+}
+
+/* ── Full screen: nav rail ────────────────────────────────────────────────
+   .nbl-nav__scroll hardcodes `--nav-item-width: calc((100% - 24px) / 3)` —
+   "always show exactly 3 items". That's correct for the 390px panel it was
+   written for, where nothing else fits, but in full screen it means a
+   1400px-wide bar showing three ~480px tabs with the rest behind scroll
+   chevrons. That's the exact "can't find the features" complaint this mode
+   exists to fix, so the rail has to size to its content here instead.
+
+   With every tab visible there is nothing left to scroll, so the snap
+   behaviour and the chevrons both go too — a disabled chevron flanking a
+   fully-visible rail reads as a broken control. Nav.jsx still computes its
+   chevron state either way; hiding them in CSS keeps that logic untouched
+   and mode-agnostic. */
+.nbl-widget-container--fullscreen .nbl-nav__scroll {
+    --nav-item-width: auto;
+    justify-content: center;
+    overflow-x: visible;
+    scroll-snap-type: none;
+    gap: 2px;
+    padding: 0 24px;
+}
+
+.nbl-widget-container--fullscreen .nbl-nav__item {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    padding-left: 20px;
+    padding-right: 20px;
+    scroll-snap-align: none;
+}
+
+.nbl-widget-container--fullscreen .nbl-nav__chevron {
+    display: none;
+}
+
+/* ── Full screen: header ──────────────────────────────────────────────────
+   The orange band keeps its full-bleed background, but its CONTENTS line up
+   with the content column below. Without this the greeting sits hard against
+   the left edge of the viewport while the body is centred, so the two read as
+   unrelated pieces rather than one view.
+
+   Greeting and points pill also go side by side rather than stacked. Stacking
+   is right in a 390px panel; here it just makes a ~100px tall block of empty
+   colour. */
+/* Centred with PADDING, not max-width + margin. .nbl-header__top is the
+   element that paints the header's background colour, so constraining its
+   width shrinks the coloured band itself — the band stops mid-screen with
+   bare surface either side of it, and the nav bar below (still full width)
+   no longer looks attached to it. Padding leaves the box full-bleed and
+   moves only its contents.
+
+   832px is the body's inner content width (860px max-width minus its own
+   14px side padding, box-sizing: border-box), so the greeting lines up
+   exactly with the cards beneath it. max() keeps the original 20px padding
+   as a floor for viewports narrower than the column. */
+.nbl-widget-container--fullscreen .nbl-header__top {
+    padding-left: max(20px, calc((100% - 832px) / 2));
+    /* 86px floor on this side, not 20px: the expand and close buttons are
+       absolutely positioned over the header's top-right corner and occupy
+       roughly 78px there. With the points pill pushed to the right by
+       space-between, a symmetric 20px floor would slide it straight under
+       them on any viewport narrower than the content column. Wide screens
+       never notice — the calc() is far larger than 86px there. */
+    padding-right: max(86px, calc((100% - 832px) / 2));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+/* The 8px bottom margin exists to separate the greeting from the pill
+   underneath it — side by side there is nothing underneath to separate.
+   max-height is lifted too: that 40px cap is part of the compact-header
+   collapse animation, which is disabled in this mode (see WidgetShell.jsx).
+   At the larger title size a long customer name that wraps to two lines
+   would need ~48px and get silently clipped mid-letter by a cap that has
+   nothing left to do here. */
+.nbl-widget-container--fullscreen .nbl-header__title {
+    margin-bottom: 0;
+    max-height: none;
+}
+
+/* ── Full screen: Home shortcut cards ────────────────────────────────────
+   Stacked full-width in the 390px panel, where there's no room for anything
+   else. Given an 832px column that becomes three heavy bars of solid brand
+   colour with their chevrons stranded ~700px from their labels. Three
+   equal columns reads as a set of shortcuts instead, and hands the vertical
+   space back to the sections underneath. */
+.nbl-widget-container--fullscreen .nbl-home-nav {
+    flex-direction: row;
+    gap: 12px;
+}
+
+.nbl-widget-container--fullscreen .nbl-home-nav__item {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* The one place where the larger type meets a NARROWER box than before: each
+   card is now roughly a third of the column instead of its full width. The
+   three default labels fit comfortably, but these are merchant-editable
+   (Labels & Text > Home Tab), so a longer translation must wrap onto a
+   second line rather than spill over the chevron. min-width:0 above is what
+   lets this grid cell actually shrink to its container — without it the
+   cell's automatic minimum size would keep it at the text's full width and
+   push the card wider than its flex basis. */
+.nbl-widget-container--fullscreen .nbl-home-nav__label {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* The available-rewards / available-prizes lists use bordered, individually
+   outlined items (unlike the divided rows elsewhere, which are meant to sit
+   flush). Inside a section card those outlines would touch — and visually
+   fight — the card's own rounded border, so the shared padded-body class
+   gets a little extra room at the bottom to match the top. */
+.nbl-item-list.nbl-home-section-card__body--padded {
+    padding-bottom: 12px;
+}
+
+/* ── Full screen: notification panel ─────────────────────────────────────
+   The slide-up sheet is pinned `left: 10px; right: 10px` — i.e. the full
+   width of whatever contains it. In the 390px panel that's a sheet; on a
+   full screen it becomes a ~2500px-wide band with a discount code marooned
+   in the middle and its Copy button a screen away from it.
+
+   Centred via auto margins rather than `left: 50%; transform: translateX`,
+   deliberately: .nbl-notify-panel.active animates with
+   @keyframes nbl-notify-slide-up, which sets `transform` on both frames, so
+   any centring done through transform would be wiped out the moment the
+   panel opens. Auto margins leave the transform channel entirely to the
+   animation, so the existing motion is untouched.
+
+   Stays bottom-anchored instead of becoming a centred modal — that keeps the
+   slide-up gesture meaningful, and it's the same place the panel appears in
+   the floating widget, so the interaction doesn't change shape between the
+   two modes. */
+.nbl-widget-container--fullscreen .nbl-notify-panel,
+.nbl-widget-container--page .nbl-notify-panel {
+    left: 0;
+    right: 0;
+    margin-left: auto;
+    margin-right: auto;
+    width: min(560px, calc(100% - 40px));
+    bottom: 24px;
+    max-height: min(78%, 620px);
+}
+
+/* ── Full screen: empty states ────────────────────────────────────────────
+   A single 12px grey line reads as "something failed to load" once it has a
+   full screen of space around it. Same copy, given enough presence to read
+   as a deliberate state. */
+.nbl-widget-container--fullscreen .nbl-item-list__empty {
+    font-size: var(--nbl-text-base);
+    padding: 40px 20px;
+}
+
+.nbl-widget-container--fullscreen .nbl-activity-table__empty {
+    padding: 40px 20px;
+}
+
+/* Content column. Line length is the whole point: a reward list stretched
+   across a 1920px monitor is harder to scan than the 390px panel it
+   replaced, not easier. The header keeps its full-bleed background (it reads
+   as a page header bar at this size), so only the body is constrained. */
+.nbl-widget-container.nbl-widget-container--fullscreen .nbl-widget-body {
+    max-width: 860px;
+    margin: 0 auto;
+    width: 100%;
+}
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PAGE MODE — the widget rendered inline inside the merchant's own
+   loyalty page (extensions/theme-extension/blocks/loyalty-page.liquid,
+   mounted by main.preact.jsx's findPageMount()).
+
+   The other two modes are overlays: they float above the storefront, size
+   themselves against the viewport, and scroll internally. This one is a
+   block in someone else's document. That inversion — from "positioned over
+   the page" to "part of the page" — is what almost every rule below is
+   undoing, and it's why page mode can't just be full screen with different
+   numbers.
+
+   Everything about how the view LOOKS when it's wide (type scale, nav rail,
+   header alignment, home shortcut columns, content column width) is shared
+   with full screen instead of restated here; see the paired selectors
+   further up. Only positioning, flow and stacking are page-specific.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* --nbl-page-max-width / --nbl-page-min-height are set by the theme app
+   block on its own wrapper in the LIGHT dom (see loyalty-page.liquid's
+   merchant settings). Custom properties inherit through the shadow
+   boundary, which is what lets a theme-editor setting reach in here at all;
+   the fallbacks below are what applies when the widget was mounted via the
+   hand-placed [data-nbl-page-mount] escape hatch instead, where there's no
+   block and therefore no settings. */
+.nbl-widget-container.nbl-widget-container--page {
+    position: relative;
+    inset: auto;
+    bottom: auto;
+    height: auto;
+
+    /* Fill the space the theme gives us; cap at the merchant's setting.
+
+       Both of these are ordinary percentages, and that is the point: this is
+       what the rule always should have been. It works because
+       loyalty-page.liquid gives the block wrapper `align-self: stretch`
+       (plus `justify-self` for grid themes), so the wrapper fills the
+       section's content column instead of collapsing to the widget's own
+       content width. With a real containing block to resolve against,
+       `width: 100%` is the theme's content width and `max-width` genuinely
+       caps it.
+
+       This also gives the responsive behaviour for free, in both directions:
+       a desktop setting of 1100px simply doesn't apply on a 700px screen,
+       because 100% is already smaller than the cap. No breakpoint, no
+       arithmetic. Earlier attempts here — a definite length, a min() against
+       vw, a JS measurement — were all working around the wrapper collapse
+       rather than fixing it, and each traded one theme's layout for
+       another's. */
+    width: 100%;
+    max-width: var(--nbl-page-max-width, 1100px);
+
+    /* Alignment (theme editor: Left / Centre / Right). Two independent
+       margins rather than one shorthand, so the block's setting maps
+       straight onto them: auto/auto centres, 0/auto pins left, auto/0 pins
+       right. */
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: var(--nbl-page-margin-left, auto);
+    margin-right: var(--nbl-page-margin-right, auto);
+    border: 1px solid var(--nbl-border);
+
+    /* z-index/isolation are the load-bearing part of this rule, not
+       housekeeping. The floating container sits at z-index 1000000002 with
+       `isolation: isolate` — correct for an overlay that must clear every
+       theme, and actively wrong here twice over. First, an in-flow element
+       at that z-index would paint over the theme's own sticky header and
+       menu dropdowns. Second, and worse, `isolation: isolate` creates a
+       stacking context, which would TRAP the notification sheet and image
+       preview inside this block's own layer — they'd render at the widget's
+       depth in the page instead of above everything, so a theme header at
+       z-index 100 would cover a modal that is supposed to be covering it.
+       `z-index: auto` + no isolation means those overlays participate in the
+       root stacking context and their own high z-indexes work as intended. */
+    z-index: auto;
+    isolation: auto;
+
+    /* No entrance choreography: this doesn't "open", it's just there when
+       the page loads. Scaling/blurring it in on every page view would read
+       as jank, not delight. .active carries !important (it has to beat the
+       closed state's transform), so these do too. */
+    transform: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+    transition: none;
+    animation: none;
+
+    /* Overlays inside this block are position:fixed and must not be clipped
+       by it. Corner clipping still happens, one level down on
+       .nbl-widget-scroll-area, which is inside the flow rather than over it. */
+    overflow: visible;
+
+    /* An embedded panel, not a floating one. The heavy drop shadow that
+       lifts the widget off the storefront makes it look like it's hovering
+       over the page it's actually part of. */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+/* .active adds its own !important transform/opacity, a big lifted shadow and
+   the entrance keyframes. Page mode is permanently .active (App.jsx passes
+   isOpen as true there), so all of it has to be neutralised at a specificity
+   that beats it rather than merely repeated. */
+.nbl-widget-container.nbl-widget-container--page.active {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 30px rgba(0, 0, 0, 0.06);
+    animation: none;
+    transition: none;
+}
+
+/* pos-left / pos-right exist to offset the panel from whichever edge the
+   launcher sits on. There's no launcher on this page and no edge to offset
+   from — the block is centred in the page's own content column. */
+.nbl-widget-container.nbl-widget-container--page.pos-left,
+.nbl-widget-container.nbl-widget-container--page.pos-right {
+    left: auto;
+    right: auto;
+}
+
+/* ── Flow, not scrollport ────────────────────────────────────────────────
+   The single most important change in this file. In the overlay modes the
+   scroll area is absolutely positioned to fill a fixed-height container and
+   the wrapper scrolls inside it. Here the container has no height of its
+   own: the content sets it, and the PAGE scrolls.
+
+   Nested scrolling would be the easy port and the wrong one — a tall inner
+   scroller inside a scrolling page is a well-known trap on touch devices,
+   where the customer's flick gets swallowed by whichever of the two
+   scrollers happens to be under their thumb.
+
+   overflow:hidden stays on the scroll area: with a static, auto-height box
+   it no longer scrolls anything, it just keeps the header's coloured band
+   inside the container's rounded corners. */
+.nbl-widget-container--page .nbl-widget-scroll-area {
+    position: static;
+    height: auto;
+    /* Page mode is the only mode where the container has a real 1px border,
+       so it's the only one where an inner box sharing the outer radius
+       exactly leaves a visible hairline of container background showing
+       through at each corner. */
+    border-radius: calc(var(--nbl-radius) - 1px);
+}
+
+.nbl-widget-container--page .nbl-widget-wrapper {
+    height: auto;
+    /* Stops a nearly-empty tab (a new customer's Activity list, say) from
+       collapsing the block to a header and two lines, which reads as broken
+       rather than empty. */
+    min-height: var(--nbl-page-min-height, 560px);
+
+    /* Optional internal scrolling (theme editor: "Scroll inside the block").
+       Off by default and off is the recommendation — a scroller inside a
+       scrolling page is a known touch trap, where a flick goes to whichever
+       of the two happens to be under the thumb. But a merchant whose page
+       has a lot of content below the widget may genuinely prefer a fixed-
+       height panel, and it's their page.
+
+       Driven by custom properties rather than a class because the container
+       is rendered by Preact and the setting lives in liquid — a property set
+       on the block's own wrapper inherits through the shadow boundary and
+       lands here without the two ever needing to talk. `none` and `visible`
+       are the off values, so the default fallbacks below ARE the off state.
+
+       Both axes are set explicitly. If only one is given a scrolling value
+       the other computes from `visible` to `auto` anyway, which would create
+       a scroll container even with the feature switched off. */
+    max-height: var(--nbl-page-max-height, none);
+    overflow-x: var(--nbl-page-overflow-x, visible);
+    overflow-y: var(--nbl-page-overflow-y, visible);
+}
+
+/* Guests get the full-bleed hero instead of the padded body, and it sizes
+   itself with height:100% — which resolves to nothing once the parent is
+   auto-height. Same floor as the wrapper so the signed-out state is as
+   substantial as the signed-in one. */
+.nbl-widget-container--page .nbl-guest {
+    min-height: var(--nbl-page-min-height, 560px);
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────
+   Static by default. With the page doing the scrolling, the wrapper isn't a
+   scrollport so sticky has nothing to stick within — and a widget header
+   that pinned itself to the viewport would collide with the theme's own
+   sticky header directly above it. Tab switches keep the rail in view by
+   scrolling to it instead (App.jsx's revealPageWidget()).
+
+   When the merchant turns internal scrolling ON, the wrapper becomes a real
+   scrollport contained inside the block, and sticky is then both possible
+   and correct: the rail stays reachable while the tab's content scrolls
+   under it, without ever leaving the block's own bounds. The liquid flips
+   this property in the same breath as the overflow ones, so the two can't
+   get out of step. */
+.nbl-widget-container--page .nbl-sticky-top {
+    position: var(--nbl-page-header-position, static);
+}
+
+/* ── Overlays ────────────────────────────────────────────────────────────
+   The notification sheet and image preview are absolute children of a
+   container that, in the overlay modes, is exactly the size of the visible
+   widget — so "pinned to the bottom of the container" and "pinned to the
+   bottom of what the customer can see" are the same thing.
+
+   Here they are not. This block can easily be taller than the viewport, so
+   the same rules would open a sheet at the bottom of the BLOCK — potentially
+   far below the fold, i.e. a claim confirmation the customer never sees.
+
+   Fixing the slot rather than each overlay inside it: the slot then provides
+   a viewport-sized containing block, and the absolutely-positioned children
+   keep working off it unchanged — including the shared full-screen sizing
+   for .nbl-notify-panel, which lands on exactly the right box.
+
+   Known limitation: position:fixed resolves against the nearest ancestor
+   with a transform/filter/perspective/contain, not the viewport. A theme
+   that animates the section wrapping this block (Dawn's scroll-triggered
+   section animations do exactly that) will therefore anchor these to the
+   section instead. It degrades to "anchored to the bottom of the widget" —
+   the pre-fix behaviour, not a broken one — and the fix is one line of theme
+   CSS; see docs/LOYALTY-PAGE.md. */
+.nbl-widget-container--page .nbl-notification-slot {
+    position: fixed;
+    border-radius: 0;
+    overflow: visible;
+    z-index: 1000000010;
+}
+
+/* Dimming behind the sheet. The overlay modes need none — the sheet covers
+   most of a 390px panel, or sits on a screen the widget already owns — but
+   here it opens over a page full of the merchant's own content, and without
+   a scrim there's nothing to say the rest of the page is no longer the
+   thing to look at.
+
+   Painted by a pseudo-element on the (pointer-events:none) slot, so it stays
+   purely visual: the sheet's own close button remains the way out, exactly
+   as in the other modes. :has() is the only way to react to a descendant's
+   state in CSS; where it isn't supported the scrim is simply absent, which
+   is the current behaviour and perfectly usable. */
+.nbl-widget-container--page .nbl-notification-slot:has(.nbl-notify-panel.active)::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.32);
+    animation: nbl-page-scrim-in 0.28s ease both;
+}
+
+@keyframes nbl-page-scrim-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.nbl-widget-container--page .nbl-image-preview-overlay {
+    position: fixed;
+    z-index: 1000000012;
+}
+
+/* Same reasoning as the notification slot, one level up: this covers the
+   widget while a customer is being provisioned, and "the widget" here is a
+   block that may be taller than the screen. Fixed keeps the spinner where
+   the customer is actually looking. */
+.nbl-widget-container--page .nbl-provision-overlay {
+    position: fixed;
+    border-radius: 0;
+}
+
+/* The expand control is an <a> in this configuration rather than a <button>
+   (see Header.jsx), so it inherits the theme's link styling through the
+   shadow boundary — which for most themes means an underline across the
+   icon. Everything else about it is already covered by .nbl-header__expand. */
+.nbl-header__expand--link {
+    text-decoration: none;
+}
+
+/* ── Small screens ───────────────────────────────────────────────────────
+   Phones are where this mode earns its keep: the floating panel is a
+   letterbox on a 375px screen, while the page gives the whole viewport
+   width and the phone's own scrolling.
+
+   Every sizing decision is a separate setting here rather than a scaled-down
+   desktop one. A merchant picks their numbers looking at a desktop preview,
+   and 1100px wide / 560px tall / scrolling-off are all reasonable there and
+   all wrong on a phone in different directions. 749px is the breakpoint
+   Shopify's own themes use for the mobile/desktop split, so the block
+   changes shape at the same width as everything around it.
+
+   The card frame is deliberately KEPT at this size rather than going
+   full-bleed. Full-bleed would need to cancel the theme's own page gutter,
+   whose width we can't know from inside a shadow root in an app block — the
+   attempt lands as a band with uneven gaps either side, which looks like a
+   bug rather than a choice. A card that's simply narrower reads as
+   intentional at every gutter width. */
+@media (max-width: 749px) {
+    .nbl-widget-container.nbl-widget-container--page {
+        /* Replaces the desktop cap. A percentage of the same content column,
+           so 100% lines up with the page's other sections rather than with
+           the screen edge. */
+        max-width: var(--nbl-page-max-width-mobile, 100%);
+    }
+
+    .nbl-widget-container--page .nbl-widget-wrapper {
+        min-height: var(--nbl-page-min-height-mobile, 420px);
+        max-height: var(--nbl-page-max-height-mobile, none);
+        overflow-x: var(--nbl-page-overflow-x-mobile, visible);
+        overflow-y: var(--nbl-page-overflow-y-mobile, visible);
+    }
+
+    .nbl-widget-container--page .nbl-sticky-top {
+        position: var(--nbl-page-header-position-mobile, static);
+    }
+
+    .nbl-widget-container--page .nbl-guest {
+        min-height: var(--nbl-page-min-height-mobile, 420px);
+    }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PAGE MODE — wide layout, keyed to the WIDGET's own measured width
+
+   Full screen can take the wide layout unconditionally: it is, by
+   definition, the whole viewport. Page mode cannot. It has a merchant-set
+   width that may be 400px on a 1600px monitor, and on a phone it's whatever
+   is left inside the theme's gutters — roughly the same 345px the floating
+   panel gets. Handing that the full-screen layout produced exactly what you
+   would expect: the Home shortcuts forced into three columns at ~100px each,
+   labels breaking mid-word ("Brows / e Rewar / ds"), and a nav rail told to
+   centre content that doesn't fit.
+
+   A media query would be the wrong instrument — the viewport being 1600px
+   wide says nothing about a widget the merchant has set to 400px. The
+   question is only ever "how much room does THIS widget have".
+
+   A CSS container query is the textbook answer to that question and could not
+   be used. `container-type: inline-size` applies inline-size containment,
+   which resolves the element's intrinsic width as if it had no contents.
+   Theme sections routinely leave this block's ancestors shrink-to-fit — sized
+   BY their contents — so containment zeroed the only input they had and the
+   entire widget collapsed to a 0px-wide sliver. (It would also have made the
+   element a containing block for fixed-position descendants, trapping the
+   notification sheet and image preview that are fixed precisely so they can
+   escape a tall block.)
+
+   So the width is measured in JS instead and applied as a class:
+   useWideLayout.js, a ResizeObserver on the container. Same question, same
+   answer, no layout side effects.
+
+   620px is where three shortcut cards stop being cramped; below it the
+   base 390px-panel layout is simply left alone, which is already correct.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/* Applied by the measured .nbl-page-wide class (useWideLayout.js), which
+   replaces a CSS container query — see that file for why containment
+   could not be used here. Everything below is the layout the widget
+   gets once it is at least 620px wide. */
+
+/* Set on the wrapper's children rather than the wrapper itself: an
+   element can't be styled by its own container query, and these are
+   inherited custom properties, so landing them one level down reaches
+   everything below just the same. Values mirror the full-screen block
+   above — same reasoning, same ~1.15x. */
+.nbl-widget-container--page.nbl-page-wide .nbl-widget-wrapper > * {
+    --nbl-text-xs: 12px;
+    --nbl-text-sm: 13px;
+    --nbl-text-base: 14px;
+    --nbl-text-md: 15px;
+    --nbl-text-lg: 18px;
+    --nbl-header-title-font-size: 20px;
+    --nbl-points-font-size: 14px;
+    --nbl-nav-item-font-size: 15px;
+    --nbl-btn-font-size: 15px;
+    --nbl-activity-header-font-size: 11px;
+    --nbl-icon-size-sm: 16px;
+    --nbl-icon-size-md: 22px;
+    --nbl-icon-size-lg: 30px;
+}
+
+/* Nav rail: size to content and centre, instead of the hardcoded
+   "exactly 3 items visible" the 390px panel needs. With every tab
+   visible there's nothing left to scroll, so the snap behaviour and the
+   chevrons go too. */
+.nbl-widget-container--page.nbl-page-wide .nbl-nav__scroll {
+    --nav-item-width: auto;
+    justify-content: center;
+    overflow-x: visible;
+    scroll-snap-type: none;
+    gap: 2px;
+    padding: 0 24px;
+}
+
+.nbl-widget-container--page.nbl-page-wide .nbl-nav__item {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    padding-left: 20px;
+    padding-right: 20px;
+    scroll-snap-align: none;
+}
+
+.nbl-widget-container--page.nbl-page-wide .nbl-nav__chevron {
+    display: none;
+}
+
+/* Header contents line up with the content column below, so the greeting
+   doesn't sit hard against the left edge while the body is centred.
+   Padding rather than max-width, because this element paints the header's
+   background band — constraining its width would stop the colour
+   mid-block. Symmetric floor, unlike full screen's 86px: page mode
+   renders neither the expand nor the close button, so there is nothing
+   in that corner for the points pill to slide under. */
+.nbl-widget-container--page.nbl-page-wide .nbl-header__top {
+    padding-left: max(20px, calc((100% - 832px) / 2));
+    padding-right: max(20px, calc((100% - 832px) / 2));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.nbl-widget-container--page.nbl-page-wide .nbl-header__title {
+    margin-bottom: 0;
+    max-height: none;
+}
+
+/* Home shortcuts as three columns. This is the rule the bug was in: it's
+   right at 832px and actively broken at 345px, which is the entire
+   reason this block is a container query. */
+.nbl-widget-container--page.nbl-page-wide .nbl-home-nav {
+    flex-direction: row;
+    gap: 12px;
+}
+
+.nbl-widget-container--page.nbl-page-wide .nbl-home-nav__item {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.nbl-widget-container--page.nbl-page-wide .nbl-home-nav__label {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* A single 12px grey line reads as "something failed to load" once it has
+   real space around it. */
+.nbl-widget-container--page.nbl-page-wide .nbl-item-list__empty {
+    font-size: var(--nbl-text-base);
+    padding: 40px 20px;
+}
+
+.nbl-widget-container--page.nbl-page-wide .nbl-activity-table__empty {
+    padding: 40px 20px;
+}
+
+/* Line length. A reward list stretched across a 1200px block is harder to
+   scan than the 390px panel it replaced, not easier. */
+.nbl-widget-container.nbl-widget-container--page.nbl-page-wide .nbl-widget-body {
+    max-width: 860px;
+    margin: 0 auto;
+    width: 100%;
 }

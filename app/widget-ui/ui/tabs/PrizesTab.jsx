@@ -113,14 +113,20 @@ export function PrizesTab({ physicalPrizes, points, prizeClaims, perPage, pagina
 
     return (
         <>
-            <div class="nbl-item-list">
-                <ItemList
-                    items={activePrizes}
-                    emptyText={lbl('emptyPrizes') || 'No prizes available'}
-                    renderItem={(prize) => (
-                        <PrizeItem prize={prize} customerPoints={points} onClaim={handleClaimClick} onViewImage={onViewImage} />
-                    )}
-                />
+            <div class="nbl-home-section-card nbl-home-section-card--standalone" data-home-section="prizes-tab-available-prizes">
+                <div class="nbl-section-header">
+                    <Icon name="gift" px={16} />
+                    <Text as="span" bare extraClass="nbl-section-title">{lbl('sectionAvailablePrizes') || 'Available Prizes'}</Text>
+                </div>
+                <div class="nbl-item-list nbl-home-section-card__body--padded">
+                    <ItemList
+                        items={activePrizes}
+                        emptyText={lbl('emptyPrizes') || 'No prizes available'}
+                        renderItem={(prize) => (
+                            <PrizeItem prize={prize} customerPoints={points} onClaim={handleClaimClick} onViewImage={onViewImage} />
+                        )}
+                    />
+                </div>
             </div>
 
             <div class="nbl-home-section-card nbl-home-section-card--standalone" data-home-section="prizes-tab-active-prizes">

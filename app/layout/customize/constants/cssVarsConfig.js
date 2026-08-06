@@ -44,6 +44,8 @@ export const LABEL_DEFAULTS = {
     navPrizes: "Prizes",
     navMyPrizes: "My Prizes",
     sectionPrizeRequests: "My Prize Requests",
+    sectionAvailablePrizes: "Available Prizes",
+    sectionAvailableRewards: "Available Rewards",
     emptyPrizes: "No prizes available",
     emptyMyPrizes: "You have no prize requests yet",
     prizeStatusPending: "Pending",
@@ -152,6 +154,77 @@ export const WIDGET_CONFIG_DEFAULTS = {
     // that would force the three off-by-default tabs on for every shop
     // that has no saved `nav` group. Nav.jsx's isTabVisible() is the one
     // reader, and it resolves each flag against the per-item default below.
+    // How the widget presents itself. Kept as its own group rather than flat
+    // keys because the roadmap adds more here (a dedicated full-page mode is
+    // the obvious next one), and a group keeps those together instead of
+    // scattering display flags through the top level.
+    display: {
+        // LEGACY, kept for shops that saved a config before expandAction
+        // existed. Read only as the fallback in App.jsx's expandAction
+        // derivation ("was full screen switched off?" -> 'none'), never
+        // written by the admin UI any more.
+        allowFullscreen: true,
+        // What the expand control in the widget header actually does:
+        //   "fullscreen" - toggle the floating panel to a full-screen view
+        //                  (the historical behaviour, no longer the default).
+        //   "page"       - link to the merchant's own loyalty page, carrying
+        //                  the customer's current tab. Requires pageUrl below;
+        //                  App.jsx hides the control if it isn't a valid path,
+        //                  rather than shipping a button that 404s.
+        //   "none"       - no expand control at all (the default).
+        //
+        // A single explicit choice rather than a toggle plus an "if this
+        // other field happens to be filled in" rule: the merchant is picking
+        // between two destinations, and a setting whose behaviour changes
+        // based on whether an unrelated text box is empty is a setting nobody
+        // can predict from looking at it.
+        expandAction: "none",
+        // Relative path to the merchant's own loyalty page: a normal
+        // Shopify page with the "Loyalty & Rewards" app block on it
+        // (extensions/theme-extension/blocks/loyalty-page.liquid) plus
+        // whatever explainer video / FAQ / terms sections they've built
+        // around it in the theme editor.
+        //
+        // Must be a relative path starting with "/" — buildPageLink()
+        // (utils.js) returns '' for anything else, which hides the control
+        // rather than shipping one that 404s.
+        pageUrl: "",
+        // Which pages the FLOATING widget itself shows/hides on — separate
+        // from `pageUrl` above (that's only the destination for the expand
+        // button). Picked via a searchable title picker (searchPages.js +
+        // ConfigPagePickerField) rather than typed handles/URLs, so the
+        // merchant never has to know a page's raw handle.
+        //
+        // Two independent selectors, combined with OR before mode is applied
+        // (i.e. a page counts as "matched" if EITHER its specific Page handle
+        // is in `pages` OR its template is in `pageTypes`):
+        //
+        //   mode: "hideOn"   - show everywhere EXCEPT matched pages
+        //                      (the default — merchant picks the few
+        //                      exceptions, e.g. checkout/FAQ pages).
+        //   mode: "showOnly" - show ONLY on matched pages.
+        //
+        // `pages` — specific Page resources (Online Store > Pages), picked
+        // by name via ConfigPagePickerField/searchPages.js. Stores
+        // {handle, title} pairs — handle is what the storefront-side liquid
+        // check matches against (page.handle); title is kept alongside
+        // purely so the admin UI can redisplay the picked pages by name
+        // without a re-fetch.
+        //
+        // `pageTypes` — template-level buckets (see PAGE_TYPE_OPTIONS below),
+        // for the "hide on every product page", "hide on cart", etc. case —
+        // hiding on an entire template, not one specific resource. Values
+        // match Shopify's `template.name` on the storefront ("index" for the
+        // home page is exposed to the merchant as "home" and translated back
+        // in loyalty.liquid).
+        //
+        // Consumed in extensions/theme-extension/blocks/loyalty.liquid,
+        // which decides whether to load the floating widget's script at all
+        // for the current request (host.id = 'nbl-widget-host' from
+        // main.preact.jsx never even mounts on a hidden page — this isn't a
+        // CSS display:none over an already-booted widget).
+        pageVisibility: { mode: "hideOn", pages: [], pageTypes: [] },
+    },
     nav: {
         showReferral: true,
         showEarn: true,
@@ -206,9 +279,59 @@ export const WIDGET_CONFIG_DEFAULTS = {
 
 export const WIDGET_CONFIG_SECTIONS = [
     {
-        key: "behaviour",
-        label: "Behaviour",
-        description: "Control what sections appear and how content is paged.",
+        key: "displayPlacement",
+        label: "Display & Placement",
+        description: "Control where and how the widget itself appears — the expand button's destination, which pages it shows on, and the toast popup for new activity.",
+        fields: [
+            {
+                key: "display_expandAction",
+                label: "Expand button opens",
+                hint: "What the expand control in the widget header does. 'Full screen' keeps the customer on the current page and grows the widget to fill the screen. 'Loyalty page' sends them to your own page — the one with the Loyalty & Rewards block plus your FAQ, video and terms — on whichever tab they were already looking at.",
+                type: "select",
+                options: [
+                    { value: "fullscreen", label: "Full screen" },
+                    { value: "page", label: "Loyalty page" },
+                    { value: "none", label: "Nothing (hide the button)" },
+                ],
+                configKey: "display.expandAction",
+                default: "none",
+                // Rendered INSIDE this same field's card, only when the
+                // select above is on `showWhen` — "Loyalty page URL" only
+                // means anything once "Loyalty page" is picked, so it's
+                // nested here instead of sitting as its own always-visible
+                // card. See ConfigSelectField.jsx's nested-field branch.
+                nested: {
+                    showWhen: "page",
+                    key: "display_pageUrl",
+                    label: "Loyalty page URL",
+                    hint: "The path of your page — e.g. /pages/rewards. Create it under Online Store > Pages, then add the 'Loyalty & Rewards' block to it in the theme editor. Must be a relative path starting with /; if it isn't, the expand button is hidden rather than sending customers somewhere broken.",
+                    type: "text",
+                    configKey: "display.pageUrl",
+                    default: "",
+                },
+            },
+            {
+                key: "display_pageVisibility",
+                label: "Show widget on",
+                hint: "Pick specific pages by name and/or whole page types (all products, all collections, cart, etc). 'Hide on selected' shows the widget everywhere except what you pick; 'Show only on selected' shows it nowhere else.",
+                type: "pagePicker",
+                configKey: "display.pageVisibility",
+                default: { mode: "hideOn", pages: [], pageTypes: [] },
+            },
+            {
+                key: "enableToastNotifications",
+                label: "Show toast notifications on page load",
+                hint: "When a customer earns points/rewards while away, show a stacked toast above the launcher button next time they visit — like a notification popup. Turn off to disable this entirely.",
+                type: "toggle",
+                configKey: "enableToastNotifications",
+                default: true,
+            },
+        ],
+    },
+    {
+        key: "homeTabLayout",
+        label: "Home Tab Layout",
+        description: "Choose which sections appear on the Home tab — the customer's first screen after opening the widget.",
         fields: [
             {
                 key: "showHomeRewardsSection",
@@ -227,12 +350,28 @@ export const WIDGET_CONFIG_SECTIONS = [
                 default: true,
             },
             {
-                key: "enableToastNotifications",
-                label: "Show toast notifications on page load",
-                hint: "When a customer earns points/rewards while away, show a stacked toast above the launcher button next time they visit — like a notification popup. Turn off to disable this entirely.",
+                key: "showHomePrizeRequestsSection",
+                label: "Show prize requests on Home tab",
+                hint: "Display the 'My Prize Requests' section on the Home tab",
                 type: "toggle",
-                configKey: "enableToastNotifications",
+                configKey: "showHomePrizeRequestsSection",
                 default: true,
+            },
+        ],
+    },
+    {
+        key: "listsPagination",
+        label: "Lists & Pagination",
+        description: "Control how many items show at once in each paginated list, and how customers load more — arrow buttons or a Load More button. Applies across the Home tab and the dedicated My Prizes tab alike.",
+        fields: [
+            {
+                key: "paginationMode",
+                label: "Pagination style",
+                hint: "How to load more items in lists — arrow buttons or a Load More button. Applies to every list below.",
+                type: "select",
+                options: [{ value: "pagination", label: "Arrows" }, { value: "loadmore", label: "Load More button" }],
+                configKey: "paginationMode",
+                default: "loadmore",
             },
             {
                 key: "homeRewardsPerPage",
@@ -259,23 +398,6 @@ export const WIDGET_CONFIG_SECTIONS = [
                 default: 7,
                 parseValue: (v) => Number(v),
                 displayValue: (v) => Number(v),
-            },
-            {
-                key: "paginationMode",
-                label: "Pagination style",
-                hint: "How to load more items in lists — arrow buttons or a Load More button",
-                type: "select",
-                options: [{ value: "pagination", label: "Arrows" }, { value: "loadmore", label: "Load More button" }],
-                configKey: "paginationMode",
-                default: "loadmore",
-            },
-            {
-                key: "showHomePrizeRequestsSection",
-                label: "Show prize requests on Home tab",
-                hint: "Display the 'My Prize Requests' section on the Home tab",
-                type: "toggle",
-                configKey: "showHomePrizeRequestsSection",
-                default: true,
             },
             {
                 key: "homePrizeRequestsPerPage",
@@ -369,8 +491,8 @@ export const WIDGET_CONFIG_SECTIONS = [
         ],
     },
     {
-        key: "prizeNotifications",
-        label: "Prize Notifications",
+        key: "prizeRequestNotifications",
+        label: "Prize Request Notifications",
         description: "Control how prize request details appear in the slide-up notification panel.",
         fields: [
             {
@@ -416,8 +538,8 @@ export const WIDGET_CONFIG_SECTIONS = [
         ],
     },
     {
-        key: "referral",
-        label: "Referral",
+        key: "referralProgram",
+        label: "Referral Program",
         description: "Control the referral link customers share, and what happens after a customer signs in to claim a referral discount.",
         fields: [
             {
@@ -447,8 +569,8 @@ export const WIDGET_CONFIG_SECTIONS = [
         ],
     },
     {
-        key: "resync",
-        label: "Update Notifications",
+        key: "appUpdateSync",
+        label: "App Update Sync",
         description: "Control how customers whose widget data hasn't caught up with a recent change get updated. The banner's actual customer-facing text (when using Banner mode) is set once for all updates under Labels & Text (below) — the title/description you type per-update on the Version Tracking page are for your own internal reference only and are never shown to customers.",
         fields: [
             {
@@ -475,9 +597,9 @@ export const WIDGET_CONFIG_SECTIONS = [
         ],
     },
     {
-        key: "onboarding",
-        label: "New Customer Onboarding",
-        description: "Control how a logged-in customer who isn't in the loyalty program yet gets enrolled — this is a separate setting from Update Notifications above, which only affects customers who've already joined.",
+        key: "customerEnrollment",
+        label: "Customer Enrollment",
+        description: "Control how a logged-in customer who isn't in the loyalty program yet gets enrolled — this is a separate setting from App Update Sync above, which only affects customers who've already joined.",
         fields: [
             {
                 key: "autoProvisionCustomer",
@@ -531,6 +653,8 @@ export const WIDGET_CONFIG_SECTIONS = [
             { key: "lbl_navPrizes", label: "Nav — Prizes tab", hint: "Label shown on the Prizes navigation tab", type: "label", configKey: "labels.navPrizes", default: LABEL_DEFAULTS.navPrizes },
             { key: "lbl_navMyPrizes", label: "Nav — My Prizes tab", hint: "Label shown on the My Prizes navigation tab", type: "label", configKey: "labels.navMyPrizes", default: LABEL_DEFAULTS.navMyPrizes },
             { key: "lbl_sectionPrizeRequests", label: "Section — My Prize Requests", hint: "Heading of the Prize Requests section on the Home tab", type: "label", configKey: "labels.sectionPrizeRequests", default: LABEL_DEFAULTS.sectionPrizeRequests },
+            { key: "lbl_sectionAvailablePrizes", label: "Section — Available Prizes", hint: "Heading above the list of prizes a customer can request, on the Prizes tab", type: "label", configKey: "labels.sectionAvailablePrizes", default: LABEL_DEFAULTS.sectionAvailablePrizes },
+            { key: "lbl_sectionAvailableRewards", label: "Section — Available Rewards", hint: "Heading above the list of rewards a customer can redeem, on the Rewards tab", type: "label", configKey: "labels.sectionAvailableRewards", default: LABEL_DEFAULTS.sectionAvailableRewards },
             { key: "lbl_emptyPrizes", label: "Empty state — No prizes", hint: "Message shown when there are no prizes available", type: "label", configKey: "labels.emptyPrizes", default: LABEL_DEFAULTS.emptyPrizes },
             { key: "lbl_emptyMyPrizes", label: "Empty state — No prize requests", hint: "Message shown when the customer has no prize requests", type: "label", configKey: "labels.emptyMyPrizes", default: LABEL_DEFAULTS.emptyMyPrizes },
             { key: "lbl_prizeStatusPending", label: "Prize status — Pending", hint: "Text shown when a prize request is pending", type: "label", configKey: "labels.prizeStatusPending", default: LABEL_DEFAULTS.prizeStatusPending },
@@ -596,7 +720,7 @@ export const WIDGET_CONFIG_SECTIONS = [
 const LABEL_GROUP_FIELD_KEYS = {
     header: ["lbl_headerLabel", "lbl_pointsLabel"],
     navigation: ["lbl_navHome", "lbl_navEarn", "lbl_navRewards", "lbl_navMyRewards", "lbl_navActivity", "lbl_navPrizes", "lbl_navMyPrizes", "lbl_navReferral"],
-    home: ["lbl_homeCardBrowse", "lbl_homeCardEarn", "lbl_homeCardRefer", "lbl_sectionRewards", "lbl_sectionActivity", "lbl_sectionPrizeRequests"],
+    home: ["lbl_homeCardBrowse", "lbl_homeCardEarn", "lbl_homeCardRefer", "lbl_sectionRewards", "lbl_sectionActivity", "lbl_sectionPrizeRequests", "lbl_sectionAvailableRewards", "lbl_sectionAvailablePrizes"],
     lists: ["lbl_activityColDate", "lbl_activityColAct", "lbl_activityColPts", "lbl_emptyRewards", "lbl_emptyActivity", "lbl_emptyPrizes", "lbl_emptyMyPrizes", "lbl_loadMoreBtn", "lbl_loadMoreDone"],
     rewards: ["lbl_notifyRewardHead", "lbl_notifyRewardCopy", "lbl_notifyInfoClaim", "lbl_notifyCopiedText", "lbl_notifyCloseBtn", "lbl_claimingLabel", "lbl_claimRetryLabel"],
     prizes: ["lbl_prizeStatusPending", "lbl_prizeStatusFulfilled", "lbl_prizeStatusCompleted", "lbl_prizeStatusCancelled", "lbl_prizeContactUsText", "lbl_prizeClaimSuccessMsg", "lbl_prizeTrackingLabel"],
@@ -1576,11 +1700,12 @@ export function buildInitialVars(savedCssVars) {
 }
 
 export function buildInitialWidgetConfig(saved) {
-    const base = { ...WIDGET_CONFIG_DEFAULTS, labels: { ...LABEL_DEFAULTS }, prize: { ...WIDGET_CONFIG_DEFAULTS.prize }, referral: { ...WIDGET_CONFIG_DEFAULTS.referral }, resync: { ...WIDGET_CONFIG_DEFAULTS.resync }, nav: { ...WIDGET_CONFIG_DEFAULTS.nav } };
+    const base = { ...WIDGET_CONFIG_DEFAULTS, labels: { ...LABEL_DEFAULTS }, prize: { ...WIDGET_CONFIG_DEFAULTS.prize }, referral: { ...WIDGET_CONFIG_DEFAULTS.referral }, resync: { ...WIDGET_CONFIG_DEFAULTS.resync }, nav: { ...WIDGET_CONFIG_DEFAULTS.nav }, display: { ...WIDGET_CONFIG_DEFAULTS.display } };
     if (!saved || typeof saved !== "object") return base;
     const merged = { ...base, ...saved };
     merged.labels = { ...LABEL_DEFAULTS, ...(saved.labels || {}) };
     merged.nav = { ...WIDGET_CONFIG_DEFAULTS.nav, ...(saved.nav || {}) };
+    merged.display = { ...WIDGET_CONFIG_DEFAULTS.display, ...(saved.display || {}) };
     merged.prize = { ...WIDGET_CONFIG_DEFAULTS.prize, ...(saved.prize || {}) };
     merged.referral = { ...WIDGET_CONFIG_DEFAULTS.referral, ...(saved.referral || {}) };
     merged.resync = { ...WIDGET_CONFIG_DEFAULTS.resync, ...(saved.resync || {}) };
@@ -1611,6 +1736,21 @@ export const DS = {
     dangerText: "#dc2626",
     dangerBg: "#fef2f2",
 };
+
+// Template-level buckets for pageVisibility.pageTypes (ConfigPagePickerField /
+// loyalty.liquid). `value` is what's stored in the config AND what
+// loyalty.liquid compares against Shopify's `template.name` — except "home",
+// which is a friendlier label for template.name == "index" (translated back
+// in loyalty.liquid, since "index" means nothing to a merchant).
+export const PAGE_TYPE_OPTIONS = [
+    { value: "home", label: "Home page" },
+    { value: "product", label: "Product pages" },
+    { value: "collection", label: "Collection pages" },
+    { value: "cart", label: "Cart page" },
+    { value: "blog", label: "Blog pages" },
+    { value: "article", label: "Blog post pages" },
+    { value: "search", label: "Search results" },
+];
 
 export const SECTION_TO_SCENE = {
     header: "home",

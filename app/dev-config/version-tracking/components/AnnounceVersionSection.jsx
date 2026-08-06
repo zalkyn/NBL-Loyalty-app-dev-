@@ -3,7 +3,7 @@
  * @description Form to publish a new ConfigUpdateVersion, plus a read-only
  * badge showing the shop's current "off/banner/auto" update method (the
  * real, editable setting lives on the Customize page — see cssVarsConfig.js's
- * "resync" WIDGET_CONFIG_SECTIONS entry for why).
+ * "appUpdateSync" WIDGET_CONFIG_SECTIONS entry for why).
  */
 
 import { MODAL_ID } from "../_hooks";
