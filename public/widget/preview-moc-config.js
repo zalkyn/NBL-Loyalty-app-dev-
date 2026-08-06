@@ -298,7 +298,7 @@ window.NBL_v1.appConfig = {
                 emptyActivity: "No account activities yet",
                 emptyMyPrizes: "You have no prize requests yet",
                 homeCardRefer: "Refer Friends",
-                launcherTitle: "NBL Loyalty & Referral",
+                launcherTitle: "NB Loyalty Program & Referral",
                 homeCardBrowse: "Browse Rewards",
                 activityColDate: "Date",
                 claimRetryLabel: "Try again",
