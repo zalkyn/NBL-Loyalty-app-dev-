@@ -4,6 +4,7 @@ import { ConfigSelectField } from "./ConfigSelectField";
 import { ConfigRangeField } from "./ConfigRangeField";
 import { ConfigLabelField } from "./ConfigLabelField";
 import { ConfigTextField } from "./ConfigTextField";
+import { ConfigPagePickerField } from "./ConfigPagePickerField";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONFIG SECTION PANEL
@@ -26,6 +27,7 @@ export function ConfigSectionPanel({ section, widgetConfig, onChange, disabled }
                     if (field.type === "range") return <ConfigRangeField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onChange} disabled={disabled} />;
                     if (field.type === "label") return <ConfigLabelField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onChange} disabled={disabled} />;
                     if (field.type === "text") return <ConfigTextField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onChange} disabled={disabled} />;
+                    if (field.type === "pagePicker") return <ConfigPagePickerField key={field.key} field={field} widgetConfig={widgetConfig} onChange={onChange} disabled={disabled} />;
                     return null;
                 })}
             </div>

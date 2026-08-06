@@ -18,7 +18,7 @@ export const loader = async ({ request }) => {
         listConfigUpdateVersions({ shop: session.shop, sessionId: session.id }),
         // Read-only — the actual "off/banner/auto" setting lives on the
         // Customize page (see cssVarsConfig.js's WIDGET_CONFIG_SECTIONS
-        // "resync" section for why it's kept there, not here: it's a
+        // "appUpdateSync" section for why it's kept there, not here: it's a
         // real merchant-facing behavior setting, this page is
         // developer-only trigger/test tools). Shown here purely so a
         // developer testing rollout doesn't have to tab-switch to check

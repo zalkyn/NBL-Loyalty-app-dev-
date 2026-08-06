@@ -26,7 +26,7 @@ export function RewardModeSelector({ value, busy, onChange }) {
             >
                 {REWARD_MODES.map(({ value: v, label, description }) => (
                     <s-choice key={v} value={v} selected={value === v} disabled={busy}>
-                        {label}
+                        {label}: {" "}
                         <span slot="description">{description}</span>
                     </s-choice>
                 ))}

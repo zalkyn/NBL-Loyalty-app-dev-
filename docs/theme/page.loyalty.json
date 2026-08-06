@@ -1,0 +1,81 @@
+{
+  "_comment": [
+    "REFERENCE TEMPLATE — copy into the theme as templates/page.loyalty.json,",
+    "then pick 'loyalty' as the template when creating the Rewards page.",
+    "",
+    "The app block is NOT pre-wired here, deliberately. In a template JSON an",
+    "app block is referenced as",
+    "'shopify://apps/<app-handle>/blocks/<block>/<app-uuid>' — the UUID is",
+    "per-app and per-environment, so a hardcoded one would silently fail to",
+    "render on any other install. Add it in the theme editor instead: open the",
+    "'Apps' section below and click Add block -> Loyalty & Rewards. One click,",
+    "and it then persists in the merchant's own template.",
+    "",
+    "Section types below are Dawn's. Settings are left at their defaults on",
+    "purpose — setting keys differ between theme versions, and a wrong key is a",
+    "broken template. The merchant fills in copy in the editor.",
+    "",
+    "Order is the recommendation, not a requirement: lead with the widget so a",
+    "returning customer sees their balance without scrolling, and put the",
+    "explanatory content below it for the people who need it."
+  ],
+  "sections": {
+    "intro": {
+      "type": "rich-text",
+      "blocks": {
+        "heading": { "type": "heading", "settings": {} },
+        "text": { "type": "text", "settings": {} }
+      },
+      "block_order": ["heading", "text"],
+      "settings": {}
+    },
+    "loyalty_widget": {
+      "type": "apps",
+      "blocks": {},
+      "block_order": [],
+      "settings": {}
+    },
+    "how_it_works": {
+      "type": "multicolumn",
+      "blocks": {
+        "step_1": { "type": "column", "settings": {} },
+        "step_2": { "type": "column", "settings": {} },
+        "step_3": { "type": "column", "settings": {} }
+      },
+      "block_order": ["step_1", "step_2", "step_3"],
+      "settings": {}
+    },
+    "explainer_video": {
+      "type": "video",
+      "settings": {}
+    },
+    "faq": {
+      "type": "collapsible-content",
+      "blocks": {
+        "q1": { "type": "collapsible_row", "settings": {} },
+        "q2": { "type": "collapsible_row", "settings": {} },
+        "q3": { "type": "collapsible_row", "settings": {} },
+        "q4": { "type": "collapsible_row", "settings": {} }
+      },
+      "block_order": ["q1", "q2", "q3", "q4"],
+      "settings": {}
+    },
+    "terms": {
+      "type": "rich-text",
+      "blocks": {
+        "heading": { "type": "heading", "settings": {} },
+        "text": { "type": "text", "settings": {} }
+      },
+      "block_order": ["heading", "text"],
+      "settings": {}
+    }
+  },
+  "order": [
+    "intro",
+    "loyalty_widget",
+    "how_it_works",
+    "explainer_video",
+    "faq",
+    "terms"
+  ]
+}

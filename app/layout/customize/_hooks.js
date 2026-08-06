@@ -143,15 +143,26 @@ export function useCustomizePage(loaderData, actionData) {
     // be a hardcoded if/else per known prefix, which silently miscounted
     // (both sides read as undefined, "coincidentally" always equal) any
     // section not in that list — e.g. "resync." before this fix.
-    const configSectionDirtyCount = useCallback((section) => {
-        return section.fields.filter((f) => {
-            const dotIndex = f.configKey.indexOf(".");
-            if (dotIndex === -1) return widgetConfig[f.configKey] !== persistedWidgetConfig[f.configKey];
-            const key = f.configKey.slice(0, dotIndex);
-            const fieldKey = f.configKey.slice(dotIndex + 1);
-            return widgetConfig[key]?.[fieldKey] !== persistedWidgetConfig[key]?.[fieldKey];
-        }).length;
+    // Flattened count that also credits each field's `nested` sub-field
+    // (currently only display_expandAction's Loyalty page URL) — those
+    // aren't in `section.fields` directly any more (see cssVarsConfig.js's
+    // `nested` comment), so without this an edit to just the nested field
+    // would silently stop showing up in the sidebar's dirty badge.
+    const isFieldDirty = useCallback((f) => {
+        const dotIndex = f.configKey.indexOf(".");
+        if (dotIndex === -1) return widgetConfig[f.configKey] !== persistedWidgetConfig[f.configKey];
+        const key = f.configKey.slice(0, dotIndex);
+        const fieldKey = f.configKey.slice(dotIndex + 1);
+        return widgetConfig[key]?.[fieldKey] !== persistedWidgetConfig[key]?.[fieldKey];
     }, [widgetConfig, persistedWidgetConfig]);
+
+    const configSectionDirtyCount = useCallback((section) => {
+        return section.fields.reduce((count, f) => {
+            const own = isFieldDirty(f) ? 1 : 0;
+            const nested = f.nested && isFieldDirty(f.nested) ? 1 : 0;
+            return count + own + nested;
+        }, 0);
+    }, [isFieldDirty]);
 
     // ── Deferred vars for live preview ────────────────────────────────────────
     const deferredCssVars = useDeferredValue(cssVars);

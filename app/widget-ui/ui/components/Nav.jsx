@@ -140,13 +140,22 @@ export function Nav({ activeTab, onChange, lbl, navConfig }) {
                     __html: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
                 }}
             />
-            <div class="nbl-nav__scroll" ref={scrollRef}>
+            {/* role="tab" was already on the items but had no tablist parent
+                and no selected state, which leaves a screen reader announcing
+                "tab" with no way to know which one is current or how many
+                there are — worse than plain buttons. Matters most in page
+                mode, where this rail is a real landmark inside the
+                merchant's page rather than an overlay the customer just
+                opened. Purely additive: no class or DOM change, so nothing
+                in ui.css or Nav's scroll logic is affected. */}
+            <div class="nbl-nav__scroll" role="tablist" ref={scrollRef}>
                 {visibleItems.map((item) => (
                     <button
                         key={item.key}
                         class={`nbl-nav__item${activeTab === item.key ? ' active' : ''}`}
                         data-nav={item.key}
                         role="tab"
+                        aria-selected={activeTab === item.key ? 'true' : 'false'}
                         onClick={() => onChange(item.key)}
                     >
                         {lbl(item.labelKey) || item.fallback || item.key}
