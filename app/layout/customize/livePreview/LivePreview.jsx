@@ -29,9 +29,45 @@ const PREVIEW_SRC = "/widget/preview.html";
 const POST_TARGET = "nbl-customize";
 const CSS_VARS_DEBOUNCE_MS = 80;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DEVICE PRESETS
+//
+// The preview is an <iframe>, and media queries inside it resolve against the
+// frame's own viewport, not the merchant's monitor. At the historical fixed
+// 390px that meant the widget was permanently on a "phone": every
+// max-width:749px rule fired, and ui.css's min-width:1200px zoom block — the
+// rendering most desktop visitors actually get — could never be seen at all.
+//
+// Widening the iframe to a real 1280px and scaling it down would emulate a
+// desktop honestly, but at the ~0.3 scale needed to fit the admin's corner
+// the widget would be unreadable, which defeats the point of a preview. So
+// the frame stays close to the widget's own footprint and the widget is told
+// which viewport to imitate instead (postMessage -> data-nbl-preview on the
+// shadow host -> the override block at the end of ui.css).
+//
+// width/height: the frame only ever has to contain the widget, so these track
+// ui.css's real footprint — 390px wide by (88px bottom offset + 520px panel)
+// tall, plus headroom for shadow and glow.
+//
+// scale: chosen so all three presets occupy roughly the same area of the
+// admin page. Without it, switching to "wide" would visibly grow the preview
+// panel and shove the customize form around.
+//
+// wide: 390 x 1.25 and 630 x 1.25, matching the zoom factor the override
+// applies inside the frame. Undersizing here would simply clip the zoomed
+// widget at the frame's edge.
+const DEVICE_PRESETS = {
+    mobile: { width: 390, height: 630, scale: 0.92 },
+    desktop: { width: 390, height: 630, scale: 0.92 },
+    wide: { width: 488, height: 788, scale: 0.74 },
+};
+
+const DEFAULT_DEVICE = "desktop";
+
 const LivePreviewPanel = memo(function LivePreviewPanel({
     cssVars,
     previewScene = "home",
+    previewDevice = DEFAULT_DEVICE,
     widgetConfig = null,
     hidden = false,
 }) {
@@ -93,6 +129,23 @@ const LivePreviewPanel = memo(function LivePreviewPanel({
         post("scene", previewScene);
     }, [previewScene, widgetConfig, iframeReady]);
 
+    // ── previewDevice -> immediate postMessage ──────────────────────────────
+    // Re-sent on every cssVars change as well as when the device itself
+    // changes, for the same reason the scene message is re-sent on every
+    // widgetConfig change (see the note above): a Reset all replaces the
+    // cssVars wholesale, and the widget re-derives its launcher mode from
+    // that payload. Without a fresh device message alongside it, the frame
+    // would keep whatever data-nbl-preview it had while the mode underneath
+    // changed — the two have to be re-applied together or the preview shows
+    // a combination the merchant never selected.
+    //
+    // Fires on mount too, so the widget starts in "desktop" rather than in
+    // the mobile rendering the 390px frame would otherwise force.
+    useEffect(() => {
+        if (!iframeReady) return;
+        post("previewDevice", previewDevice);
+    }, [previewDevice, cssVars, iframeReady]);
+
     // if (hidden) return null;
 
     const isLeft = (cssVars?.["--nbl-launcher-position"] || "right") === "left";
@@ -105,7 +158,11 @@ const LivePreviewPanel = memo(function LivePreviewPanel({
     // widget's own open/close `transform: scale(...)` animation, and it
     // automatically tracks ui.css's real dimensions — no hardcoded pixel
     // values to keep in sync by hand.
-    const PREVIEW_SCALE = 0.92;
+    //
+    // Falls back to the desktop preset rather than trusting the prop: this is
+    // a display dimension, and an unrecognised value would collapse the frame
+    // to zero and make the preview vanish with no obvious cause.
+    const device = DEVICE_PRESETS[previewDevice] || DEVICE_PRESETS[DEFAULT_DEVICE];
 
     return (
         <>
@@ -123,12 +180,10 @@ const LivePreviewPanel = memo(function LivePreviewPanel({
                         position: "fixed",
                         bottom: 0,
                         ...(isLeft ? { left: 0 } : { right: 0 }),
-                        // True widget footprint from ui.css: 390px wide ×
-                        // (88px bottom offset + 520px panel) tall, plus a
-                        // little headroom for shadow/glow so nothing clips.
-                        width: 390,
-                        height: 630,
-                        transform: `scale(${PREVIEW_SCALE})`,
+                        // Per-device footprint — see DEVICE_PRESETS.
+                        width: device.width,
+                        height: device.height,
+                        transform: `scale(${device.scale})`,
                         transformOrigin: isLeft ? "bottom left" : "bottom right",
                         border: "none",
                         background: "transparent",

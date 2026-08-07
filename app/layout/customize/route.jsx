@@ -25,6 +25,7 @@
  *   components/          -> presentational pieces (fields, section panels, tabs)
  */
 
+import { useState } from "react";
 import { useActionData, useLoaderData } from "react-router";
 import { authenticate } from "shopify-server";
 import SaveBar from "@components/saveBar/SaveBar";
@@ -78,6 +79,17 @@ export default function CustomizeNew() {
     const actionData = useActionData();
     const page = useCustomizePage(loaderData, actionData);
 
+    // Which viewport the live preview should imitate. Local to this component
+    // rather than part of useCustomizePage's state: it's a way of LOOKING at
+    // the config, not part of the config, so it must never count towards
+    // hasChanges, never be saved, and never be touched by Discard or Reset
+    // all. Keeping it out of that hook is what guarantees all four.
+    //
+    // Defaults to "desktop" so the preview opens showing the same thing it
+    // always has, and a merchant who never touches the switcher sees no
+    // change in behaviour.
+    const [previewDevice, setPreviewDevice] = useState("desktop");
+
     // Which preview scene to show, based on the active tab/section
     const previewScene =
         page.pageTab === "customize" && page.activeSimpleSection === "notifications"
@@ -104,6 +116,8 @@ export default function CustomizeNew() {
                 onDiscard={page.handleDiscard}
                 onResetAll={page.handleResetAll}
                 onSave={page.handleSave}
+                previewDevice={previewDevice}
+                onPreviewDeviceChange={setPreviewDevice}
             />
 
             {/* ══ LIVE PREVIEW — always mounted so portal persists across tabs ══ */}
@@ -112,6 +126,7 @@ export default function CustomizeNew() {
                 widgetConfig={page.widgetConfig}
                 hidden={page.pageTab === "config"}
                 previewScene={previewScene}
+                previewDevice={previewDevice}
             />
 
             {page.pageTab === "customize" && (
