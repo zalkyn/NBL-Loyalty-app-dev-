@@ -132,6 +132,35 @@
             if (msg.type === "scene") {
                 bridge.setScene(msg.payload);
             }
+
+            // Device switcher — "mobile" | "desktop" | "wide".
+            //
+            // This iframe is a fixed 390px wide (LivePreview.jsx), and media
+            // queries resolve against the frame's own viewport rather than the
+            // merchant's monitor. So from in here the widget is permanently on
+            // a phone: every max-width:749px rule fires and the large-desktop
+            // zoom block never does. A merchant setting compact mode to
+            // "On mobile only" would see the icon-only button regardless, with
+            // no way to check the desktop rendering.
+            //
+            // setPreviewDevice writes data-nbl-preview onto the shadow host,
+            // which the override block at the end of ui.css keys off to cancel
+            // or force the viewport-dependent behaviour.
+            //
+            // This is the ONLY caller of setPreviewDevice anywhere, and this
+            // file is loaded only by preview.html — it is not part of the theme
+            // extension bundle. That's what keeps the override rules unreachable
+            // from a real storefront.
+            //
+            // Guarded because a merchant may still have an older cached widget
+            // bundle in the preview iframe after an app update, in which case
+            // the method doesn't exist yet. Better a preview that ignores the
+            // switcher than one that throws and stops responding to cssVars.
+            if (msg.type === "previewDevice") {
+                if (typeof bridge.setPreviewDevice === "function") {
+                    bridge.setPreviewDevice(msg.payload);
+                }
+            }
         });
     });
 

@@ -9,6 +9,7 @@ import { h, Fragment } from 'preact';
 import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { icon } from './icons.js';
 import { formatNumber, buildReferralLink, buildPageLink } from './utils.js';
+import { applyLauncherModeAttrs } from './launcherMode.js';
 import { LauncherButton } from './components/LauncherButton.jsx';
 import { WidgetShell } from './components/WidgetShell.jsx';
 import { UpdateBanner } from './components/UpdateBanner.jsx';
@@ -620,6 +621,36 @@ export function App({ initialData, bridgeRef, hostEl }) {
             // state instead so LauncherButton re-renders with the new icon.
             if (typeof vars['--nbl-launcher-icon'] === 'string') {
                 setLauncherIconName(vars['--nbl-launcher-icon'].replace(/^'|'$/g, ''));
+            }
+            // launcher compact/badge mode — third instance of the same
+            // pattern, but these two switch CSS rule sets rather than feed a
+            // component, so they become attributes on the host instead of
+            // state. Nothing re-renders; the stylesheet reacts on its own.
+            // See launcherMode.js for why they can't just be CSS vars.
+            applyLauncherModeAttrs(root, vars);
+        };
+
+        // Admin live-preview device switcher. NEVER called on a storefront:
+        // the sole caller is public/widget/preview-bridge.js, which is loaded
+        // only by public/widget/preview.html and is not part of the theme
+        // extension bundle. With the attribute absent, every
+        // :host([data-nbl-preview="..."]) rule at the end of ui.css fails to
+        // match and the widget resolves through its normal media queries.
+        //
+        // It exists because the preview iframe is a fixed 390px wide, so from
+        // inside it every phone media query fires and the large-desktop zoom
+        // block never does — the merchant would otherwise be unable to preview
+        // anything but the mobile rendering. See LivePreview.jsx.
+        bridgeRef.setPreviewDevice = function (device) {
+            var root = hostEl || document.documentElement;
+            if (!root || typeof root.setAttribute !== 'function') return;
+            // Allow-list rather than pass-through: this value ends up in a
+            // selector, so an unrecognised one would match no rule and leave
+            // the preview in whatever state the previous message left it.
+            if (device === 'mobile' || device === 'desktop' || device === 'wide') {
+                root.setAttribute('data-nbl-preview', device);
+            } else {
+                root.removeAttribute('data-nbl-preview');
             }
         };
 
