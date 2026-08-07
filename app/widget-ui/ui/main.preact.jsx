@@ -5,6 +5,7 @@
 import { h, render } from 'preact';
 import { App } from './App.jsx';
 import { buildReferralLink } from './utils.js';
+import { applyLauncherModeAttrs } from './launcherMode.js';
 
 function onReady(fn) {
     if (window.NBL_v1) { fn(); return; }
@@ -425,6 +426,13 @@ function boot() {
             }
         });
     }
+
+    // Same reasoning as the loop above, for the launcher's compact/badge mode
+    // (see launcherMode.js). These decide the launcher's whole shape, so
+    // applying them late would be the most visible flash of the lot: a full
+    // pill painting first and collapsing to an icon a frame later. Set before
+    // the stylesheet is even attached, so the first paint is already correct.
+    applyLauncherModeAttrs(host, savedCssVars);
 
     var styleEl = document.createElement('style');
     // __NBL_CSS_TEXT__ — build.js-e esbuild `define` diye inject kora
