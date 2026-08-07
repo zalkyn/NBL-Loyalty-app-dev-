@@ -976,6 +976,48 @@ export const SIMPLE_SECTIONS = [
             { key: "launcherBottom", label: "Distance from bottom", hint: "How far from the bottom edge of the screen the button sits", type: "text", maps: ["--nbl-launcher-bottom"], default: "24px" },
             { key: "launcherSideOffset", label: "Side offset", hint: "How far from the left or right edge of the screen the button sits", type: "text", maps: ["--nbl-launcher-side-offset"], default: "20px" },
             { key: "launcherTitleSize", label: "Button text size", hint: "How large the text on the floating button appears", type: "range", min: 10, max: 18, unit: "px", maps: ["--nbl-launcher-title-size"], default: "13px", parseValue: (v) => `${v}px`, displayValue: (v) => parseInt(v) },
+
+            // ── Compact (icon-only) mode ──────────────────────────────────
+            // A select rather than an on/off switch even though the request
+            // that prompted it was only about phones. "Icon only, everywhere"
+            // is the next thing a merchant with a minimal storefront asks for,
+            // and converting a saved boolean into a three-way value later
+            // means a migration over every existing shop's config. Three
+            // options from the start costs nothing.
+            //
+            // Quoted values, matching launcherIcon above — these are config
+            // values travelling on the cssVars payload, not real CSS
+            // properties, and the quoting is what marks them as such at the
+            // point they're read back (see launcherMode.js).
+            // Option values are the stored values verbatim, quotes included:
+            // SimpleSelectField writes opt.value straight through and never
+            // calls parseValue/displayValue, so adding those here would be
+            // dead code implying a translation step that doesn't happen.
+            // Labels stay short because the field renders as a row of equal-
+            // width buttons — the hint carries the explanation.
+            { key: "launcherCompact", label: "Compact icon-only button", hint: "Shrinks the floating button down to just its icon. The full button is comfortable in a desktop corner but takes real space on a phone, where it also has to share that corner with sticky add-to-cart bars, cookie banners and chat bubbles.", type: "select", options: [{ value: "'never'", label: "Off" }, { value: "'mobile'", label: "Mobile only" }, { value: "'always'", label: "Always" }], maps: ["--nbl-launcher-compact"], default: "'never'" },
+            { key: "launcherBadge", label: "Points badge on compact button", hint: "The compact button has no room for the points subtitle, so the balance moves to a small badge on the icon. Pick 'Dot' to signal a balance without showing the number. Only appears while the button is compact and the customer is signed in.", type: "select", options: [{ value: "'count'", label: "Points" }, { value: "'dot'", label: "Dot" }, { value: "'none'", label: "Hidden" }], maps: ["--nbl-launcher-badge"], default: "'count'" },
+            { key: "launcherCompactSize", label: "Compact button size", hint: "Diameter of the icon-only button. Keep this at 44px or above — anything smaller is hard to tap accurately on a phone.", type: "range", min: 40, max: 72, unit: "px", maps: ["--nbl-launcher-compact-size"], default: "48px", parseValue: (v) => `${v}px`, displayValue: (v) => parseInt(v) },
+
+            // ── Mobile offsets ────────────────────────────────────────────
+            // Separate from the desktop pair above rather than shared,
+            // because the number that clears a theme's sticky add-to-cart bar
+            // on a phone is wrong on a desktop where no such bar exists.
+            // Empty means "use the desktop value", so existing shops are
+            // unaffected until a merchant deliberately sets one.
+            { key: "launcherBottomMobile", label: "Distance from bottom (mobile)", hint: "Overrides the distance above only on phones — useful when a sticky add-to-cart bar or cookie banner sits in the same corner. Leave empty to use the desktop value.", type: "text", maps: ["--nbl-launcher-bottom-mobile"], default: "" },
+            { key: "launcherSideOffsetMobile", label: "Side offset (mobile)", hint: "Overrides the side offset above only on phones — useful when a chat bubble shares the corner. Leave empty to use the desktop value.", type: "text", maps: ["--nbl-launcher-side-offset-mobile"], default: "" },
+
+            // ── Idle float ("swing") ──────────────────────────────────────
+            // A select rather than a toggle so a future motion style slots in
+            // without changing the stored value's shape. The value is a real
+            // CSS animation-name, consumed directly by
+            // .nbl-launcher__button's animation-name longhand — "None" is the
+            // CSS keyword `none`, not a sentinel this app has to interpret.
+            { key: "launcherFloat", label: "Floating animation", hint: "The gentle up-and-down motion of the button while it sits idle. Some brands prefer it still. Customers who have reduced motion enabled on their device never see the animation either way.", type: "select", options: [{ value: "nbl-launcher-float", label: "Float (default)" }, { value: "none", label: "None — keep it still" }], maps: ["--nbl-launcher-float-name"], default: "nbl-launcher-float" },
+
+            { key: "launcherBadgeBg", label: "Points badge background", hint: "Background color of the small points badge on the compact button", type: "color", maps: ["--nbl-launcher-badge-bg"], default: "#ffffff" },
+            { key: "launcherBadgeColor", label: "Points badge text color", hint: "Color of the number inside the points badge", type: "color", maps: ["--nbl-launcher-badge-color"], default: "var(--nbl-launcher-bg)", resolvedDefault: "#ef633b" },
         ],
     },
     {
@@ -1637,6 +1679,33 @@ export const CSS_DEFAULTS = {
     "--nbl-launcher-bottom": "24px",
     "--nbl-launcher-position": "right",
     "--nbl-launcher-side-offset": "20px",
+    // Compact/badge modes and the float switch. Every one of these defaults to
+    // the launcher's pre-existing behaviour, so a shop whose saved config
+    // predates these keys renders exactly as it did before — no migration and
+    // no backfill needed, which is the whole reason they're expressed as
+    // additive variables rather than as changes to the rules themselves.
+    "--nbl-launcher-compact": "'never'",
+    "--nbl-launcher-badge": "'count'",
+    "--nbl-launcher-compact-size": "48px",
+    "--nbl-launcher-float-name": "nbl-launcher-float",
+    "--nbl-launcher-badge-bg": "#ffffff",
+    "--nbl-launcher-badge-color": "var(--nbl-launcher-bg)",
+    // Intentionally empty strings: "unset" is a meaningful state here, meaning
+    // "fall back to the desktop offset". Neither of these is declared in
+    // ui.css's :host block — they exist only if a merchant sets one — and
+    // ui.css reads them as var(--nbl-launcher-bottom-mobile,
+    // var(--nbl-launcher-bottom)), so an absent property resolves to the
+    // desktop value.
+    //
+    // The empty string is what makes "absent" reachable: CSSOM defines
+    // setProperty(name, "") as a call to removeProperty(name), so the two
+    // places that apply cssVars (main.preact.jsx's boot loop and App.jsx's
+    // setCssVars) both clear the property rather than defining it as empty.
+    // That distinction matters — a custom property defined AS an empty value
+    // would substitute nothing into `bottom:` and invalidate the declaration
+    // instead of triggering the fallback.
+    "--nbl-launcher-bottom-mobile": "",
+    "--nbl-launcher-side-offset-mobile": "",
     "--nbl-widget-body-padding": "14px 14px 24px",
     "--nbl-modal-radius": "20px",
     "--nbl-modal-padding": "24px 22px 22px",

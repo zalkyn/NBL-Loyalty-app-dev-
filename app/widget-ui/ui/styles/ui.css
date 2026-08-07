@@ -94,6 +94,75 @@ input:not([type=checkbox], [type=radio]) {
     --nbl-launcher-bottom: 24px;
     --nbl-launcher-side-offset: 20px;
 
+    /* ── Float ("swing") animation ────────────────────────────────────────
+       The merchant-facing on/off switch for the launcher's idle up-and-down
+       motion. Deliberately an animation-NAME switch rather than
+       `animation-play-state: paused`: pausing freezes the button wherever
+       the 3.5s cycle happened to be (often mid-lift at translateY(-5px)
+       with the raised shadow), which is exactly what a merchant sees the
+       instant they flip the toggle in the live preview. Setting the name to
+       `none` drops the animation entirely and the button snaps back to its
+       real resting position. */
+    --nbl-launcher-float-name: nbl-launcher-float;
+
+    /* ── Compact (icon-only) mode ─────────────────────────────────────────
+       Not real CSS properties — these two ride along on the cssVars payload
+       as plain config values and are mirrored onto the shadow host as
+       data-nbl-compact / data-nbl-badge attributes, exactly like
+       --nbl-launcher-position and --nbl-launcher-icon already are (see
+       App.jsx's setCssVars and main.preact.jsx's boot). They're declared
+       here anyway so the full launcher config is visible in one place and
+       so CSS_DEFAULTS in cssVarsConfig.js has a 1:1 counterpart.
+
+         --nbl-launcher-compact : 'never' | 'mobile' | 'always'
+         --nbl-launcher-badge   : 'count' | 'dot' | 'none'  */
+    --nbl-launcher-compact: 'never';
+    --nbl-launcher-badge: 'count';
+
+    /* Minimum hit area for the icon-only button. --nbl-launcher-icon-circle
+       (38px) is fine as an inner disc inside a wide pill, but once the pill
+       collapses to just that disc it becomes the entire tap target, and 38px
+       is below both Apple's and Android's 44/48px floors. */
+    --nbl-launcher-compact-size: 48px;
+
+    /* ── Compact switch (--nbl-lc-*) ──────────────────────────────────────
+       The EXPANDED state of every property compact mode changes. Each value
+       here is the one the launcher has always had, so a widget that never
+       turns compact on renders byte-identically to before this existed.
+
+       Compact mode is entered by reassigning this block — see the compact
+       section further down for why the switch lives in variables rather
+       than in a duplicated rule set. */
+    --nbl-lc-label-display: flex;
+    --nbl-lc-badge-display: none;
+    --nbl-lc-size: auto;
+    --nbl-lc-radius: var(--nbl-launcher-border-radius);
+    --nbl-lc-justify: flex-start;
+    --nbl-lc-overflow: hidden;
+    --nbl-lc-icon-margin: 5px 4px 5px 5px;
+    --nbl-lc-icon-bg: var(--nbl-launcher-icon-bg);
+    --nbl-lc-icon-box: var(--nbl-launcher-icon-circle);
+    --nbl-lc-icon-padding: 8px;
+    --nbl-lc-svg-size: var(--nbl-launcher-icon-size);
+
+    /* Badge colours. Split out of the --nbl-lc-* block above because these
+       are merchant-facing style choices that apply whenever the badge is
+       visible, not part of the expanded/compact switch. */
+    --nbl-launcher-badge-bg: #ffffff;
+    --nbl-launcher-badge-color: var(--nbl-launcher-bg);
+
+    /* ── Mobile offsets ──────────────────────────────────────────────────
+       Unset by default, in which case the desktop values above are used
+       unchanged. Merchants set these when a theme's sticky add-to-cart bar,
+       cookie banner or chat bubble collides with the launcher on phones —
+       a collision that has no desktop equivalent, which is why one shared
+       pair of numbers can't serve both.
+
+       Read through --nbl-launcher-bottom-active / -side-active below rather
+       than directly, so the toast stack tracks the launcher automatically. */
+    --nbl-launcher-bottom-active: var(--nbl-launcher-bottom);
+    --nbl-launcher-side-active: var(--nbl-launcher-side-offset);
+
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        WIDGET SHELL (container / header / nav / body)
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -793,7 +862,7 @@ input:not([type=checkbox], [type=radio]) {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 .nbl-launcher {
     position: fixed;
-    bottom: var(--nbl-launcher-bottom);
+    bottom: var(--nbl-launcher-bottom-active);
     z-index: 1000000001;
     animation: nbl-launcher-entrance 0.5s var(--nbl-ease-spring) both;
 }
@@ -808,24 +877,29 @@ input:not([type=checkbox], [type=radio]) {
 }
 
 .nbl-launcher.pos-left {
-    left: var(--nbl-launcher-side-offset);
+    left: var(--nbl-launcher-side-active);
 }
 
 .nbl-launcher.pos-right {
-    right: var(--nbl-launcher-side-offset);
+    right: var(--nbl-launcher-side-active);
 }
 
 /* ── Toast stack — unseen-transaction notifications above the launcher ── */
+/* Offsets come from the same -active pair as .nbl-launcher, NOT from the
+   raw --nbl-launcher-bottom/-side-offset tokens. The stack is positioned
+   relative to the launcher it sits above, so a mobile-only offset that
+   moved one without the other would leave the toasts floating away from
+   (or overlapping) the button they belong to. */
 .nbl-toast-stack {
     position: fixed;
-    bottom: calc(var(--nbl-launcher-bottom) + 70px);
+    bottom: calc(var(--nbl-launcher-bottom-active) + 70px);
     z-index: 1000000003;
     display: flex;
     flex-direction: column-reverse;
     gap: 8px;
     width: 300px;
     max-width: calc(100vw - 40px);
-    max-height: calc(100vh - var(--nbl-launcher-bottom) - 110px);
+    max-height: calc(100vh - var(--nbl-launcher-bottom-active) - 110px);
     overflow-y: auto;
     overflow-x: hidden;
     padding: 2px;
@@ -834,11 +908,11 @@ input:not([type=checkbox], [type=radio]) {
 }
 
 .nbl-toast-stack.pos-left {
-    left: var(--nbl-launcher-side-offset);
+    left: var(--nbl-launcher-side-active);
 }
 
 .nbl-toast-stack.pos-right {
-    right: var(--nbl-launcher-side-offset);
+    right: var(--nbl-launcher-side-active);
 }
 
 .nbl-toast {
@@ -1063,10 +1137,17 @@ input:not([type=checkbox], [type=radio]) {
 .nbl-launcher__button {
     display: flex;
     align-items: center;
+    /* --nbl-lc-* resolve to the button's original values unless compact mode
+       reassigns them; see the compact section below. width/height default to
+       `auto` and justify-content to `flex-start`, both of which are what this
+       rule effectively had before. */
+    justify-content: var(--nbl-lc-justify, flex-start);
+    width: var(--nbl-lc-size, auto);
+    height: var(--nbl-lc-size, auto);
     gap: 0;
     padding: 0;
     border: none;
-    border-radius: var(--nbl-launcher-border-radius);
+    border-radius: var(--nbl-lc-radius, var(--nbl-launcher-border-radius));
     cursor: pointer;
     font-weight: var(--nbl-launcher-title-weight);
     white-space: nowrap;
@@ -1078,8 +1159,20 @@ input:not([type=checkbox], [type=radio]) {
         box-shadow 0.25s ease,
         filter 0.2s;
     animation: nbl-launcher-float 3.5s ease-in-out infinite;
+    /* Longhand override of the shorthand's name slot, deliberately on its own
+       line. Merchants can switch the idle float off from Customize > Launcher
+       Button; everything else about the shorthand (duration, easing, iteration
+       count) stays exactly where it was, so turning it back on restores the
+       original motion with no second copy of those values to keep in sync.
+       See --nbl-launcher-float-name for why this is a name switch and not
+       animation-play-state. */
+    animation-name: var(--nbl-launcher-float-name, nbl-launcher-float);
     will-change: transform;
-    overflow: hidden;
+    /* `hidden` while expanded, exactly as before. Compact mode flips this to
+       `visible` so the points badge can sit proud of the circle's edge —
+       scoped through the variable rather than changed outright, so the
+       expanded pill keeps clipping the way it always has. */
+    overflow: var(--nbl-lc-overflow, hidden);
     position: relative;
 }
 
@@ -1110,16 +1203,25 @@ input:not([type=checkbox], [type=radio]) {
 }
 
 .nbl-launcher__icon {
-    width: var(--nbl-launcher-icon-circle);
-    height: var(--nbl-launcher-icon-circle);
+    /* Fixed 38px disc while expanded. In compact mode it grows to fill the
+       button instead, so the glyph stays proportional across the whole
+       40-72px range a merchant can set. A fixed disc would leave a 72px
+       button with a small icon adrift in the middle of it, and at the top of
+       that range the SVG would outgrow the disc's own padding box. */
+    width: var(--nbl-lc-icon-box, var(--nbl-launcher-icon-circle));
+    height: var(--nbl-lc-icon-box, var(--nbl-launcher-icon-circle));
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--nbl-launcher-icon-bg);
+    /* Both go through the compact switch: with no label beside it, the
+       translucent disc reads as a second ring inside the button rather than
+       as separation from anything, and the asymmetric margin that balanced
+       the gap to the label has nothing left to balance. */
+    background: var(--nbl-lc-icon-bg, var(--nbl-launcher-icon-bg));
     border-radius: 50%;
-    margin: 5px 4px 5px 5px;
+    margin: var(--nbl-lc-icon-margin, 5px 4px 5px 5px);
     flex-shrink: 0;
-    padding: 8px;
+    padding: var(--nbl-lc-icon-padding, 8px);
     box-sizing: border-box;
     transition: transform 0.3s var(--nbl-ease-spring), background 0.2s;
 }
@@ -1127,8 +1229,10 @@ input:not([type=checkbox], [type=radio]) {
 /* launcherIcon() renders raw SVG directly (not via the Icon component),
    so this is the only place that controls its size */
 .nbl-launcher__icon svg {
-    width: var(--nbl-launcher-icon-size);
-    height: var(--nbl-launcher-icon-size);
+    /* Compact scales this with the button instead of leaving a 19px glyph
+       marooned in the middle of a 48px circle. */
+    width: var(--nbl-lc-svg-size, var(--nbl-launcher-icon-size));
+    height: var(--nbl-lc-svg-size, var(--nbl-launcher-icon-size));
 }
 
 .nbl-launcher__button:hover .nbl-launcher__icon {
@@ -1137,7 +1241,7 @@ input:not([type=checkbox], [type=radio]) {
 }
 
 .nbl-launcher__label {
-    display: flex;
+    display: var(--nbl-lc-label-display, flex);
     flex-direction: column;
     align-items: flex-start;
     padding: 0 16px 0 10px;
@@ -1182,6 +1286,137 @@ input:not([type=checkbox], [type=radio]) {
     font-size: 12.5px;
 }
 
+/* ── Compact (icon-only) launcher ────────────────────────────────────────
+   Collapses the pill to a single circular icon button. Merchants turn this
+   on from Customize > Launcher Button; it exists because the full pill,
+   which is comfortable on a desktop corner, eats a real share of a phone
+   screen and collides with the sticky add-to-cart bars, cookie banners and
+   chat bubbles that live in the same corner on mobile themes.
+
+   ── How the switch works ──
+   Every property that differs between expanded and compact is read from a
+   --nbl-lc-* variable, declared once with its expanded value in the :host
+   token block at the top of this file. Turning compact on is therefore a
+   matter of reassigning those variables, and the rules below never need to
+   be written twice.
+
+   That matters because there are three separate ways in:
+
+     :host([data-nbl-compact="always"])          — every viewport
+     @media (max-width: 749px) + ="mobile"       — phones only (RESPONSIVE)
+     :host([data-nbl-preview="..."])             — admin preview (end of file)
+
+   A rule-set-per-entry-point version of this would be the same forty lines
+   copied three times, and any future launcher tweak would have to be
+   applied to all three or silently diverge. Reassigning eleven variables in
+   three places cannot diverge that way.
+
+   data-nbl-compact / data-nbl-badge are mirrored onto the shadow host from
+   the cssVars payload (App.jsx's setCssVars, main.preact.jsx's boot) —
+   the same treatment --nbl-launcher-position and --nbl-launcher-icon
+   already get, since none of the three is a real CSS property. */
+:host([data-nbl-compact="always"]) {
+    --nbl-lc-label-display: none;
+    --nbl-lc-badge-display: flex;
+    --nbl-lc-size: var(--nbl-launcher-compact-size);
+    --nbl-lc-radius: 50%;
+    --nbl-lc-justify: center;
+    --nbl-lc-overflow: visible;
+    --nbl-lc-icon-margin: 0;
+    --nbl-lc-icon-bg: transparent;
+    --nbl-lc-icon-box: 100%;
+    --nbl-lc-icon-padding: 0;
+    --nbl-lc-svg-size: calc(var(--nbl-launcher-compact-size) * 0.42);
+}
+
+/* Opt out of the badge entirely — for merchants who want the quietest
+   possible button. Declared after the compact blocks so it wins on source
+   order at equal specificity, and written as its own selector rather than
+   folded into each of them so it applies to every entry point at once. */
+:host([data-nbl-badge="none"]) {
+    --nbl-lc-badge-display: none;
+}
+
+/* ── Points badge ────────────────────────────────────────────────────────
+   Rendered by LauncherButton.jsx for logged-in customers only, and always —
+   visibility is decided here rather than in JS. That's deliberate: the
+   compact/expanded decision is a media query on the storefront, and a
+   component can only read a media query through a matchMedia listener, a
+   piece of state, and a re-render on every resize. Rendering the node
+   unconditionally and letting CSS collapse it keeps LauncherButton free of
+   viewport knowledge entirely, and costs one hidden <span> on the expanded
+   pill (where the balance already sits in the subtitle).
+
+   Guests never reach this rule at all — there is no balance to show before
+   login, so LauncherButton doesn't render the node in that state. */
+.nbl-launcher__badge {
+    display: var(--nbl-lc-badge-display, none);
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--nbl-launcher-badge-bg, #ffffff);
+    color: var(--nbl-launcher-badge-color, var(--nbl-launcher-bg));
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.2px;
+    white-space: nowrap;
+    /* The badge overlaps the button's tap target, and on a 48px circle it
+       covers a meaningful share of it. Without this, a tap landing on the
+       badge hits a non-interactive <span> and the widget simply doesn't
+       open — a bug that would only ever reproduce on the corner of the
+       button, i.e. almost never in testing and constantly in the field. */
+    pointer-events: none;
+    /* Reads against any --nbl-launcher-bg the merchant picks, rather than
+       against one assumed brand colour. */
+    box-shadow: 0 0 0 2px var(--nbl-launcher-bg), 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Dot variant — signals "you have a balance" without putting a number on
+   the button. Not variable-driven like the compact switch above: dot-vs-
+   count is a merchant setting that doesn't change with viewport, so a plain
+   override rule is enough and there's nothing to keep in sync. */
+:host([data-nbl-badge="dot"]) .nbl-launcher__badge {
+    min-width: 10px;
+    width: 10px;
+    height: 10px;
+    padding: 0;
+    top: 0;
+    right: 0;
+    /* Hides the digits visually only. The number stays in the DOM and the
+       button's aria-label still announces the balance, so nothing is lost
+       for screen readers. */
+    font-size: 0;
+}
+
+/* Keeps the pending spinner meaningful at 10px, where the badge's normal
+   8px spinner would be larger than the dot containing it. */
+:host([data-nbl-badge="dot"]) .nbl-launcher__badge .nbl-spinner--sync {
+    width: 6px;
+    height: 6px;
+    border-width: 1px;
+}
+
+/* The compact button's replacement for the subtitle's sync spinner. Without
+   it, a compact launcher loses the "your points are being updated" signal
+   altogether, because the subtitle that normally carries it is hidden —
+   see LauncherButton.jsx's pointsPending branch. */
+.nbl-launcher__badge .nbl-spinner--sync {
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-width: 1.5px;
+    border-color: color-mix(in srgb, currentColor 30%, transparent);
+    border-top-color: currentColor;
+}
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    WIDGET SHELL — container, scroll area, body
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -1210,13 +1445,18 @@ input:not([type=checkbox], [type=radio]) {
     overflow: hidden;
 }
 
+/* Same -active pair as the launcher and the toast stack — the panel grows
+   out of the launcher's corner, so all three have to share one horizontal
+   anchor. Below 500px this is overridden outright by the responsive block
+   (width:94% / left:3% / right:3%), so in practice this only matters on the
+   500-749px band. */
 .nbl-widget-container.pos-left {
-    left: var(--nbl-launcher-side-offset);
+    left: var(--nbl-launcher-side-active);
     --nbl-widget-origin: bottom left;
 }
 
 .nbl-widget-container.pos-right {
-    right: var(--nbl-launcher-side-offset);
+    right: var(--nbl-launcher-side-active);
     --nbl-widget-origin: bottom right;
 }
 
@@ -3862,6 +4102,77 @@ input:not([type=checkbox], [type=radio]) {
     }
 }
 
+/* ── Phones — launcher ───────────────────────────────────────────────────
+   749px, not the 500px above. That's the width Shopify's own themes split
+   mobile from desktop at, and it's already what page mode uses further down
+   this file, so the launcher changes shape at the same point as the theme
+   around it. The 500px block above is about the widget PANEL fitting a
+   narrow screen, which is a different question with a different answer.
+
+   Both things here are phone-only problems with no desktop equivalent:
+
+   1. Offsets. The bottom-right corner of a mobile storefront is crowded —
+      sticky add-to-cart bars, cookie banners, chat bubbles all live there.
+      Merchants need to move the launcher clear of whatever their theme puts
+      in that corner, and the number that fixes it on a phone is wrong on a
+      desktop. Unset by default, in which case these resolve to the desktop
+      offsets and nothing changes.
+
+   2. Compact mode. See the compact section above for how the switch works;
+      this is one of its three entry points and reassigns the same eleven
+      variables. */
+@media (max-width: 749px) {
+    :host {
+        --nbl-launcher-bottom-active: var(--nbl-launcher-bottom-mobile, var(--nbl-launcher-bottom));
+        --nbl-launcher-side-active: var(--nbl-launcher-side-offset-mobile, var(--nbl-launcher-side-offset));
+    }
+
+    :host([data-nbl-compact="mobile"]) {
+        --nbl-lc-label-display: none;
+        --nbl-lc-badge-display: flex;
+        --nbl-lc-size: var(--nbl-launcher-compact-size);
+        --nbl-lc-radius: 50%;
+        --nbl-lc-justify: center;
+        --nbl-lc-overflow: visible;
+        --nbl-lc-icon-margin: 0;
+        --nbl-lc-icon-bg: transparent;
+        --nbl-lc-icon-box: 100%;
+        --nbl-lc-icon-padding: 0;
+        --nbl-lc-svg-size: calc(var(--nbl-launcher-compact-size) * 0.42);
+    }
+
+    /* Restated here because the "none" rule in the compact section sits
+       EARLIER in the file than this block, and both are single-attribute
+       :host() selectors — equal specificity, so source order decides and
+       the badge would come back on for merchants who switched it off. */
+    :host([data-nbl-badge="none"]) {
+        --nbl-lc-badge-display: none;
+    }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────
+   The launcher's idle float is ambient motion with no informational
+   content — precisely the category `prefers-reduced-motion` exists for, and
+   a genuine problem for people with vestibular disorders, since it never
+   stops and sits fixed in the corner of every page.
+
+   Placed after the compact blocks and outside any :host() selector so it
+   applies at every viewport and in every mode, and after the merchant's own
+   float setting so an accessibility preference wins over a style choice.
+
+   The entrance animation is left running: it's a one-shot 0.5s transform on
+   first appearance, not sustained motion. Cutting it would make the button
+   pop into existence, which is its own kind of jarring. */
+@media (prefers-reduced-motion: reduce) {
+    .nbl-launcher__button {
+        animation-name: none;
+    }
+
+    .nbl-launcher__button:hover {
+        transform: none;
+    }
+}
+
 /* ── Large desktop — 125% UI scale ────────────────────────────────────────
    Scales the ENTIRE widget chrome — text, icons, padding, borders, the
    panel itself — not just the panel's footprint. 13px body text renders as
@@ -4630,3 +4941,91 @@ input:not([type=checkbox], [type=radio]) {
     margin: 0 auto;
     width: 100%;
 }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ADMIN LIVE-PREVIEW OVERRIDES — never reachable on a storefront
+
+   The problem these solve: the customize page's live preview is a 390px-wide
+   <iframe> (LivePreview.jsx). Media queries resolve against the iframe's own
+   viewport, not the merchant's monitor, so from inside that frame the widget
+   is permanently on a "phone":
+
+     - Every max-width: 749px rule fires, always. A merchant who sets compact
+       mode to "On mobile only" would see the icon-only button in the preview
+       no matter what, with no way to check what desktop visitors get.
+     - The min-width: 1200px zoom block NEVER fires. That block is what most
+       desktop visitors actually see, and until now there was no way to
+       preview it at all.
+
+   The device switcher in the customize page header resolves this by telling
+   the preview which viewport to imitate. That arrives as data-nbl-preview on
+   the shadow host, and these rules cancel or force the viewport-dependent
+   behaviour to match.
+
+   ── Why this cannot leak to a storefront ──
+   The attribute is set by exactly one function, bridge.setPreviewDevice, and
+   the only caller of that function is public/widget/preview-bridge.js — a
+   file loaded solely by public/widget/preview.html and never bundled into
+   the theme extension. With the attribute absent, every selector here fails
+   to match and the storefront resolves through the normal media queries
+   above, unchanged. Nothing needed to be removed or rewritten to make room
+   for this, which is the entire point: the production path is untouched.
+
+   ── Specificity ──
+   Each selector below carries strictly more attributes than the rule it
+   overrides — :host([data-nbl-preview="desktop"][data-nbl-compact="mobile"])
+   at (0,3,0) against :host([data-nbl-compact="mobile"]) at (0,2,0) — so
+   these win on weight rather than on source order. The placement at the end
+   of the file is belt and braces, not the mechanism.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* ── Desktop / large-desktop: undo the phone-only offsets ──────────────── */
+:host([data-nbl-preview="desktop"]),
+:host([data-nbl-preview="wide"]) {
+    --nbl-launcher-bottom-active: var(--nbl-launcher-bottom);
+    --nbl-launcher-side-active: var(--nbl-launcher-side-offset);
+}
+
+/* ── Desktop / large-desktop: undo phone-only compact ──────────────────────
+   Scoped to compact="mobile" on purpose. A merchant who chose "Always" wants
+   the icon-only button on desktop too, and must be able to see that in the
+   desktop preview — so these restore the expanded values only when compact
+   was conditional on the viewport in the first place. */
+:host([data-nbl-preview="desktop"][data-nbl-compact="mobile"]),
+:host([data-nbl-preview="wide"][data-nbl-compact="mobile"]) {
+    --nbl-lc-label-display: flex;
+    --nbl-lc-badge-display: none;
+    --nbl-lc-size: auto;
+    --nbl-lc-radius: var(--nbl-launcher-border-radius);
+    --nbl-lc-justify: flex-start;
+    --nbl-lc-overflow: hidden;
+    --nbl-lc-icon-margin: 5px 4px 5px 5px;
+    --nbl-lc-icon-bg: var(--nbl-launcher-icon-bg);
+    --nbl-lc-icon-box: var(--nbl-launcher-icon-circle);
+    --nbl-lc-icon-padding: 8px;
+    --nbl-lc-svg-size: var(--nbl-launcher-icon-size);
+}
+
+/* ── Large desktop: force the 125% scale ──────────────────────────────────
+   Mirrors the min-width:1200px block verbatim, including the fact that all
+   three fixed-position roots have to move together — zooming the launcher
+   without the toast stack would let the taller launcher overlap the toasts
+   sitting just above it.
+
+   LivePreview.jsx grows the iframe to match (390x630 -> 488x788) and drops
+   its own scale so the preview keeps the same footprint on the admin page;
+   without that, a zoomed widget would simply be clipped by the frame.
+
+   Firefox below 126 ignores `zoom` and shows the base size here, exactly as
+   a real storefront does on that browser. */
+:host([data-nbl-preview="wide"]) .nbl-widget-container--floating,
+:host([data-nbl-preview="wide"]) .nbl-launcher,
+:host([data-nbl-preview="wide"]) .nbl-toast-stack {
+    zoom: 1.25;
+}
+
+/* ── Mobile: nothing to force ─────────────────────────────────────────────
+   The iframe is already 390px, so every phone rule fires on its own. The
+   only thing worth stating is that the zoom above must NOT apply, which it
+   doesn't — it is scoped to ="wide" and this is ="mobile". Recorded here so
+   the absence of a mobile block reads as deliberate rather than forgotten. */
