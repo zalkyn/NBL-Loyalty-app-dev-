@@ -4256,6 +4256,12 @@ input:not([type=checkbox], [type=radio]) {
     max-width: none;
     border-radius: 0;
     transform-origin: center center;
+
+    /* Content column width, read by .nbl-widget-body's max-width and by
+       .nbl-header__top's alignment calc() below — one token so the two
+       stay in sync instead of drifting when only one gets edited. Widened
+       per-tier in the 2K/4K media queries further down. */
+    --nbl-fs-content-width: 860px;
 }
 
 /* ── Expanded type scale ─────────────────────────────────────────────────
@@ -4323,27 +4329,37 @@ input:not([type=checkbox], [type=radio]) {
    behaviour and the chevrons both go too — a disabled chevron flanking a
    fully-visible rail reads as a broken control. Nav.jsx still computes its
    chevron state either way; hiding them in CSS keeps that logic untouched
-   and mode-agnostic. */
-.nbl-widget-container--fullscreen .nbl-nav__scroll {
-    --nav-item-width: auto;
-    justify-content: center;
-    overflow-x: visible;
-    scroll-snap-type: none;
-    gap: 2px;
-    padding: 0 24px;
-}
+   and mode-agnostic.
 
-.nbl-widget-container--fullscreen .nbl-nav__item {
-    flex: 0 0 auto;
-    width: auto;
-    min-width: 0;
-    padding-left: 20px;
-    padding-right: 20px;
-    scroll-snap-align: none;
-}
+   Gated behind the same min-width: 620px as the Home shortcut cards above
+   (and matching page mode's identical .nbl-page-wide rule below). Without
+   the gate, "size to content + hide chevrons" on a narrow viewport turns
+   into "size past the container, with no way left to scroll to what's cut
+   off" — every tab still renders, just partly off both edges. Below the
+   threshold this falls back to the base rule: exactly 3 items visible with
+   scroll + chevrons, which already handles narrow widths correctly. */
+@media (min-width: 620px) {
+    .nbl-widget-container--fullscreen .nbl-nav__scroll {
+        --nav-item-width: auto;
+        justify-content: center;
+        overflow-x: visible;
+        scroll-snap-type: none;
+        gap: 2px;
+        padding: 0 24px;
+    }
 
-.nbl-widget-container--fullscreen .nbl-nav__chevron {
-    display: none;
+    .nbl-widget-container--fullscreen .nbl-nav__item {
+        flex: 0 0 auto;
+        width: auto;
+        min-width: 0;
+        padding-left: 20px;
+        padding-right: 20px;
+        scroll-snap-align: none;
+    }
+
+    .nbl-widget-container--fullscreen .nbl-nav__chevron {
+        display: none;
+    }
 }
 
 /* ── Full screen: header ──────────────────────────────────────────────────
@@ -4362,19 +4378,21 @@ input:not([type=checkbox], [type=radio]) {
    no longer looks attached to it. Padding leaves the box full-bleed and
    moves only its contents.
 
-   832px is the body's inner content width (860px max-width minus its own
-   14px side padding, box-sizing: border-box), so the greeting lines up
-   exactly with the cards beneath it. max() keeps the original 20px padding
-   as a floor for viewports narrower than the column. */
+   (var(--nbl-fs-content-width) - 28px) is the body's inner content width
+   (its max-width minus its own 14px side padding, box-sizing: border-box),
+   so the greeting lines up exactly with the cards beneath it — including
+   in the wider 2K/4K tiers further down, which raise the same variable.
+   max() keeps the original 20px padding as a floor for viewports narrower
+   than the column. */
 .nbl-widget-container--fullscreen .nbl-header__top {
-    padding-left: max(20px, calc((100% - 832px) / 2));
+    padding-left: max(20px, calc((100% - (var(--nbl-fs-content-width) - 28px)) / 2));
     /* 86px floor on this side, not 20px: the expand and close buttons are
        absolutely positioned over the header's top-right corner and occupy
        roughly 78px there. With the points pill pushed to the right by
        space-between, a symmetric 20px floor would slide it straight under
        them on any viewport narrower than the content column. Wide screens
        never notice — the calc() is far larger than 86px there. */
-    padding-right: max(86px, calc((100% - 832px) / 2));
+    padding-right: max(86px, calc((100% - (var(--nbl-fs-content-width) - 28px)) / 2));
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -4399,28 +4417,42 @@ input:not([type=checkbox], [type=radio]) {
    else. Given an 832px column that becomes three heavy bars of solid brand
    colour with their chevrons stranded ~700px from their labels. Three
    equal columns reads as a set of shortcuts instead, and hands the vertical
-   space back to the sections underneath. */
-.nbl-widget-container--fullscreen .nbl-home-nav {
-    flex-direction: row;
-    gap: 12px;
-}
+   space back to the sections underneath.
 
-.nbl-widget-container--fullscreen .nbl-home-nav__item {
-    flex: 1 1 0;
-    min-width: 0;
-}
+   Gated behind min-width: 620px (same threshold page mode uses for the
+   identical decision, see PAGE MODE further down) rather than applied
+   unconditionally. Full screen was originally assumed to only ever be
+   opened on a desktop-class viewport, but the toggle has no such guard in
+   JS — opened on a narrow viewport (a resized DevTools frame, a small
+   laptop, a folded foldable) the three columns above would each get a
+   three-word label squeezed into ~1/3 of the panel width, wrapping every
+   word onto its own line. Below the threshold this falls through to the
+   base .nbl-home-nav rule, the same full-width stacked cards the 390px
+   panel already uses correctly. */
+@media (min-width: 620px) {
+    .nbl-widget-container--fullscreen .nbl-home-nav {
+        flex-direction: row;
+        gap: 12px;
+    }
 
-/* The one place where the larger type meets a NARROWER box than before: each
-   card is now roughly a third of the column instead of its full width. The
-   three default labels fit comfortably, but these are merchant-editable
-   (Labels & Text > Home Tab), so a longer translation must wrap onto a
-   second line rather than spill over the chevron. min-width:0 above is what
-   lets this grid cell actually shrink to its container — without it the
-   cell's automatic minimum size would keep it at the text's full width and
-   push the card wider than its flex basis. */
-.nbl-widget-container--fullscreen .nbl-home-nav__label {
-    min-width: 0;
-    overflow-wrap: anywhere;
+    .nbl-widget-container--fullscreen .nbl-home-nav__item {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    /* The one place where the larger type meets a NARROWER box than
+       before: each card is now roughly a third of the column instead of
+       its full width. The three default labels fit comfortably, but
+       these are merchant-editable (Labels & Text > Home Tab), so a
+       longer translation must wrap onto a second line rather than spill
+       over the chevron. min-width:0 above is what lets this grid cell
+       actually shrink to its container — without it the cell's automatic
+       minimum size would keep it at the text's full width and push the
+       card wider than its flex basis. */
+    .nbl-widget-container--fullscreen .nbl-home-nav__label {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
 }
 
 /* The available-rewards / available-prizes lists use bordered, individually
@@ -4473,14 +4505,81 @@ input:not([type=checkbox], [type=radio]) {
     padding: 40px 20px;
 }
 
-/* Content column. Line length is the whole point: a reward list stretched
-   across a 1920px monitor is harder to scan than the 390px panel it
-   replaced, not easier. The header keeps its full-bleed background (it reads
-   as a page header bar at this size), so only the body is constrained. */
+/* Content column. Line length is the whole point at laptop widths — a
+   reward list stretched across the full panel is harder to scan than the
+   390px panel it replaced, not easier. The header keeps its full-bleed
+   background (it reads as a page header bar at this size), so only the
+   body is constrained. Width comes from --nbl-fs-content-width (defined
+   on the geometry rule above) rather than a literal 860px here, so the
+   2K/4K tiers below can widen the column and have the header's alignment
+   calc() follow automatically instead of drifting out of sync. */
 .nbl-widget-container.nbl-widget-container--fullscreen .nbl-widget-body {
-    max-width: 860px;
+    max-width: var(--nbl-fs-content-width);
     margin: 0 auto;
     width: 100%;
+}
+
+/* ── Full screen: 2K/4K monitors ──────────────────────────────────────────
+   Two problems on a large external display, not one:
+
+   1. The 1.15x type scale above was tuned against a laptop-class panel.
+      On a 2K/4K monitor the same 14-18px text reads as small relative to
+      the sheer amount of screen around it, even though no CSS px changed.
+      zoom isn't an option here either, for the same inset:0 reason noted
+      on the geometry rule above — so this is one more step of the same
+      token bump.
+
+   2. The 860px content column itself stays a small island in the middle
+      of a much wider screen — confirmed against a live 2560px screenshot,
+      where the cards sat in a ~660px strip with huge black gutters either
+      side. Line-length only argues for a CAP, not for ignoring how much
+      screen is actually available, so the column widens here too — via
+      --nbl-fs-content-width, which both the body and the header padding
+      calc() read, so they widen together instead of drifting apart.
+
+   Two tiers rather than one: a 2560px-class monitor and a native 4K one
+   are both "big", but 4K has enough room that reusing the first tier's
+   width would leave the same empty-gutter complaint just less severe. */
+@media (min-width: 1600px) {
+    .nbl-widget-container.nbl-widget-container--fullscreen {
+        --nbl-fs-content-width: 1040px;
+
+        --nbl-text-xs: 14px;
+        --nbl-text-sm: 15.5px;
+        --nbl-text-base: 17px;
+        --nbl-text-md: 19px;
+        --nbl-text-lg: 23px;
+
+        --nbl-header-title-font-size: 27px;
+        --nbl-points-font-size: 18px;
+        --nbl-nav-item-font-size: 19px;
+        --nbl-btn-font-size: 19px;
+        --nbl-activity-header-font-size: 14px;
+        --nbl-icon-size-sm: 20px;
+        --nbl-icon-size-md: 28px;
+        --nbl-icon-size-lg: 38px;
+    }
+}
+
+@media (min-width: 2200px) {
+    .nbl-widget-container.nbl-widget-container--fullscreen {
+        --nbl-fs-content-width: 1220px;
+
+        --nbl-text-xs: 16px;
+        --nbl-text-sm: 18px;
+        --nbl-text-base: 20px;
+        --nbl-text-md: 22px;
+        --nbl-text-lg: 27px;
+
+        --nbl-header-title-font-size: 32px;
+        --nbl-points-font-size: 21px;
+        --nbl-nav-item-font-size: 22px;
+        --nbl-btn-font-size: 22px;
+        --nbl-activity-header-font-size: 16px;
+        --nbl-icon-size-sm: 23px;
+        --nbl-icon-size-md: 33px;
+        --nbl-icon-size-lg: 44px;
+    }
 }
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    PAGE MODE — the widget rendered inline inside the merchant's own
