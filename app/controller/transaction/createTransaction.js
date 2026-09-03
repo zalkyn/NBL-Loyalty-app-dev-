@@ -51,11 +51,25 @@ const DEFAULT_TRANSACTION_SELECT = {
  *                        Transaction.type (dashboard stats, admin tables)
  *                        needs to decide explicitly what to do with this
  *                        type — nothing here does that automatically.
+ * - SUBSCRIPTION_CANCEL_RESET -> always resets points to exactly 0 (computed
+ *                        from the customer's live balance inside the
+ *                        transaction — input.points is ignored, caller
+ *                        doesn't need to know the balance up front).
+ *                        lifetimePoints is deliberately left untouched
+ *                        (it's the customer's permanent historical record,
+ *                        not affected by a subscription cancelling — see
+ *                        subscriptionCancelledJob.js for the trigger).
+ * - SUBSCRIPTION_CANCEL_RESTORE -> gives back part or all of a prior
+ *                        SUBSCRIPTION_CANCEL_RESET — input.points is the
+ *                        amount restored, always positive. lifetimePoints
+ *                        is left untouched, same as the RESET it's undoing
+ *                        — see app/layout/subscription-cancellations for
+ *                        the admin action that triggers this.
  *
  * @param {Object}                                                    input
  * @param {number}                                                    input.customerId
- * @param {"EARN"|"REDEEM"|"ADJUST"|"EXPIRE"|"REVERSAL"|"REFERRAL"|"BACKFILL"}  input.type
- * @param {number}                                                    input.points        - EARN/REDEEM/EXPIRE/REFERRAL/BACKFILL: always positive (BACKFILL throws otherwise). ADJUST/REVERSAL: signed (+/-)
+ * @param {"EARN"|"REDEEM"|"ADJUST"|"EXPIRE"|"REVERSAL"|"REFERRAL"|"BACKFILL"|"SUBSCRIPTION_CANCEL_RESET"|"SUBSCRIPTION_CANCEL_RESTORE"}  input.type
+ * @param {number}                                                    [input.points]      - EARN/REDEEM/EXPIRE/REFERRAL/BACKFILL/SUBSCRIPTION_CANCEL_RESTORE: always positive (BACKFILL/SUBSCRIPTION_CANCEL_RESTORE throw otherwise). ADJUST/REVERSAL: signed (+/-). SUBSCRIPTION_CANCEL_RESET: ignored.
  * @param {string}                                                    [input.status]      - "ACTIVE" | "PENDING" | "COMPLETED" | "CANCELLED" | "REVERSED" (default: "ACTIVE")
  * @param {string}                                                    [input.reason]
  * @param {number}                                                    [input.eventId]
@@ -264,6 +278,44 @@ export default async function createTransaction(input, session, select = DEFAULT
                                 signedPoints = amount;
                                 newBalance = customer.points + amount;
                                 newLifetimePoints += amount;
+                                break;
+
+                            case "SUBSCRIPTION_CANCEL_RESET":
+                                // Always resets to exactly 0, computed from
+                                // the live balance just read above — NOT
+                                // input.points (caller enqueues this without
+                                // knowing the customer's current balance).
+                                // lifetimePoints is intentionally left as-is:
+                                // it's the customer's permanent historical
+                                // record and a subscription cancelling
+                                // doesn't erase what they've earned overall
+                                // — see subscriptionCancelledJob.js.
+                                signedPoints = -customer.points;
+                                newBalance = 0;
+                                break;
+
+                            case "SUBSCRIPTION_CANCEL_RESTORE":
+                                // Gives back part or all of a prior
+                                // SUBSCRIPTION_CANCEL_RESET — input.points is
+                                // the amount being restored, always positive
+                                // (the caller, handleRestorePoints, already
+                                // caps it at what that reset actually took).
+                                // lifetimePoints is deliberately left as-is,
+                                // same as the RESET case it's undoing: these
+                                // points were already counted once when
+                                // originally earned, and RESET never
+                                // decremented lifetimePoints — so adding them
+                                // again here (the way ADJUST/EARN would) would
+                                // double-count them into the customer's
+                                // permanent historical total. This is why a
+                                // restore can't just reuse ADJUST.
+                                if (amount <= 0) {
+                                    throw new Error(
+                                        `SUBSCRIPTION_CANCEL_RESTORE points must be positive (got ${amount})`
+                                    );
+                                }
+                                signedPoints = amount;
+                                newBalance = customer.points + amount;
                                 break;
 
                             default:

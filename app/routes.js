@@ -28,6 +28,10 @@ export default [
         route("app/physical-prizes-rules", "./layout/physical-prizes-rules/route.jsx"),
         route("app/physical-prizes-claims-manage", "./layout/physical-prizes-claims-manage/route.jsx"),
 
+        // subscription cancellations — Appstle subscription.cancelled audit
+        // trail + manual reset, see server/jobs/subscriptionCancelledJob.js
+        route("app/subscription-cancellations", "./layout/subscription-cancellations/route.jsx"),
+
         // point events
         route("app/points-events", "./layout/points-events/route.jsx"),
 
@@ -108,4 +112,5 @@ export default [
     route("webhooks/app/customers_delete", "./webhook-routes/customer-delete.jsx"),
     route("webhooks/app/uninstalled", "./webhook-routes/app-uninstalled.jsx"),
     route("webhooks/app/scopes_update", "./webhook-routes/scopes-update.jsx"),
+    route("webhooks/appstle/subscription_cancelled", "./webhook-routes/appstle-subscription-cancelled.jsx"),
 ];

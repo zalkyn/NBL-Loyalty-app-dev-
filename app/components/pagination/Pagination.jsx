@@ -131,61 +131,65 @@ export default function Pagination({
                 </div>
             </div>
 
-            {/* ── Right: page navigation ── */}
-            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    title="First page"
-                    style={navBtnStyle(currentPage === 1)}
-                >
-                    «
-                </button>
-                <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    title="Previous page"
-                    style={navBtnStyle(currentPage === 1)}
-                >
-                    ‹
-                </button>
+            {/* ── Right: page navigation — hidden when everything already fits
+                on one page, since a full row of disabled «‹ 1 ›» controls is
+                just noise, not information, for a single-page list. ── */}
+            {totalPages > 1 && (
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <button
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                        title="First page"
+                        style={navBtnStyle(currentPage === 1)}
+                    >
+                        «
+                    </button>
+                    <button
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        title="Previous page"
+                        style={navBtnStyle(currentPage === 1)}
+                    >
+                        ‹
+                    </button>
 
-                {getPageNumbers(currentPage, totalPages).map((page, i) =>
-                    page === "..." ? (
-                        <span
-                            key={`ellipsis-${i}`}
-                            style={{ padding: "0 4px", color: "var(--p-color-text-secondary, #6d7175)" }}
-                        >
-                            …
-                        </span>
-                    ) : (
-                        <button
-                            key={page}
-                            onClick={() => setCurrentPage(page)}
-                            style={pageBtnStyle(page === currentPage)}
-                        >
-                            {page}
-                        </button>
-                    )
-                )}
+                    {getPageNumbers(currentPage, totalPages).map((page, i) =>
+                        page === "..." ? (
+                            <span
+                                key={`ellipsis-${i}`}
+                                style={{ padding: "0 4px", color: "var(--p-color-text-secondary, #6d7175)" }}
+                            >
+                                …
+                            </span>
+                        ) : (
+                            <button
+                                key={page}
+                                onClick={() => setCurrentPage(page)}
+                                style={pageBtnStyle(page === currentPage)}
+                            >
+                                {page}
+                            </button>
+                        )
+                    )}
 
-                <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    title="Next page"
-                    style={navBtnStyle(currentPage === totalPages)}
-                >
-                    ›
-                </button>
-                <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    title="Last page"
-                    style={navBtnStyle(currentPage === totalPages)}
-                >
-                    »
-                </button>
-            </div>
+                    <button
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        title="Next page"
+                        style={navBtnStyle(currentPage === totalPages)}
+                    >
+                        ›
+                    </button>
+                    <button
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                        title="Last page"
+                        style={navBtnStyle(currentPage === totalPages)}
+                    >
+                        »
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

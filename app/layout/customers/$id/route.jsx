@@ -11,6 +11,8 @@
  *     AdjustPointsModal.jsx  -> add/remove toggle + live preview
  *     TransactionsTable.jsx  -> paginated transaction history
  *     RewardsTable.jsx       -> paginated rewards history
+ *     PhysicalPrizeClaimsTable.jsx        -> read-only prize claim history
+ *     SubscriptionCancelEventsTable.jsx   -> read-only subscription cancellation history
  */
 
 import { useLoaderData, useActionData } from "react-router";
@@ -27,6 +29,7 @@ import { CancelRewardModal }  from "./components/CancelRewardModal";
 import { TransactionsTable }  from "./components/TransactionsTable";
 import { RewardsTable }       from "./components/RewardsTable";
 import { PhysicalPrizeClaimsTable } from "./components/PhysicalPrizeClaimsTable";
+import { SubscriptionCancelEventsTable } from "./components/SubscriptionCancelEventsTable";
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
@@ -127,6 +130,9 @@ export default function CustomerDetails() {
 
             {/* ── Physical Prize Claims (read-only) ── */}
             <PhysicalPrizeClaimsTable pagination={page.prizeClaimPagination} />
+
+            {/* ── Subscription Cancellations (read-only) ── */}
+            <SubscriptionCancelEventsTable pagination={page.cancelEventPagination} />
 
         </s-page>
     );

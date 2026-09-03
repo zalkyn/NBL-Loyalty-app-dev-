@@ -6,12 +6,15 @@
  *   _loader.server.js  -> prisma queries
  *   _hooks.js          -> all state, chart logic, date range helpers (self-contained)
  *   components/
- *     Cards.jsx              -> StatCard, StatCardNew, ChartCard
- *     DateRangePicker.jsx    -> preset picker + calendar
- *     OverviewSection.jsx    -> points / rewards / customers stat cards
- *     PrizeStatsSection.jsx  -> physical prize claim stat cards
- *     ChartsSection.jsx      -> points activity + rewards charts
- *     PrizeChartsSection.jsx -> prize claim volume + points spent chart
+ *     Cards.jsx                    -> StatCard, StatCardNew (+ its sparkline), ChartCard
+ *     DateRangePicker.jsx          -> preset picker + calendar
+ *     CancelNeedsActionBanner.jsx  -> pending Subscription Cancellations callout
+ *     OverviewSection.jsx          -> points / rewards / customers stat cards
+ *     PrizeStatsSection.jsx        -> physical prize claim stat cards
+ *     ChartsSection.jsx            -> points activity + rewards + enrollments + referrals + reward breakdown + top customers
+ *     RewardBreakdownChart.jsx     -> reward redemption breakdown (donut)
+ *     TopCustomersChart.jsx        -> top 10 customers by points (bar)
+ *     PrizeChartsSection.jsx       -> prize claim volume + points spent chart
  */
 
 import { useLoaderData } from "react-router";
@@ -20,6 +23,7 @@ import { authenticate } from "shopify-server";
 import { loadDashboardData } from "./_loader.server";
 import { useDashboardPage } from "./_hooks";
 import { DateRangePicker } from "./components/DateRangePicker";
+import { CancelNeedsActionBanner } from "./components/CancelNeedsActionBanner";
 import { OverviewSection } from "./components/OverviewSection";
 import { PrizeStatsSection } from "./components/PrizeStatsSection";
 import { ChartsSection } from "./components/ChartsSection";
@@ -41,6 +45,8 @@ export default function Dashboard() {
     return (
         <s-page>
 
+            <CancelNeedsActionBanner count={page.cancelNeedsAction} />
+
             <DateRangePicker
                 preset={page.preset}           onPresetChange={page.setPreset}
                 customStart={page.customStart} customEnd={page.customEnd}
@@ -50,14 +56,16 @@ export default function Dashboard() {
                 interval={page.interval}       onIntervalChange={page.handleIntervalChange}
             />
 
-            <OverviewSection  stats={page.overviewStats} />
+            <OverviewSection  stats={page.overviewStats} chartData={page.chartData} rangeKey={page.rangeKey} periodComparison={page.periodComparison} />
 
-            <PrizeStatsSection stats={page.prizeStats} />
+            <PrizeStatsSection stats={page.prizeStats} chartData={page.chartData} rangeKey={page.rangeKey} periodComparison={page.periodComparison} />
 
             <ChartsSection
                 chartData={page.chartData}
                 rangeKey={page.rangeKey}
                 chartOptions={page.chartOptions}
+                rewardBreakdown={page.rewardBreakdown}
+                topCustomersChart={page.topCustomersChart}
             />
 
             <PrizeChartsSection
