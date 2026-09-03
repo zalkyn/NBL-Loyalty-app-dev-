@@ -22,6 +22,7 @@ export default function AppNav() {
         <s-link href="/app/rewards-rules">Reward Rules</s-link>
         <s-link href="/app/physical-prizes-rules">Physical Prize Rules</s-link>
         <s-link href="/app/physical-prizes-claims-manage">Physical Prize Claims</s-link>
+        <s-link href="/app/subscription-cancellations">Subscription Cancellations</s-link>
         <s-link href="/app/points-backfill-rules">Points Backfill Rules</s-link>
         <s-link href="/app/points-backfill">Points Backfill</s-link>
         <s-link href="/app/customize">Widget Customize</s-link>

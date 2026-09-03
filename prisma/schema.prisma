@@ -8,11 +8,11 @@ datasource db {
 }
 
 model Session {
-  backfillSnapshots BackfillAudienceSnapshot[]
-  id                  String    @id
-  shop                String    @unique
+  backfillSnapshots   BackfillAudienceSnapshot[]
+  id                  String                     @id
+  shop                String                     @unique
   state               String
-  isOnline            Boolean   @default(false)
+  isOnline            Boolean                    @default(false)
   scope               String?
   expires             DateTime?
   accessToken         String
@@ -20,21 +20,22 @@ model Session {
   firstName           String?
   lastName            String?
   email               String?
-  accountOwner        Boolean   @default(false)
+  accountOwner        Boolean                    @default(false)
   locale              String?
-  collaborator        Boolean?  @default(false)
-  emailVerified       Boolean?  @default(false)
+  collaborator        Boolean?                   @default(false)
+  emailVerified       Boolean?                   @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
 
-  customers      Customer[]
-  pointRules     PointsRule[]
-  rewardRules    RewardRule[]
-  events         Event[]
-  styles         Style?
-  appSettings    AppSettings?
-  physicalPrizes PhysicalPrize[]
-  shadowRules    ShadowRule[]
+  customers                Customer[]
+  pointRules               PointsRule[]
+  rewardRules              RewardRule[]
+  events                   Event[]
+  styles                   Style?
+  appSettings              AppSettings?
+  physicalPrizes           PhysicalPrize[]
+  shadowRules              ShadowRule[]
+  subscriptionCancelEvents SubscriptionCancelEvent[]
 
   @@index([shop])
 }
@@ -75,12 +76,13 @@ model Customer {
   // under this versioning scheme" (pre-dates this feature, or brand new).
   lastSyncedVersionKey String?
 
-  transactions  Transaction[]
-  referralsSent Referral[]           @relation("Referrer")
-  referralsUsed Referral?            @relation("Referred")
-  rewards       Reward[]
-  prizeClaims   PhysicalPrizeClaim[]
-  backfillEntries PointsBackfillEntry[]
+  transactions             Transaction[]
+  referralsSent            Referral[]                @relation("Referrer")
+  referralsUsed            Referral?                 @relation("Referred")
+  rewards                  Reward[]
+  prizeClaims              PhysicalPrizeClaim[]
+  subscriptionCancelEvents SubscriptionCancelEvent[]
+  backfillEntries          PointsBackfillEntry[]
 
   session   Session @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   sessionId String
@@ -187,7 +189,19 @@ model Transaction {
   customerId   Int
   // type is plain String, not a Prisma enum (deliberate — see the other
   // type-value comments throughout this schema). Known values as of this
-  // writing: EARN | REDEEM | ADJUST | EXPIRE | REVERSAL | REFERRAL | BACKFILL.
+  // writing: EARN | REDEEM | ADJUST | EXPIRE | REVERSAL | REFERRAL | BACKFILL |
+  // SUBSCRIPTION_CANCEL_RESET | SUBSCRIPTION_CANCEL_RESTORE.
+  // SUBSCRIPTION_CANCEL_RESET — fired when an Appstle subscription is
+  // cancelled (see subscriptionCancelledJob.js). Always resets points to
+  // exactly 0; lifetimePoints is untouched, unlike every other type here
+  // that mutates the balance — see createTransaction.js's case for why.
+  // SUBSCRIPTION_CANCEL_RESTORE — an admin manually giving back part or all
+  // of a prior SUBSCRIPTION_CANCEL_RESET (see
+  // app/layout/subscription-cancellations). Always positive; lifetimePoints
+  // stays untouched for the same reason the RESET it undoes doesn't touch
+  // it — these points were already counted once, restoring them isn't new
+  // earning. Deliberately NOT the same as ADJUST, which DOES bump
+  // lifetimePoints — reusing ADJUST here would double-count.
   // BACKFILL — one-time retroactive points awarded for a customer's
   // pre-install lifetime spend (see ShadowRule + PointsBackfillEntry below).
   // Always positive/signed like EARN, counts toward lifetimePoints, but kept
@@ -221,8 +235,9 @@ model Transaction {
   referral     Referral?   @relation(fields: [referralId], references: [id], onDelete: SetNull)
   referralId   Int?
 
-  physicalPrizeClaim PhysicalPrizeClaim? // opposite side of PhysicalPrizeClaim.transaction
-  backfillEntry      PointsBackfillEntry? // opposite side of PointsBackfillEntry.transaction
+  physicalPrizeClaim      PhysicalPrizeClaim? // opposite side of PhysicalPrizeClaim.transaction
+  backfillEntry           PointsBackfillEntry? // opposite side of PointsBackfillEntry.transaction
+  subscriptionCancelEvent SubscriptionCancelEvent? // opposite side of SubscriptionCancelEvent.transaction
 
   @@index([customerId])
   @@index([customerId, createdAt])
@@ -316,6 +331,85 @@ model WebhookEvent {
 
   @@index([shop])
   @@index([createdAt])
+}
+
+// Audit trail for every Appstle subscription.cancelled event this app
+// receives — written by subscriptionCancelledJob.js REGARDLESS of whether
+// the points reset actually happened (toggle off, customer not enrolled,
+// balance already 0, or a real reset). This is deliberately independent of
+// Transaction: a Transaction row only exists when a balance actually
+// changed, so relying on it alone would silently lose every "we saw this
+// cancellation but did nothing" case — exactly the case an admin most
+// needs visibility into (see app/layout/subscription-cancellations).
+model SubscriptionCancelEvent {
+  id        Int     @id @default(autoincrement())
+  shop      String
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Customer fields are denormalized (captured from the Appstle payload
+  // itself, not joined from Customer) so a customer who was never enrolled
+  // in the loyalty program still shows up here with a readable identity —
+  // customerId is null in that case.
+  customerId        Int?
+  customer          Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerShopifyId String
+  customerEmail     String?
+  customerName      String?
+
+  subscriptionContractId String
+  // Customer.points at the moment this event was processed, BEFORE any
+  // reset — the number an admin needs to see to judge whether a manual
+  // reset (see resolvedManually below) is still worth doing.
+  previousBalance        Int
+
+  // true only once a SUBSCRIPTION_CANCEL_RESET transaction has actually
+  // been written (automatically at cancel time, or later via the manual
+  // "Reset Now" admin action) — see transactionId below.
+  resetApplied     Boolean @default(false)
+  // true if resetApplied became true via the admin's manual action rather
+  // than automatically at cancel time — lets the dashboard show which rows
+  // needed a human to catch up on.
+  resolvedManually Boolean @default(false)
+  // Why resetApplied is (or was, before a manual resolve) false:
+  // "FEATURE_DISABLED" | "CUSTOMER_NOT_ENROLLED" | "ALREADY_ZERO"
+  // ALREADY_ZERO is informational only — the balance was already 0, so
+  // there was nothing to do and no manual action is offered for it.
+  skipReason       String?
+
+  transactionId Int?         @unique
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  // Cumulative points an admin has manually restored back to the customer
+  // via the "Restore Points" action (app/layout/subscription-cancellations),
+  // capped by createTransaction — never allowed to exceed previousBalance,
+  // so this can only undo what THIS reset took, not hand out extra points
+  // (that's what the separate generic Adjust Points tool is for). Each
+  // restore writes its own ADJUST Transaction (tagged via
+  // metadata.subscriptionCancelEventId = this row's id) as the actual
+  // source of truth for the points movement; this field is a cached
+  // running total for the dashboard, same pattern as Customer.orders.
+  // Restoring is repeatable in partial amounts — 0 means never restored.
+  restoredAmount Int       @default(0)
+  lastRestoredAt DateTime?
+
+  // Svix's message id for the originating webhook — see
+  // webhooks/appstle/subscription_cancelled — kept here too (not just on
+  // the Job row) so this audit record is traceable back to the exact
+  // delivery on its own, independent of Job retention/cleanup.
+  svixId String @unique
+
+  // When Shopify/Appstle actually cancelled the subscription (contract's
+  // own updatedAt) — NOT when we processed it (createdAt below).
+  cancelledAt DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([shop])
+  @@index([sessionId])
+  @@index([shop, resetApplied])
+  @@index([customerId])
+  @@index([cancelledAt])
 }
 
 model AppSettings {
@@ -424,7 +518,7 @@ model Job {
   // ── Job identity ──────────────────────────────────────
   // type: "ORDER_PAID" | "METAFIELD_SYNC" | "REFERRAL_EXPIRE" |
   //       "BULK_CUSTOMER_SYNC" | "EMPTY_CUSTOMER_CONFIG" | "POINTS_BACKFILL" |
-  //       "BACKFILL_SNAPSHOT"
+  //       "BACKFILL_SNAPSHOT" | "ORDER_REVERSED" | "SUBSCRIPTION_CANCELLED"
   // (this comment lists every type this app's own jobs actually enqueue;
   // kept here because Job itself has no type column constraint to enforce
   // it — see server/jobManager/jobConfig.js for the handler registered
@@ -470,6 +564,13 @@ model Job {
   //                          unbounded for a 100k+ customer shop. That
   //                          detail lives in PointsBackfillEntry instead,
   //                          one row per customer, FK'd to this job.
+  //   SUBSCRIPTION_CANCELLED -> { raw, svixId } — raw is Appstle's verified
+  //                          subscription.cancelled payload, unmodified.
+  //                          Resets the customer's current points balance to
+  //                          0 (lifetimePoints untouched) — see
+  //                          subscriptionCancelledJob.js's mainHandler and
+  //                          createTransaction.js's SUBSCRIPTION_CANCEL_RESET
+  //                          case.
   payload Json
 
   // ── Idempotency ───────────────────────────────────────
@@ -588,9 +689,9 @@ model ConfigUpdateVersion {
 // to the ShadowRule that produced it — pointsRuleId is simply never
 // touched.
 model ShadowRule {
-  id          Int      @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   name        String
-  description String?  @db.Text
+  description String? @db.Text
 
   // rateType: "FIXED" | "PER_AMOUNT"
   //   FIXED      — every matched customer gets `fixedPoints`, regardless of

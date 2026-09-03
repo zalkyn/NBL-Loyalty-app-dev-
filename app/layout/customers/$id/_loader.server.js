@@ -23,6 +23,17 @@ export async function loadCustomerDetails(admin, sessionId, customerId) {
                     prize: { select: { title: true, imageUrl: true } },
                 },
             },
+            // Read-only history section, same reasoning as prizeClaims above —
+            // manual "Reset Now" action stays on the dedicated Subscription
+            // Cancellations page; this is just per-customer context. select
+            // trimmed to exactly what SubscriptionCancelEventsTable.jsx reads
+            // (id/cancelledAt/previousBalance/resetApplied/skipReason) — the
+            // rest (metadata like customerEmail/subscriptionContractId/svixId)
+            // is only useful on the dedicated page, which already loads it.
+            subscriptionCancelEvents: {
+                orderBy: { cancelledAt: "desc" },
+                select: { id: true, cancelledAt: true, previousBalance: true, resetApplied: true, skipReason: true },
+            },
             referralsSent: true,
             referralsUsed: true,
         },
