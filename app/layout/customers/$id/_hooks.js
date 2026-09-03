@@ -65,6 +65,7 @@ export function useCustomerDetailsPage(loaderData, actionData) {
     const txPagination = usePagination(customer?.transactions ?? [], 25);
     const rwPagination = usePagination(customer?.rewards ?? [], 25);
     const prizeClaimPagination = usePagination(customer?.prizeClaims ?? [], 25);
+    const cancelEventPagination = usePagination(customer?.subscriptionCancelEvents ?? [], 25);
 
     return {
         customer, customerLabel,
@@ -80,5 +81,6 @@ export function useCustomerDetailsPage(loaderData, actionData) {
         txPagination,
         rwPagination,
         prizeClaimPagination,
+        cancelEventPagination,
     };
 }

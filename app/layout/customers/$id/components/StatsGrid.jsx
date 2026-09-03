@@ -1,3 +1,5 @@
+import { isActionable } from "@app/layout/subscription-cancellations/_data";
+
 function StatBox({ label, value, tone }) {
     return (
         <s-box padding="base" border="base" borderRadius="base" background="base">
@@ -20,6 +22,12 @@ export function StatsGrid({ customer }) {
     // claims are blocked until it's paid down but nothing else calls it out.
     const isInDebt = currentPoints < 0;
 
+    const cancelEvents = customer?.subscriptionCancelEvents ?? [];
+    const pendingCancel = cancelEvents.find(isActionable);
+    const cancelStatus = cancelEvents.length === 0
+        ? "N/A"
+        : pendingCancel ? "Needs Reset" : "Reset Applied";
+
     return (
         <s-grid gridTemplateColumns="1fr 1fr" gap="base">
             <StatBox
@@ -30,6 +38,11 @@ export function StatsGrid({ customer }) {
             <StatBox label="Lifetime Points"      value={(customer?.lifetimePoints ?? 0).toLocaleString()} />
             <StatBox label="Activities Completed" value={customer?.transactions?.length ?? 0} />
             <StatBox label="Total Orders"         value={customer?.orderCount            ?? "N/A"} />
+            <StatBox
+                label="Subscription Cancellation"
+                value={cancelStatus}
+                tone={pendingCancel ? "critical" : undefined}
+            />
 
             <StatBox label="Rewards Claimed"      value={rewardStats.total} />
             <StatBox label="Rewards Used"         value={rewardStats.used} />
