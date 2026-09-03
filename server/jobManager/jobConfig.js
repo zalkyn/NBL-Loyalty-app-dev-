@@ -1,5 +1,6 @@
 import { runOrderPaidJob } from "../jobs/orderPaidJob.js";
 import { runOrderReversalJob } from "../jobs/orderReversalJob.js";
+import { runSubscriptionCancelledJob } from "../jobs/subscriptionCancelledJob.js";
 import { runDiscountDeleteJob } from "../jobs/discountDeleteJob.js";
 import { runBulkCustomerSyncJob } from "../jobs/bulkCustomerSyncJob.js";
 import { runEmptyCustomerConfigJob } from "../jobs/emptyCustomerConfigJob.js";
@@ -155,6 +156,26 @@ export const JOB_CONFIGS = [
         ],
         handlers: [
             async () => runOrderReversalJob(),
+        ],
+        retry: { maxAttempts: 3 },
+    },
+
+    // ── Subscription Cancelled (Appstle) ────────────────────────────────────
+    // Processes pending SUBSCRIPTION_CANCELLED jobs enqueued by
+    // webhooks/appstle/subscription_cancelled (Appstle's subscription.cancelled
+    // event, delivered via Svix — see that route's header comment). Resets
+    // the customer's current points balance to 0 (lifetimePoints untouched)
+    // — see subscriptionCancelledJob.js. Same cadence as order_paid/
+    // order_reversal since this is the same "points-adjacent" event class.
+    {
+        name: "subscription_cancelled",
+        cron: cron("*/30 * * * * *", "*/5 * * * * *"), // production: every 30 sec | dev: every 5 sec
+        lockTimeout: 5 * 60 * 1000,           // 5 minute stale-lock threshold
+        immediate: true,                     // run once on server startup
+        jobTimeout: 4 * 60 * 1000,           // 4 minutes hard timeout per cycle
+        preHooks: [],
+        handlers: [
+            async () => runSubscriptionCancelledJob(),
         ],
         retry: { maxAttempts: 3 },
     },
