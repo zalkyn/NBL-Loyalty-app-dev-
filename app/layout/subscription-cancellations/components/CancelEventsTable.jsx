@@ -164,6 +164,14 @@ export function CancelEventsTable({
                     setCurrentPage={setCurrentPage}
                     setPerPage={setPerPage}
                     label="cancellations"
+                    // DEFAULT_PER_PAGE (_data.js) is 20 — not in Pagination's
+                    // own default option list ([5, 10, 25, 50]). A <select>
+                    // whose value doesn't match any of its <option>s falls
+                    // back to displaying the FIRST option as if selected
+                    // (here, "5") while the actual perPage state stays 20 —
+                    // exactly the "dropdown says 5, but 10 of 10 rows are
+                    // showing" mismatch this fixes.
+                    perPageOptions={[5, 10, 20, 50]}
                 />
             </s-box>
         </s-section>

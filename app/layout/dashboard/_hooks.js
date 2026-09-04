@@ -20,6 +20,28 @@ import {
  *  rest get folded into a single "Other" slice — see rewardBreakdown below. */
 const MAX_BREAKDOWN_SLICES = 6;
 
+/**
+ * Human-readable date range for display under each chart's heading — e.g.
+ * "Sep 4, 2026" for a single day, "Aug 29 – Sep 4, 2026" for a range in the
+ * same year, or "Dec 28, 2025 – Jan 3, 2026" when it spans a year boundary.
+ * Purely presentational — has no bearing on what data is actually shown,
+ * just makes each chart legible on its own (e.g. in a screenshot) without
+ * having to scroll back up to the date picker to see what period it covers.
+ *
+ * @param {Date} start
+ * @param {Date} end
+ * @returns {string}
+ */
+function formatDateRangeLabel(start, end) {
+    const fmtShort = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const fmtFull = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+    if (start.toDateString() === end.toDateString()) return fmtFull(end);
+
+    const startStr = start.getFullYear() === end.getFullYear() ? fmtShort(start) : fmtFull(start);
+    return `${startStr} – ${fmtFull(end)}`;
+}
+
 function resolveDateRange(preset, customStart, customEnd) {
     if (preset === "custom" && customStart && customEnd) {
         return {
@@ -557,6 +579,7 @@ export function useDashboardPage(loaderData) {
     }, [chartData]);
 
     const rangeKey = `${preset}-${customStart}-${customEnd}-${interval ?? "auto"}`;
+    const rangeLabel = useMemo(() => formatDateRangeLabel(start, end), [start, end]);
     const chartOptions = useCallback((colors) => makeChartOptions(colors, labels), [labels]);
 
     return {
@@ -578,6 +601,7 @@ export function useDashboardPage(loaderData) {
         // Charts
         chartData: chartDataWithLiabilityTrend,
         rangeKey,
+        rangeLabel,
         chartOptions,
     };
 }
