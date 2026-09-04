@@ -2,7 +2,7 @@ import { ChartCard } from "./Cards";
 import { RewardBreakdownChart } from "./RewardBreakdownChart";
 import { TopCustomersChart } from "./TopCustomersChart";
 
-export function ChartsSection({ chartData, rangeKey, chartOptions, rewardBreakdown, topCustomersChart }) {
+export function ChartsSection({ chartData, rangeKey, rangeLabel, chartOptions, rewardBreakdown, topCustomersChart }) {
     return (
         <>
             {/* Mixed bar + line — the four categories stay as bars (their
@@ -25,6 +25,7 @@ export function ChartsSection({ chartData, rangeKey, chartOptions, rewardBreakdo
             <ChartCard
                 heading="Points activity"
                 chartKey={`points-${rangeKey}`}
+                rangeLabel={rangeLabel}
                 options={{
                     ...chartOptions(["#1D9E75", "#E24B4A", "#8C6D1F", "#7A4FBF", "#1F2937"]),
                     stroke: { curve: "smooth", width: [0, 0, 0, 0, 3] },
@@ -42,6 +43,7 @@ export function ChartsSection({ chartData, rangeKey, chartOptions, rewardBreakdo
             <ChartCard
                 heading="Rewards issued"
                 chartKey={`rewards-${rangeKey}`}
+                rangeLabel={rangeLabel}
                 options={chartOptions(["#378ADD"])}
                 series={[{ name: "Rewards", data: chartData.rewards }]}
                 type="area"
@@ -50,6 +52,7 @@ export function ChartsSection({ chartData, rangeKey, chartOptions, rewardBreakdo
             <ChartCard
                 heading="New enrollments"
                 chartKey={`enrollments-${rangeKey}`}
+                rangeLabel={rangeLabel}
                 options={chartOptions(["#16A34A"])}
                 series={[{ name: "New customers", data: chartData.enrolled }]}
                 type="area"
@@ -58,6 +61,7 @@ export function ChartsSection({ chartData, rangeKey, chartOptions, rewardBreakdo
             <ChartCard
                 heading="Referral performance"
                 chartKey={`referrals-${rangeKey}`}
+                rangeLabel={rangeLabel}
                 options={chartOptions(["#0D9488", "#CA8A04"])}
                 series={[
                     { name: "Sent", data: chartData.referralsSent },
@@ -73,12 +77,13 @@ export function ChartsSection({ chartData, rangeKey, chartOptions, rewardBreakdo
             <ChartCard
                 heading="Points liability trend"
                 chartKey={`liability-${rangeKey}`}
+                rangeLabel={rangeLabel}
                 options={chartOptions(["#B5179E"])}
                 series={[{ name: "Net liability change", data: chartData.liabilityTrend }]}
                 type="line"
                 height={280}
             />
-            <RewardBreakdownChart rewardBreakdown={rewardBreakdown} rangeKey={rangeKey} />
+            <RewardBreakdownChart rewardBreakdown={rewardBreakdown} rangeKey={rangeKey} rangeLabel={rangeLabel} />
             <TopCustomersChart topCustomersChart={topCustomersChart} />
         </>
     );

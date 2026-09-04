@@ -63,6 +63,7 @@ export default function Dashboard() {
             <ChartsSection
                 chartData={page.chartData}
                 rangeKey={page.rangeKey}
+                rangeLabel={page.rangeLabel}
                 chartOptions={page.chartOptions}
                 rewardBreakdown={page.rewardBreakdown}
                 topCustomersChart={page.topCustomersChart}
@@ -71,6 +72,7 @@ export default function Dashboard() {
             <PrizeChartsSection
                 chartData={page.chartData}
                 rangeKey={page.rangeKey}
+                rangeLabel={page.rangeLabel}
                 chartOptions={page.chartOptions}
             />
 

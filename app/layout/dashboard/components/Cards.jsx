@@ -133,7 +133,7 @@ export function periodBadge(comparison) {
 
 const CHART_REFRESH_MS = 250;
 
-export const ChartCard = ({ heading, chartKey, options, series, type = "bar", height = 300 }) => {
+export const ChartCard = ({ heading, chartKey, rangeLabel, options, series, type = "bar", height = 300 }) => {
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     useEffect(() => {
@@ -144,6 +144,15 @@ export const ChartCard = ({ heading, chartKey, options, series, type = "bar", he
 
     return (
         <s-section heading={heading}>
+            {/* Omitted for charts that aren't date-range filtered in the first
+                place (e.g. Top customers — a live snapshot, not tied to any
+                period) — those callers simply don't pass rangeLabel. */}
+            {rangeLabel && (
+                <>
+                    <s-text tone="subdued" variant="bodySm">{rangeLabel}</s-text>
+                    <s-box paddingBlockEnd="small-200" />
+                </>
+            )}
             <div style={{ position: "relative", minHeight: height }}>
                 <Suspense fallback={
                     <s-stack direction="inline" justify-content="center">

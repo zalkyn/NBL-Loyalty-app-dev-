@@ -10,7 +10,7 @@ const DONUT_COLORS = ["#1D9E75", "#378ADD", "#7A4FBF", "#BA7517", "#E24B4A", "#0
  * `rewardBreakdown` (computed in _hooks.js from the SAME `rw` array the
  * "Rewards issued" chart and stat card already use) rather than a new fetch.
  */
-export function RewardBreakdownChart({ rewardBreakdown, rangeKey }) {
+export function RewardBreakdownChart({ rewardBreakdown, rangeKey, rangeLabel }) {
     // Previously returned null here — silently rendering nothing reads as
     // "this chart is broken", not "no rewards were redeemed in this
     // period" (which is the far more common, entirely normal reason this
@@ -18,6 +18,12 @@ export function RewardBreakdownChart({ rewardBreakdown, rangeKey }) {
     if (!rewardBreakdown?.series?.length) {
         return (
             <s-section heading="Reward redemption breakdown">
+                {rangeLabel && (
+                    <>
+                        <s-text tone="subdued" variant="bodySm">{rangeLabel}</s-text>
+                        <s-box paddingBlockEnd="small-200" />
+                    </>
+                )}
                 <s-box padding="base">
                     <s-text tone="subdued">No rewards redeemed in this period.</s-text>
                 </s-box>
@@ -32,7 +38,15 @@ export function RewardBreakdownChart({ rewardBreakdown, rangeKey }) {
         legend: { position: "bottom", fontSize: "12px" },
         dataLabels: {
             enabled: true,
-            formatter: (val) => `${val.toFixed(0)}%`,
+            // Number(val), not val.toFixed directly — ApexCharts doesn't
+            // consistently hand this formatter a number vs a numeric
+            // string across chart types/versions; a bare .toFixed() call
+            // throws outright on a string, and an uncaught throw inside a
+            // datalabel formatter can abort the rest of that render pass
+            // (the arcs), while whatever already-computed legend markup
+            // exists stays on screen — which looks exactly like "legend is
+            // right but the donut itself never drew".
+            formatter: (val) => `${Number(val).toFixed(0)}%`,
         },
         tooltip: {
             y: { formatter: (val) => (typeof val === "number" ? val.toLocaleString() : val) },
@@ -43,6 +57,7 @@ export function RewardBreakdownChart({ rewardBreakdown, rangeKey }) {
         <ChartCard
             heading="Reward redemption breakdown"
             chartKey={`reward-breakdown-${rangeKey}`}
+            rangeLabel={rangeLabel}
             options={options}
             series={rewardBreakdown.series}
             type="donut"
