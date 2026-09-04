@@ -191,7 +191,12 @@ export const makeChartOptions = (colors, labels) => ({
         categories: labels,
         labels: { style: { fontSize: "11px" } },
     },
-    yaxis: { labels: { style: { fontSize: "11px" } } },
+    // Points are always whole numbers — without this, ApexCharts' own tick
+    // generator can land on fractional ticks (e.g. "-307483.5") whenever
+    // the visible series barely varies (a near-flat line), since it just
+    // subdivides the y-axis range evenly with no awareness that the
+    // underlying values can only ever be integers.
+    yaxis: { labels: { style: { fontSize: "11px" }, formatter: (val) => Math.round(val).toLocaleString() } },
     dataLabels: { enabled: false },
     grid: { borderColor: "#e8e8e8", strokeDashArray: 4 },
     tooltip: {
