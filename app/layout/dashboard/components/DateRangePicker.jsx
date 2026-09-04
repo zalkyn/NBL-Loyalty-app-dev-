@@ -11,7 +11,7 @@ export const IntervalSelect = ({ labelCount, interval, onChange }) => {
 
     return (
         <s-box>
-            <s-heading>Select Date Range</s-heading>
+            <s-heading>Chart Interval</s-heading>
             <s-box paddingBlockEnd="small" />
             <s-select
                 label="Interval"

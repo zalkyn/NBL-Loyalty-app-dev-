@@ -1,4 +1,4 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 
 const ReactApexChart = React.lazy(() => import("react-apexcharts"));
 
@@ -24,7 +24,7 @@ export const StatCard = ({ label, value }) => (
 const SPARKLINE_WIDTH = 72;
 const SPARKLINE_HEIGHT = 32;
 
-function Sparkline({ data, color, chartKey }) {
+function Sparkline({ data, color }) {
     // Need at least 2 points for a line to mean anything, and at least one
     // non-zero point — otherwise (the common case for a metric with little
     // activity in range) it's a flat line at the bottom of the box, which
@@ -46,7 +46,6 @@ function Sparkline({ data, color, chartKey }) {
     return (
         <Suspense fallback={null}>
             <ReactApexChart
-                key={chartKey}
                 options={options}
                 series={[{ data }]}
                 type="area"
@@ -65,7 +64,7 @@ function Sparkline({ data, color, chartKey }) {
 // The content row reserves SPARKLINE_HEIGHT regardless of whether a
 // sparkline is actually present, so cards with and without one still align.
 
-export const StatCardNew = ({ label, value, color, detail, sparkline, sparklineKey }) => (
+export const StatCardNew = ({ label, value, color, detail, sparkline }) => (
     <div style={{
         background: "var(--p-color-bg-surface, #fff)",
         border: "1px solid var(--p-color-border, #c9cccf)",
@@ -89,7 +88,7 @@ export const StatCardNew = ({ label, value, color, detail, sparkline, sparklineK
                 </div>
                 {sparkline && (
                     <div style={{ flexShrink: 0, width: SPARKLINE_WIDTH, height: SPARKLINE_HEIGHT }}>
-                        <Sparkline data={sparkline} color={color} chartKey={sparklineKey} />
+                        <Sparkline data={sparkline} color={color} />
                     </div>
                 )}
             </div>
@@ -118,16 +117,52 @@ export function periodBadge(comparison) {
 }
 
 // ─── ChartCard ────────────────────────────────────────────────────────────────
+// NOT keyed by chartKey on the underlying ReactApexChart — that was tried
+// (forcing a full unmount/remount on every date-range/filter change) and
+// caused the donut specifically to render blank after a filter change
+// (legend drew fine — proving fresh data DID reach it — but the SVG arc
+// itself didn't, consistent with ApexCharts measuring a 0/unsettled
+// container width in the instant right after a fresh element replaces the
+// old one). react-apexcharts already updates an existing chart in place
+// via the underlying library's updateOptions/updateSeries when
+// options/series/type props change — including axis category count
+// changes (hourly's 24 labels -> daily's handful) — so a forced remount
+// was never actually required for that, only assumed to be. `chartKey` is
+// still accepted (and still drives the loading-overlay timing below) so
+// callers don't need to change, it's just no longer used as a React `key`.
 
-export const ChartCard = ({ heading, chartKey, options, series, type = "bar", height = 300 }) => (
-    <s-section heading={heading}>
-        <Suspense fallback={
-            <s-stack direction="inline" justify-content="center">
-                <s-text>Loading chart...</s-text>
-                <s-spinner access-label="Loading chart" />
-            </s-stack>
-        }>
-            <ReactApexChart key={chartKey} options={options} series={series} type={type} height={height} />
-        </Suspense>
-    </s-section>
-);
+const CHART_REFRESH_MS = 250;
+
+export const ChartCard = ({ heading, chartKey, options, series, type = "bar", height = 300 }) => {
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    useEffect(() => {
+        setIsRefreshing(true);
+        const t = setTimeout(() => setIsRefreshing(false), CHART_REFRESH_MS);
+        return () => clearTimeout(t);
+    }, [chartKey]);
+
+    return (
+        <s-section heading={heading}>
+            <div style={{ position: "relative", minHeight: height }}>
+                <Suspense fallback={
+                    <s-stack direction="inline" justify-content="center">
+                        <s-text>Loading chart...</s-text>
+                        <s-spinner access-label="Loading chart" />
+                    </s-stack>
+                }>
+                    <ReactApexChart options={options} series={series} type={type} height={height} />
+                </Suspense>
+                {isRefreshing && (
+                    <div style={{
+                        position: "absolute", inset: 0,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        background: "var(--p-color-bg-surface, #fff)",
+                    }}>
+                        <s-spinner access-label="Refreshing chart" />
+                    </div>
+                )}
+            </div>
+        </s-section>
+    );
+};

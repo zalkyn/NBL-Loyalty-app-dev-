@@ -11,7 +11,19 @@ const DONUT_COLORS = ["#1D9E75", "#378ADD", "#7A4FBF", "#BA7517", "#E24B4A", "#0
  * "Rewards issued" chart and stat card already use) rather than a new fetch.
  */
 export function RewardBreakdownChart({ rewardBreakdown, rangeKey }) {
-    if (!rewardBreakdown?.series?.length) return null;
+    // Previously returned null here — silently rendering nothing reads as
+    // "this chart is broken", not "no rewards were redeemed in this
+    // period" (which is the far more common, entirely normal reason this
+    // branch is hit — e.g. the "Today"/"Yesterday" presets on a quiet day).
+    if (!rewardBreakdown?.series?.length) {
+        return (
+            <s-section heading="Reward redemption breakdown">
+                <s-box padding="base">
+                    <s-text tone="subdued">No rewards redeemed in this period.</s-text>
+                </s-box>
+            </s-section>
+        );
+    }
 
     const options = {
         chart: { fontFamily: "inherit" },
