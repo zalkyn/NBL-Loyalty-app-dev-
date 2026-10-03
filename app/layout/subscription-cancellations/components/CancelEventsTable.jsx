@@ -145,11 +145,15 @@ export function CancelEventsTable({
                                                 deducted by them) — say why instead of a bare "—", and
                                                 point at the row that did deduct, if any (route.jsx loader). */}
                                             {!isSelectable && !canRestore && event.skipReason === "ALREADY_ZERO" && (
-                                                <s-text tone="subdued" variant="bodySm">
-                                                    {event.resetBySibling
-                                                        ? `No points were deducted here. This customer's reset was applied on their cancellation from ${formatDate(event.resetBySibling.cancelledAt)} — restore from that row.`
-                                                        : "No points were deducted for this cancellation, so there's nothing to restore."}
-                                                </s-text>
+                                                // Capped width — unbounded, this sentence stretched the
+                                                // Actions column across the table.
+                                                <s-box maxInlineSize="280px">
+                                                    <s-text tone="subdued" variant="bodySm">
+                                                        {event.resetBySibling
+                                                            ? `No points were deducted here. This customer's reset was applied on their cancellation from ${formatDate(event.resetBySibling.cancelledAt)} — restore from that row.`
+                                                            : "No points were deducted for this cancellation, so there's nothing to restore."}
+                                                    </s-text>
+                                                </s-box>
                                             )}
                                             {!isSelectable && !canRestore && event.skipReason !== "ALREADY_ZERO" && (
                                                 <s-text tone="subdued">—</s-text>
