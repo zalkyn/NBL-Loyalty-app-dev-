@@ -18,6 +18,23 @@ input:not([type=checkbox], [type=radio]) {
     border-color: inherit;
 }
 
+/* Custom font — app embed setting "Use a custom font" (loyalty.liquid sets
+   --nbl-font-family and loads the files; main.preact.jsx adds the class to
+   the shadow mount only when it's on). Without it the widget inherits the
+   theme's font as before, and buttons/inputs keep the browser's default
+   control font as before.
+
+   Controls are opted in with zero specificity (:where) so any rule that
+   deliberately sets a font — the monospace referral link and voucher codes —
+   still wins. */
+.nbl-custom-font {
+    font-family: var(--nbl-font-family);
+}
+
+:where(.nbl-custom-font) :where(button, input, select, textarea) {
+    font-family: inherit;
+}
+
 /* ─────────────────────────────────────────────────────
    ROOT VARIABLES
    One source of truth per visual property, grouped by
