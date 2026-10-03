@@ -23,7 +23,7 @@ import { authenticate } from "shopify-server";
 import prisma from "db-server";
 
 import { VALID_STATUSES, DEFAULT_PER_PAGE, MAX_PER_PAGE, parseIntParam, buildWhere, NON_ACTIONABLE_SKIP_REASONS } from "./_data";
-import { handleUpdateSettings, handleResetPoints, handleBulkResetPoints, handleRestorePoints } from "./_data.server";
+import { handleUpdateSettings, handleResetPoints, handleBulkResetPoints, handleRestorePoints, attachResetSiblings } from "./_data.server";
 import { getSubscriptionCancelResetSettings } from "app/controller/appSettings/subscriptionCancelResetSettings.js";
 import { useSubscriptionCancellationsPage } from "./_hooks";
 
@@ -31,6 +31,7 @@ import { SettingsCard } from "./components/SettingsCard";
 import { FilterBar } from "./components/FilterBar";
 import { CancelEventsTable } from "./components/CancelEventsTable";
 import { ConfirmModal } from "./components/ConfirmModal";
+import { HowItWorksModal, HOW_IT_WORKS_MODAL_ID } from "./components/HowItWorksModal";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -100,8 +101,16 @@ export const loader = async ({ request }) => {
             },
         });
 
+        // ── 3. Point ALREADY_ZERO rows at the cancellation that did deduct ──
+        // Informational only — a failure here must not take down the page;
+        // those rows just fall back to the generic "nothing to restore" text.
+        const eventsWithSibling = await attachResetSiblings(session.id, events).catch((err) => {
+            console.error("[SubscriptionCancellations Loader] attachResetSiblings failed", err);
+            return events;
+        });
+
         return {
-            events,
+            events: eventsWithSibling,
             stats,
             settings,
             pagination: { page, perPage, totalItems, totalPages },
@@ -151,11 +160,22 @@ export default function SubscriptionCancellationsPage() {
         <s-page heading="Subscription Cancellations" inlineSize="large">
 
             <s-section>
-                <s-text tone="subdued" variant="bodySm">
-                    Every Appstle subscription cancellation this app has seen, and whether the customer&apos;s points
-                    balance was reset to 0. Lifetime points are never affected — see the toggle below.
-                </s-text>
+                <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
+                    <s-text tone="subdued" variant="bodySm">
+                        Every Appstle subscription cancellation this app has seen, and whether the customer&apos;s points
+                        balance was reset to 0. Lifetime points are never affected — see the toggle below.
+                    </s-text>
+                    <s-button
+                        icon="info"
+                        variant="tertiary"
+                        accessibilityLabel="How subscription cancellations work"
+                        commandFor={HOW_IT_WORKS_MODAL_ID}
+                        command="--show"
+                    />
+                </s-stack>
             </s-section>
+
+            <HowItWorksModal />
 
             {page.loaderError && (
                 <s-section>
