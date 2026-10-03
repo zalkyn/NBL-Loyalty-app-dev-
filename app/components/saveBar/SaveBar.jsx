@@ -70,9 +70,15 @@ export function SaveBar({
 
     return (
         <AppBridgeSaveBar id={id} open={visible} ref={saveBarRef}>
-            {/* Boolean `loading` is passed as an empty-string attribute —
+            {/* type="button" is required: some pages (physical prizes, shadow
+                rules) render this inside a <form>, where a type-less button
+                defaults to "submit" — App Bridge's Save/Discard click then
+                natively submitted that form, reloading the iframe to a blank
+                page instead of running onPrimary/onSecondary.
+                Boolean `loading` is passed as an empty-string attribute —
                 React 18 drops `true` for non-standard attributes on <button>. */}
             <button
+                type="button"
                 variant="primary"
                 onClick={onPrimary}
                 loading={loading ? "" : undefined}
@@ -80,7 +86,7 @@ export function SaveBar({
             >
                 {primaryLabel}
             </button>
-            <button onClick={onSecondary} disabled={disabled || loading}>
+            <button type="button" onClick={onSecondary} disabled={disabled || loading}>
                 {secondaryLabel}
             </button>
         </AppBridgeSaveBar>
