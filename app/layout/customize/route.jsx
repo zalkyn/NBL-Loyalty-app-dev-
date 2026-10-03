@@ -174,6 +174,9 @@ export default function CustomizeNew() {
                 <AdvancedTab
                     cssVars={page.cssVars}
                     onSimpleChange={page.handleSimpleChange}
+                    customCss={page.widgetConfig.customCss}
+                    customCssError={page.customCssError}
+                    onConfigChange={page.handleConfigChange}
                     isNetworkSubmitting={page.isNetworkSubmitting}
                 />
             )}

@@ -25,6 +25,7 @@ import { useCustomerProvision } from './hooks/useCustomerProvision.js';
 import { useJoinProgram } from './hooks/useJoinProgram.js';
 import { useConfigResync } from './hooks/useConfigResync.js';
 import { useApplyTheme } from './hooks/useApplyTheme.js';
+import { useCustomCss } from './hooks/useCustomCss.js';
 import { useToastNotifications } from './hooks/useToastNotifications.js';
 import { useUpdateBanner } from './hooks/useUpdateBanner.js';
 import { useAutoUpdateSync } from './hooks/useAutoUpdateSync.js';
@@ -325,6 +326,8 @@ export function App({ initialData, bridgeRef, hostEl }) {
         },
     });
     useApplyTheme(initialData.cssVars, hostEl);
+    // Merchant custom CSS, scoped to page / full screen — see useCustomCss.js.
+    useCustomCss(widgetConfig.customCss, hostEl);
 
     // Admin Customize > Widget Config > New Customer Onboarding live
     // preview override — see bridgeRef.setScene's 'join-program' case
