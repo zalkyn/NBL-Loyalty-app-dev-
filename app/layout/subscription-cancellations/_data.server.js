@@ -26,13 +26,15 @@ async function getVerifiedEvent(sessionId, id) {
  * Applies the reset for one already-recorded (but skipped) event: resolves
  * the customer live (they may have enrolled since the event was first
  * recorded as CUSTOMER_NOT_ENROLLED), writes the SUBSCRIPTION_CANCEL_RESET
- * transaction, and marks the event resolved. Returns null on any failure
- * instead of throwing, so bulk callers can just skip and continue.
+ * transaction, and marks the event resolved. If the live balance is already
+ * 0, no transaction is written — the event is resolved as ALREADY_ZERO
+ * instead (`alreadyZero: true`). Returns `ok: false` on any failure instead
+ * of throwing, so bulk callers can just skip and continue.
  *
  * @param {Object} event   - A verified SubscriptionCancelEvent row
  * @param {Object} session - Shopify session
  * @param {Object} admin   - Shopify Admin API client
- * @returns {Promise<{ok: true, customerShopifyId: string} | {ok: false, reason: string}>}
+ * @returns {Promise<{ok: true, alreadyZero?: true, customerShopifyId: string} | {ok: false, reason: string}>}
  */
 async function applyManualReset(event, session, admin) {
     if (event.resetApplied) return { ok: false, reason: "Already reset." };
@@ -75,8 +77,28 @@ async function applyManualReset(event, session, admin) {
     if (currentPoints < 0) {
         return { ok: false, reason: "This customer has a negative balance (existing debt) — resetting it is not supported here." };
     }
+    // Balance already 0 — typically a second cancel event for a customer
+    // whose balance an earlier event's reset already zeroed (e.g. two
+    // subscriptions cancelled minutes apart). Previously this returned an
+    // error WITHOUT touching the event, so it stayed actionable forever:
+    // "Reset Now" kept showing, every click hit this same error, and bulk
+    // reset skipped it on every run. Resolve it as ALREADY_ZERO instead
+    // (a NON_ACTIONABLE_SKIP_REASONS value — drops it out of Needs Action,
+    // the profile's "Needs Reset" card and bulk selection).
+    //
+    // resetApplied deliberately stays false — no points were deducted by
+    // THIS event, so "Restore Points" (gated on resetApplied) must not
+    // become available for it, or an admin could restore previousBalance
+    // a second time on top of the event that actually did the reset.
+    //
+    // updateMany guarded on resetApplied: false so a concurrent real reset
+    // of this same event (another admin/tab) is never relabeled.
     if (currentPoints === 0) {
-        return { ok: false, reason: "Nothing to reset — balance is already 0." };
+        await prisma.subscriptionCancelEvent.updateMany({
+            where: { id: event.id, resetApplied: false },
+            data: { skipReason: "ALREADY_ZERO", customerId },
+        });
+        return { ok: true, alreadyZero: true, customerShopifyId };
     }
 
     const transaction = await createTransaction(
@@ -117,7 +139,10 @@ export async function handleResetPoints({ formData, session, admin }) {
         const result = await applyManualReset(event, session, admin);
         if (!result.ok) return { message: result.reason, status: "error", submitType, eventId: event.id };
 
-        return { message: "Points reset to 0.", status: "success", submitType, eventId: event.id };
+        const message = result.alreadyZero
+            ? "Balance is already 0 — marked as resolved."
+            : "Points reset to 0.";
+        return { message, status: "success", submitType, eventId: event.id };
     } catch (err) {
         logger.error(MODULE, "Manual reset failed", { error: err?.message, eventId });
         return { message: err.message || "Failed to reset points.", status: "error", submitType };
@@ -140,7 +165,7 @@ export async function handleBulkResetPoints({ formData, session, admin }) {
     if (!eventIds.length) return { message: "No cancellations selected.", status: "error", submitType };
 
     try {
-        const results = { success: [], failed: [] };
+        const results = { success: [], alreadyZero: [], failed: [] };
 
         // Batch-verify all selected ids in ONE query instead of a findFirst
         // per id (getVerifiedEvent, called in a loop) — that turned a
@@ -166,14 +191,19 @@ export async function handleBulkResetPoints({ formData, session, admin }) {
                 results.failed.push(id);
                 continue;
             }
-            results.success.push(id);
+            (result.alreadyZero ? results.alreadyZero : results.success).push(id);
         }
 
-        const msg = results.failed.length
-            ? `${results.success.length} reset. ${results.failed.length} skipped (already resolved or not eligible).`
-            : `${results.success.length} customer${results.success.length > 1 ? "s" : ""} reset.`;
+        const parts = [`${results.success.length} customer${results.success.length === 1 ? "" : "s"} reset.`];
+        if (results.alreadyZero.length) parts.push(`${results.alreadyZero.length} already at 0 (marked resolved).`);
+        if (results.failed.length) parts.push(`${results.failed.length} skipped (already resolved or not eligible).`);
 
-        return { message: msg, status: "success", submitType, updatedIds: results.success };
+        return {
+            message: parts.join(" "),
+            status: "success",
+            submitType,
+            updatedIds: [...results.success, ...results.alreadyZero],
+        };
     } catch (err) {
         logger.error(MODULE, "Bulk reset failed", { error: err?.message });
         return { message: err.message || "Bulk reset failed.", status: "error", submitType };
