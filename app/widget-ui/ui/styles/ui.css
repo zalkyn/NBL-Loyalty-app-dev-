@@ -4758,6 +4758,42 @@ input:not([type=checkbox], [type=radio]) {
     min-height: var(--nbl-page-min-height, 560px);
 }
 
+/* Text size (theme editor: "Text size", 80–150%, default 100%).
+   `zoom`, not font-size variables: most of this stylesheet sets font sizes
+   in literal px, so only scaling the --nbl-text-* tokens would grow some
+   text and not the rest. `zoom` re-runs layout at the new size, so text,
+   spacing, icons and buttons all grow together and keep their proportions.
+
+   Applied to the wrapper's CHILDREN (header + body / guest hero), not the
+   container or the wrapper, so the merchant's Width / Minimum height /
+   scrolling Height settings — which live on those two — stay exactly as
+   set instead of being multiplied too. The fixed-position overlays
+   (notification panel, image preview, provisioning spinner) are siblings of
+   the scroll area, outside the zoomed subtree, so the inset:0-under-zoom
+   overflow described in the full-screen zoom note above can't happen here.
+
+   The three children are named rather than matched with `> *`: that
+   selector is already the wide-only type-scale rule further down, and
+   check-widget-css.js classifies rules by selector. These are every direct
+   child WidgetShell.jsx renders into the wrapper — a new one added there
+   must be added here too, or it won't scale.
+
+   Browsers without `zoom` (Firefox < 126) ignore it and render at 100%. */
+.nbl-widget-container--page .nbl-widget-wrapper > .nbl-sticky-top,
+.nbl-widget-container--page .nbl-widget-wrapper > .nbl-widget-body,
+.nbl-widget-container--page .nbl-widget-wrapper > .nbl-guest {
+    zoom: var(--nbl-page-zoom, 1);
+}
+
+/* Both .nbl-guest panels (signed-out GuestPanel, a direct wrapper child, and
+   JoinProgramPanel, nested inside the logged-in body) are inside the zoomed
+   subtree, so their own min-height would be multiplied by the zoom and
+   outgrow the wrapper's floor. Dividing it back keeps them exactly as tall
+   as the merchant set. */
+.nbl-widget-container--page .nbl-widget-wrapper .nbl-guest {
+    min-height: calc(var(--nbl-page-min-height, 560px) / var(--nbl-page-zoom, 1));
+}
+
 /* ── Header ──────────────────────────────────────────────────────────────
    Static by default. With the page doing the scrolling, the wrapper isn't a
    scrollport so sticky has nothing to stick within — and a widget header
@@ -4894,6 +4930,17 @@ input:not([type=checkbox], [type=radio]) {
 
     .nbl-widget-container--page .nbl-guest {
         min-height: var(--nbl-page-min-height-mobile, 420px);
+    }
+
+    /* Mobile "Text size" — same mechanism as desktop, its own setting. */
+    .nbl-widget-container--page .nbl-widget-wrapper > .nbl-sticky-top,
+    .nbl-widget-container--page .nbl-widget-wrapper > .nbl-widget-body,
+    .nbl-widget-container--page .nbl-widget-wrapper > .nbl-guest {
+        zoom: var(--nbl-page-zoom-mobile, 1);
+    }
+
+    .nbl-widget-container--page .nbl-widget-wrapper .nbl-guest {
+        min-height: calc(var(--nbl-page-min-height-mobile, 420px) / var(--nbl-page-zoom-mobile, 1));
     }
 }
 
