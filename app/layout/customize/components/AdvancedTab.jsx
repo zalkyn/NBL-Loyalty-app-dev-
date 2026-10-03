@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { DS, CSS_DEFAULTS, isHex } from "../constants/cssVarsConfig";
+import { CustomCssPanel } from "./CustomCssPanel";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ADVANCED TAB
@@ -127,7 +128,7 @@ function AdvancedRow({ varName, cssVars, onChange, disabled }) {
     );
 }
 
-export function AdvancedTab({ cssVars, onSimpleChange, isNetworkSubmitting }) {
+export function AdvancedTab({ cssVars, onSimpleChange, customCss, customCssError, onConfigChange, isNetworkSubmitting }) {
     const [query, setQuery] = useState("");
 
     const filtered = useMemo(() => {
@@ -143,45 +144,53 @@ export function AdvancedTab({ cssVars, onSimpleChange, isNetworkSubmitting }) {
 
     return (
         <s-grid gridTemplateColumns="1fr 1fr" gap="base">
-            <s-section>
-                <div style={{ marginBottom: DS.sp14 }}>
-                    <s-banner tone="warning" heading="Advance mode">
-                        <p>Advanced mode edits raw CSS variables directly — no grouping or guardrails. If you're not sure what a variable does, check the Customize tab first.</p>
-                    </s-banner>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: DS.sp10, marginBottom: DS.sp12 }}>
-                    <div style={{ flex: 1 }}>
-                        <s-text-field
-                            placeholder="Search variables (e.g. 'button', '--nbl-item-bg')"
-                            value={query}
-                            onInput={(e) => setQuery(e.target.value)}
-                            auto-complete="off"
-                        />
+            <s-stack direction="block" gap="base">
+                <CustomCssPanel
+                    value={customCss}
+                    error={customCssError}
+                    onChange={(v) => onConfigChange("customCss", v)}
+                    disabled={isNetworkSubmitting}
+                />
+                <s-section>
+                    <div style={{ marginBottom: DS.sp14 }}>
+                        <s-banner tone="warning" heading="Advance mode">
+                            <p>Advanced mode edits raw CSS variables directly — no grouping or guardrails. If you're not sure what a variable does, check the Customize tab first.</p>
+                        </s-banner>
                     </div>
-                    <span style={{ fontSize: 12, color: DS.textMuted, flexShrink: 0 }}>
-                        {filtered.length} of {ALL_VAR_NAMES.length}
-                        {dirtyCount > 0 && ` · ${dirtyCount} modified`}
-                    </span>
-                </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: DS.sp6, maxHeight: 640, overflowY: "auto" }}>
-                    {filtered.length === 0 && (
-                        <div style={{ padding: DS.sp16, textAlign: "center", fontSize: 13, color: DS.textHint }}>
-                            No variables match "{query}".
+                    <div style={{ display: "flex", alignItems: "center", gap: DS.sp10, marginBottom: DS.sp12 }}>
+                        <div style={{ flex: 1 }}>
+                            <s-text-field
+                                placeholder="Search variables (e.g. 'button', '--nbl-item-bg')"
+                                value={query}
+                                onInput={(e) => setQuery(e.target.value)}
+                                auto-complete="off"
+                            />
                         </div>
-                    )}
-                    {filtered.map((varName) => (
-                        <AdvancedRow
-                            key={varName}
-                            varName={varName}
-                            cssVars={cssVars}
-                            onChange={onSimpleChange}
-                            disabled={isNetworkSubmitting}
-                        />
-                    ))}
-                </div>
-            </s-section>
+                        <span style={{ fontSize: 12, color: DS.textMuted, flexShrink: 0 }}>
+                            {filtered.length} of {ALL_VAR_NAMES.length}
+                            {dirtyCount > 0 && ` · ${dirtyCount} modified`}
+                        </span>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: DS.sp6, maxHeight: 640, overflowY: "auto" }}>
+                        {filtered.length === 0 && (
+                            <div style={{ padding: DS.sp16, textAlign: "center", fontSize: 13, color: DS.textHint }}>
+                                No variables match "{query}".
+                            </div>
+                        )}
+                        {filtered.map((varName) => (
+                            <AdvancedRow
+                                key={varName}
+                                varName={varName}
+                                cssVars={cssVars}
+                                onChange={onSimpleChange}
+                                disabled={isNetworkSubmitting}
+                            />
+                        ))}
+                    </div>
+                </s-section>
+            </s-stack>
         </s-grid>
     );
 }

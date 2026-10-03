@@ -2,6 +2,7 @@ import prisma from "db-server";
 import syncAppConfig from "@controller/metafieldsSync/syncAppConfig";
 import searchPages from "@graphql/query/shop/searchPages";
 import { CSS_DEFAULTS, WIDGET_CONFIG_DEFAULTS, deepClone } from "./constants/cssVarsConfig";
+import { validateCustomCss } from "./constants/customCss";
 import { logger } from "app/utils/logger.js";
 
 /** @constant {string} Module identifier for structured logging */
@@ -32,6 +33,14 @@ export async function handleUpdate({ formData, session, admin }) {
         const presetKey = formData.get("presetKey") || null;
         const rawWidgetConfig = formData.get("widgetConfig");
         const widgetConfig = rawWidgetConfig ? JSON.parse(rawWidgetConfig) : null;
+
+        // Same check the form runs before submitting — repeated here so a
+        // request that skipped the form can't store CSS it would have refused
+        // (notably "<", which could break out of the storefront <script>).
+        const customCssError = validateCustomCss(widgetConfig?.customCss);
+        if (customCssError) {
+            return { ok: false, intent, message: customCssError };
+        }
 
         await upsertAndSync(session, admin, cssVars, presetKey, widgetConfig);
 

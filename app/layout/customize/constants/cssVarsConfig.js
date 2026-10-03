@@ -122,6 +122,10 @@ export const LABEL_DEFAULTS = {
 };
 
 export const WIDGET_CONFIG_DEFAULTS = {
+    // Merchant CSS for the page / full screen widget only — Advanced tab.
+    // Validated by constants/customCss.js; injected and scoped by the
+    // storefront widget's useCustomCss hook. Empty = no custom CSS.
+    customCss: "",
     showHomeRewardsSection: true,
     showHomeActivitiesSection: true,
     showHomePrizeRequestsSection: true,
