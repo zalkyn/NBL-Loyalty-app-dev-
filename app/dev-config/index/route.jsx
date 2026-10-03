@@ -21,6 +21,7 @@ import { useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "shopify-server";
 import { getMaintenanceToolFlags, updateMaintenanceToolFlags } from "@controller/appSettings/maintenanceToolFlags";
 import { DevConfigNav } from "../components/DevConfigNav";
+import { SaveBar } from "@app/components/saveBar/SaveBar";
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
@@ -109,6 +110,20 @@ export default function DevConfigIndexPage() {
     const [showResetSyncButton, setShowResetSyncButton] = useState(toolFlags.showResetSyncButton);
     const [showEmptyConfigButton, setShowEmptyConfigButton] = useState(toolFlags.showEmptyConfigButton);
     const [showDeleteCustomerButton, setShowDeleteCustomerButton] = useState(toolFlags.showDeleteCustomerButton);
+
+    // Dirty = checkboxes differ from the saved (loader) values. After a
+    // successful save the loader revalidates to the new values, so this goes
+    // false on its own and the save bar hides.
+    const flagsDirty =
+        showResetSyncButton !== toolFlags.showResetSyncButton ||
+        showEmptyConfigButton !== toolFlags.showEmptyConfigButton ||
+        showDeleteCustomerButton !== toolFlags.showDeleteCustomerButton;
+
+    function handleDiscardFlags() {
+        setShowResetSyncButton(toolFlags.showResetSyncButton);
+        setShowEmptyConfigButton(toolFlags.showEmptyConfigButton);
+        setShowDeleteCustomerButton(toolFlags.showDeleteCustomerButton);
+    }
 
     function handleSaveFlags() {
         settingsFetcher.submit(
@@ -204,6 +219,13 @@ export default function DevConfigIndexPage() {
                     </s-button>
                 </s-box>
             </s-section>
+
+            <SaveBar
+                visible={flagsDirty}
+                onPrimary={handleSaveFlags}
+                onSecondary={handleDiscardFlags}
+                loading={settingsFetcher.state !== "idle"}
+            />
         </s-page>
     );
 }
