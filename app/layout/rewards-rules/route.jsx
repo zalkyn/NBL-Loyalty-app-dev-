@@ -32,6 +32,7 @@ import { PageHeading } from "./components/PageHeading";
 import { RulesTable } from "./components/RulesTable";
 import { RewardRuleForm } from "./components/RewardRuleForm";
 import { DeleteRuleModal } from "./components/DeleteRuleModal";
+import { SaveBar } from "@app/components/saveBar/SaveBar";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -115,6 +116,20 @@ export default function RewardRulesPage() {
                 deleteTarget={page.deleteTarget}
                 isDeleting={page.isDeleting}
                 onConfirm={page.handleDelete}
+            />
+
+            {/* Same behavior as the points-rules pages: always shown while
+                creating, only when dirty while editing. Save isn't disabled
+                for an incomplete form — fs.submit() validates and reveals
+                the field errors instead. */}
+            <SaveBar
+                visible={page.view === "create" || (page.view === "edit" && page.fs.isDirty)}
+                primaryLabel={page.view === "edit" ? "Update Rule" : "Save Rule"}
+                secondaryLabel={page.view === "edit" ? "Discard Changes" : "Cancel"}
+                onPrimary={page.view === "edit" ? page.handleUpdate : page.handleSave}
+                onSecondary={page.view === "edit" ? page.fs.reset : page.goToList}
+                loading={page.busy}
+                disabled={page.isAnyBusy}
             />
         </s-page>
     );

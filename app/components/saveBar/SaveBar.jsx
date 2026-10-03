@@ -41,6 +41,7 @@ import { SaveBar as AppBridgeSaveBar } from "@shopify/app-bridge-react";
  * @param {function} [props.onSecondary]           Fired when Discard is clicked (after confirmation, if enabled).
  * @param {boolean}  [props.loading=false]         Shows a spinner on Save and disables both buttons.
  * @param {boolean}  [props.disabled=false]        Disables both buttons.
+ * @param {boolean}  [props.primaryDisabled=false] Disables only Save (e.g. required fields still empty).
  * @param {boolean}  [props.discardConfirmation=true]
  *   Ask the merchant to confirm before discarding. On by default so an
  *   accidental Discard click can't throw away their changes.
@@ -53,6 +54,7 @@ export function SaveBar({
     onSecondary,
     loading = false,
     disabled = false,
+    primaryDisabled = false,
     discardConfirmation = true,
 }) {
     // App Bridge identifies save bars by id — useId keeps each instance
@@ -74,7 +76,7 @@ export function SaveBar({
                 variant="primary"
                 onClick={onPrimary}
                 loading={loading ? "" : undefined}
-                disabled={disabled || loading}
+                disabled={disabled || loading || primaryDisabled}
             >
                 {primaryLabel}
             </button>
