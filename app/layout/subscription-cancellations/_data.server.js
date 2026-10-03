@@ -125,6 +125,53 @@ async function applyManualReset(event, session, admin) {
     return { ok: true, customerShopifyId };
 }
 
+// ── RESET SIBLINGS (loader) ──────────────────────────────────────────────
+
+/**
+ * For every ALREADY_ZERO event in `events`, finds the same customer's
+ * cancellation that actually deducted points (resetApplied: true) and
+ * attaches it as `resetBySibling: { id, cancelledAt }`.
+ *
+ * An ALREADY_ZERO row has no "Restore Points" on purpose (nothing was
+ * deducted by it — see applyManualReset above), which otherwise reads as a
+ * missing button. When the same customer has another cancellation that DID
+ * reset points (e.g. two subscriptions cancelled minutes apart), the table
+ * points the admin at that row instead. Read-only; one query bounded by the
+ * current page's rows, not a per-row lookup.
+ *
+ * @param {string} sessionId
+ * @param {Array<Object>} events - SubscriptionCancelEvent rows for the current page
+ * @returns {Promise<Array<Object>>} The same events, ALREADY_ZERO ones with `resetBySibling` when found
+ */
+export async function attachResetSiblings(sessionId, events) {
+    const zeroCustomerIds = [...new Set(
+        events.filter((e) => e.skipReason === "ALREADY_ZERO" && e.customerId).map((e) => e.customerId)
+    )];
+    if (!zeroCustomerIds.length) return events;
+
+    const siblings = await prisma.subscriptionCancelEvent.findMany({
+        where: { sessionId, customerId: { in: zeroCustomerIds }, resetApplied: true },
+        orderBy: { cancelledAt: "desc" },
+        select: { id: true, customerId: true, cancelledAt: true, previousBalance: true, restoredAmount: true },
+    });
+
+    // Prefer a sibling that still has points left to restore, then the most
+    // recent — siblings are already sorted newest first.
+    const byCustomer = new Map();
+    for (const s of siblings) {
+        const current = byCustomer.get(s.customerId);
+        const restorable = s.previousBalance - s.restoredAmount > 0;
+        if (!current || (restorable && !current.restorable)) {
+            byCustomer.set(s.customerId, { id: s.id, cancelledAt: s.cancelledAt, restorable });
+        }
+    }
+
+    return events.map((e) => {
+        const sibling = e.skipReason === "ALREADY_ZERO" ? byCustomer.get(e.customerId) : null;
+        return sibling ? { ...e, resetBySibling: { id: sibling.id, cancelledAt: sibling.cancelledAt } } : e;
+    });
+}
+
 // ── RESET ONE ─────────────────────────────────────────────────────────────
 
 export async function handleResetPoints({ formData, session, admin }) {
