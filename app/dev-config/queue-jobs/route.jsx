@@ -41,6 +41,7 @@ import {
 } from "./_action.server";
 import { JobsTable } from "./components/JobsTable";
 import { DevConfigNav } from "../components/DevConfigNav";
+import { SaveBar } from "@app/components/saveBar/SaveBar";
 
 const STATUSES = ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED"];
 
@@ -121,6 +122,18 @@ export default function JobsPage() {
             { intent: "saveDiscountDeleteSettings", onRewardCancel: String(onRewardCancel), onRewardUsed: String(onRewardUsed) },
             { method: "post" }
         );
+    }
+
+    // Dirty = checkboxes differ from the saved (loader) values. After a
+    // successful save the loader revalidates to the new values, so this goes
+    // false on its own and the save bar hides.
+    const settingsDirty =
+        onRewardCancel !== discountDeleteSettings.onRewardCancel ||
+        onRewardUsed !== discountDeleteSettings.onRewardUsed;
+
+    function handleDiscardSettings() {
+        setOnRewardCancel(discountDeleteSettings.onRewardCancel);
+        setOnRewardUsed(discountDeleteSettings.onRewardUsed);
     }
 
     const [selectedIds, setSelectedIds] = useState([]);
@@ -400,6 +413,13 @@ export default function JobsPage() {
                     Cancel
                 </s-button>
             </s-modal>
+
+            <SaveBar
+                visible={settingsDirty}
+                onPrimary={handleSaveSettings}
+                onSecondary={handleDiscardSettings}
+                loading={settingsFetcher.state !== "idle"}
+            />
         </s-page>
     );
 }

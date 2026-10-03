@@ -22,6 +22,7 @@ import { AddEventForm } from "./components/AddEventForm";
 import { EventsTable } from "./components/EventsTable";
 import { EditEventModal } from "./components/EditEventModal";
 import { DeleteEventModal } from "./components/DeleteEventModal";
+import { SaveBar } from "@app/components/saveBar/SaveBar";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -111,6 +112,21 @@ export default function EventsPage() {
                 selectedEvent={page.selectedEvent}
                 isDeleting={page.isDeleting}
                 onConfirm={page.handleDeleteEvent}
+            />
+
+            {/* Shown for as long as the add form is open, like the points-
+                rules create pages. Save is disabled under the same rule as
+                AddEventForm's own button — handleAddEvent only checks for
+                duplicates, not required fields. */}
+            <SaveBar
+                visible={page.showAddForm}
+                primaryLabel="Save Event"
+                secondaryLabel="Cancel"
+                onPrimary={page.handleAddEvent}
+                onSecondary={page.cancelAddForm}
+                loading={page.isAdding}
+                disabled={page.isAnyBusy}
+                primaryDisabled={!page.newEvent.name?.trim() || !page.newEvent.type}
             />
         </s-page>
     );
