@@ -96,7 +96,7 @@ export function ViewClaimModal({
                             <s-stack direction="block" gap="small-200">
                                 <s-text tone="subdued" variant="bodySm">First Reviewed</s-text>
                                 <s-text variant="bodySm">
-                                    {vc.viewedByAdmin ? formatDate(vc.viewedAt) : <s-badge tone="warning" size="small">Not yet reviewed</s-badge>}
+                                    {vc.viewedByAdmin ? formatDate(vc.viewedAt) : <s-badge tone="warning">Not yet reviewed</s-badge>}
                                 </s-text>
                             </s-stack>
                         </s-grid>
