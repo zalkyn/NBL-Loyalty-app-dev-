@@ -25,8 +25,10 @@
  *   job_auto_retry  — auto-revives FAILED jobs with transient errors (jobAutoRetryJob.js)
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLoaderData, useSearchParams, useFetcher } from "react-router";
+import { useSubmitLock } from "@app/hooks/useSubmitLock";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "shopify-server";
 
 import Pagination from "@app/components/pagination/Pagination";
@@ -113,11 +115,24 @@ export default function JobsPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const fetcher = useFetcher();
     const settingsFetcher = useFetcher();
+    const tryLock = useSubmitLock(settingsFetcher.state);
+    const shopify = useAppBridge();
+
+    // Toast the save result as well as the inline message: Save is usually
+    // clicked in the admin's save bar at the top, far from that message.
+    useEffect(() => {
+        const data = settingsFetcher.data;
+        if (!data?.message) return;
+        shopify.toast.show(data.message, { isError: !data.ok });
+        // shopify is stable for the page's lifetime.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [settingsFetcher.data]);
 
     const [onRewardCancel, setOnRewardCancel] = useState(discountDeleteSettings.onRewardCancel);
     const [onRewardUsed, setOnRewardUsed] = useState(discountDeleteSettings.onRewardUsed);
 
     function handleSaveSettings() {
+        if (!tryLock()) return; // a save is already in flight (see useSubmitLock)
         settingsFetcher.submit(
             { intent: "saveDiscountDeleteSettings", onRewardCancel: String(onRewardCancel), onRewardUsed: String(onRewardUsed) },
             { method: "post" }

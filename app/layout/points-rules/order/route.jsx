@@ -12,6 +12,7 @@ import { DescriptionField } from "@shared-utils/rule-components/DescriptionField
 import { SaveBar } from "@app/components/saveBar/SaveBar";
 
 import { buildConditions, buildFormShape, validate } from "./_data";
+import { parseRulePayload, validateRulePayload } from "../shared-utils/rule-utils/validateRulePayload";
 import { useOrderHandlers } from "./_hooks";
 import { EarningFields } from "./components/EarningFields";
 import { IntervalCard } from "./components/IntervalCard";
@@ -51,7 +52,15 @@ export const action = async ({ request }) => {
     const { session, admin } = await authenticate.admin(request);
     const formData = await request.formData();
     const submitType = formData.get("submitType");
-    const payload = JSON.parse(formData.get("payload") || "{}");
+    const payload = parseRulePayload(formData.get("payload"));
+
+    // Same rules the form runs (./_data.js validate) — enforced here too so
+    // a request that skipped the form can't save a rule with 0 / negative
+    // points. See validateRulePayload.js.
+    if (submitType === "createRule" || submitType === "updateRule") {
+        const payloadError = validateRulePayload(validate, payload);
+        if (payloadError) return { message: payloadError, status: "error", submitType };
+    }
 
     if (submitType === "createRule") {
         try {

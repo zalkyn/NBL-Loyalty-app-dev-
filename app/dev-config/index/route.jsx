@@ -16,8 +16,10 @@
  * memorable entry point once you're already typing a URL by hand.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLoaderData, useFetcher } from "react-router";
+import { useSubmitLock } from "@app/hooks/useSubmitLock";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "shopify-server";
 import { getMaintenanceToolFlags, updateMaintenanceToolFlags } from "@controller/appSettings/maintenanceToolFlags";
 import { DevConfigNav } from "../components/DevConfigNav";
@@ -42,14 +44,22 @@ export const action = async ({ request }) => {
     const intent = formData.get("intent")?.toString() || "";
 
     if (intent === "saveMaintenanceToolFlags") {
-        const flags = await updateMaintenanceToolFlags({
-            shop: session.shop,
-            sessionId: session.id,
-            showResetSyncButton: formData.get("showResetSyncButton") === "true",
-            showEmptyConfigButton: formData.get("showEmptyConfigButton") === "true",
-            showDeleteCustomerButton: formData.get("showDeleteCustomerButton") === "true",
-        });
-        return { ok: true, message: "Maintenance tool flags saved.", toolFlags: flags };
+        // A failed write returns an error message instead of throwing, so the
+        // page stays up, the save bar stays (nothing was saved) and the
+        // admin sees why.
+        try {
+            const flags = await updateMaintenanceToolFlags({
+                shop: session.shop,
+                sessionId: session.id,
+                showResetSyncButton: formData.get("showResetSyncButton") === "true",
+                showEmptyConfigButton: formData.get("showEmptyConfigButton") === "true",
+                showDeleteCustomerButton: formData.get("showDeleteCustomerButton") === "true",
+            });
+            return { ok: true, message: "Maintenance tool flags saved.", toolFlags: flags };
+        } catch (err) {
+            console.error("[DevConfig] saveMaintenanceToolFlags failed", err);
+            return { ok: false, message: "Couldn't save the maintenance tool flags. Please try again." };
+        }
     }
 
     return { ok: false, message: "Unknown action." };
@@ -106,6 +116,18 @@ const TOOLS = [
 export default function DevConfigIndexPage() {
     const { toolFlags } = useLoaderData();
     const settingsFetcher = useFetcher();
+    const tryLock = useSubmitLock(settingsFetcher.state);
+    const shopify = useAppBridge();
+
+    // Toast the save result as well as the inline message: Save is usually
+    // clicked in the admin's save bar at the top, far from that message.
+    useEffect(() => {
+        const data = settingsFetcher.data;
+        if (!data?.message) return;
+        shopify.toast.show(data.message, { isError: !data.ok });
+        // shopify is stable for the page's lifetime.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [settingsFetcher.data]);
 
     const [showResetSyncButton, setShowResetSyncButton] = useState(toolFlags.showResetSyncButton);
     const [showEmptyConfigButton, setShowEmptyConfigButton] = useState(toolFlags.showEmptyConfigButton);
@@ -126,6 +148,7 @@ export default function DevConfigIndexPage() {
     }
 
     function handleSaveFlags() {
+        if (!tryLock()) return; // a save is already in flight (see useSubmitLock)
         settingsFetcher.submit(
             {
                 intent: "saveMaintenanceToolFlags",

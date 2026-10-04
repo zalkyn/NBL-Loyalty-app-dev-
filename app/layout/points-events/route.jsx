@@ -86,6 +86,7 @@ export default function EventsPage() {
                     events={page.events}
                     newEvent={page.newEvent}
                     setNewEvent={page.setNewEvent}
+                    errors={page.addErrors}
                     isAdding={page.isAdding}
                     onCancel={page.cancelAddForm}
                     onSave={page.handleAddEvent}
@@ -115,9 +116,8 @@ export default function EventsPage() {
             />
 
             {/* Shown for as long as the add form is open, like the points-
-                rules create pages. Save is disabled under the same rule as
-                AddEventForm's own button — handleAddEvent only checks for
-                duplicates, not required fields. */}
+                rules create pages. Save stays enabled: handleAddEvent checks
+                the required fields itself and shows field errors + a toast. */}
             <SaveBar
                 visible={page.showAddForm}
                 primaryLabel="Save Event"
@@ -126,7 +126,6 @@ export default function EventsPage() {
                 onSecondary={page.cancelAddForm}
                 loading={page.isAdding}
                 disabled={page.isAnyBusy}
-                primaryDisabled={!page.newEvent.name?.trim() || !page.newEvent.type}
             />
         </s-page>
     );
