@@ -17,6 +17,7 @@ export default function AppNav() {
     // onto this main-nav path.
     return <s-app-nav>
         <s-link href="/app/dashboard">Dashboard</s-link>
+        <s-link href="/app/setup-guide">Setup Guide</s-link>
         <s-link href="/app/customers">Customers</s-link>
         <s-link href="/app/points-rules">Points Earning Rules</s-link>
         <s-link href="/app/rewards-rules">Reward Rules</s-link>
