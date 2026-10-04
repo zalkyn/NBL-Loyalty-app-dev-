@@ -18,6 +18,19 @@ const PLACEHOLDER = `/* Applies to the Loyalty page and full screen only */
 .nbl-header__title { font-size: 22px; }
 .nbl-nav__item { font-size: 15px; }`;
 
+// The field grows with its content: s-text-area only takes a fixed `rows`
+// (no auto-grow or max-rows option), so rows tracks the line count — two
+// spare lines below the last one, never shorter than MIN_ROWS — and stops
+// at MAX_ROWS, past which the textarea scrolls inside itself. Line count is
+// a good fit for CSS, where lines are short and rarely soft-wrap.
+const MIN_ROWS = 12;
+const MAX_ROWS = 30;
+
+function rowsFor(text) {
+    const lines = (text ?? "").split("\n").length;
+    return Math.min(MAX_ROWS, Math.max(MIN_ROWS, lines + 2));
+}
+
 export function CustomCssPanel({ value, error, onChange, disabled }) {
     const length = value?.length ?? 0;
 
@@ -58,7 +71,7 @@ export function CustomCssPanel({ value, error, onChange, disabled }) {
 
                 <s-text-area
                     label="Custom CSS"
-                    rows={10}
+                    rows={rowsFor(value)}
                     placeholder={PLACEHOLDER}
                     value={value ?? ""}
                     error={error ?? undefined}
