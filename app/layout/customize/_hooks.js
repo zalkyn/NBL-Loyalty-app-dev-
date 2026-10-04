@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef, useDeferredValue } from "react";
 import { useSubmit, useNavigation } from "react-router";
+import { useSubmitLock } from "@app/hooks/useSubmitLock";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import {
@@ -21,6 +22,7 @@ export function useCustomizePage(loaderData, actionData) {
     const { savedCssVars, savedWidgetConfig } = loaderData;
     const submit = useSubmit();
     const navigation = useNavigation();
+    const tryLock = useSubmitLock(navigation.state);
     const shopify = useAppBridge();
 
     const isNetworkSubmitting = navigation.state === "submitting";
@@ -212,6 +214,7 @@ export function useCustomizePage(loaderData, actionData) {
     }, [persistedVars, persistedWidgetConfig]);
 
     const handleSave = useCallback(() => {
+        if (!tryLock()) return; // a save is already in flight (see useSubmitLock)
         setActiveIntent("update");
         const fd = new FormData();
         fd.set("intent", "update");
@@ -220,7 +223,7 @@ export function useCustomizePage(loaderData, actionData) {
         fd.set("presetKey", activePreset ?? "");
         fd.set("widgetConfig", JSON.stringify(widgetConfig));
         submit(fd, { method: "post" });
-    }, [cssVars, activePreset, widgetConfig, submit]);
+    }, [tryLock, cssVars, activePreset, widgetConfig, submit]);
 
     const handleResetAll = useCallback(() => {
         setActiveIntent("resetAll");

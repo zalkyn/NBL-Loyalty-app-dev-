@@ -1,5 +1,8 @@
-import { useSubmit } from "react-router";
+import { useSubmit, useNavigation } from "react-router";
+import { useSubmitLock } from "@app/hooks/useSubmitLock";
 import { useFormState } from "@app/hooks/useFormState";
+import { useAppBridge } from "@shopify/app-bridge-react";
+import { notifyInvalidForm } from "@app/utils/formFeedback";
 
 /**
  * @typedef {Object} FormState
@@ -56,10 +59,15 @@ import { useFormState } from "@app/hooks/useFormState";
  */
 export function useRuleForm(rule, buildFormShape, validate, payloadKey, mode) {
     const submitToAction = useSubmit();
+    const navigation = useNavigation();
+    const tryLock = useSubmitLock(navigation.state);
+    const shopify = useAppBridge();
 
     return useFormState(rule, buildFormShape, {
         validate,
+        onInvalid: (errors) => notifyInvalidForm(shopify, errors),
         onSubmit: async (form) => {
+            if (!tryLock()) return; // a submit is already in flight (see useSubmitLock)
             const payload = JSON.stringify({
                 name: form.name,
                 description: form.description,
