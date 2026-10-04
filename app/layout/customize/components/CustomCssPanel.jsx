@@ -1,4 +1,5 @@
 import { CUSTOM_CSS_MAX_LENGTH } from "../constants/customCss";
+import { SelectorReferenceModal, SELECTOR_MODAL_ID } from "./SelectorReferenceModal";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CUSTOM CSS PANEL (Custom CSS tab)
@@ -24,7 +25,12 @@ export function CustomCssPanel({ value, error, onChange, disabled }) {
         <s-section>
             <s-stack direction="block" gap="base">
                 <s-stack direction="block" gap="small-300">
-                    <s-heading>Custom CSS (page &amp; full screen)</s-heading>
+                    <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+                        <s-heading>Custom CSS (page &amp; full screen)</s-heading>
+                        <s-button icon="code" commandFor={SELECTOR_MODAL_ID} command="--show">
+                            View selectors
+                        </s-button>
+                    </s-grid>
                     <s-paragraph>
                         Applies only to the Loyalty &amp; Rewards page block and the full-screen widget — never to
                         the small floating widget. You don&apos;t need to add any prefix; rules are scoped automatically
@@ -61,6 +67,7 @@ export function CustomCssPanel({ value, error, onChange, disabled }) {
                     onInput={(e) => onChange(e.target.value)}
                 />
             </s-stack>
+            <SelectorReferenceModal />
         </s-section>
     );
 }
