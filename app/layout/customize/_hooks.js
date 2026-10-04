@@ -80,7 +80,7 @@ export function useCustomizePage(loaderData, actionData) {
         if (actionData === lastSyncedActionRef.current) return;
         lastSyncedActionRef.current = actionData;
 
-        shopify.toast.show(actionData.message, { isError: !actionData.ok });
+        shopify.toast.show(actionData.message, { isError: !actionData.ok || !!actionData.syncFailed });
         setActiveIntent(null);
         if (!actionData.ok) return;
 

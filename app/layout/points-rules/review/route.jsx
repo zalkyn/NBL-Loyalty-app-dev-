@@ -1,7 +1,7 @@
 import { useLoaderData, useActionData, useNavigate, redirect } from "react-router";
 import { authenticate } from "shopify-server";
 import prisma from "db-server";
-import syncAppConfig from "@controller/metafieldsSync/syncAppConfig";
+import syncAppConfig, { STOREFRONT_NOT_UPDATED } from "@controller/metafieldsSync/syncAppConfig";
 
 import { useRuleForm } from "@shared-utils/rule-utils/useRuleForm";
 import { useSubmitBusy } from "@shared-utils/rule-utils/useSubmitBusy";
@@ -81,8 +81,8 @@ export const action = async ({ request }) => {
                     event: { connect: { id: event.id } },
                 },
             });
-            await syncAppConfig(admin, session);
-            return { message: "Points rule created successfully.", rule: created, status: "success", submitType };
+            const synced = await syncAppConfig(admin, session);
+            return { message: synced ? "Points rule created successfully." : `Points rule created, ${STOREFRONT_NOT_UPDATED}`, syncFailed: !synced, rule: created, status: "success", submitType };
         } catch (err) {
             console.error("Create REVIEW Rule Error:", err);
             return { message: "Failed to create rule. Please try again.", status: "error", submitType };
@@ -106,8 +106,8 @@ export const action = async ({ request }) => {
                     conditions: buildConditions(payload.review),
                 },
             });
-            await syncAppConfig(admin, session);
-            return { message: "Points rule updated successfully.", rule, status: "success", submitType };
+            const synced = await syncAppConfig(admin, session);
+            return { message: synced ? "Points rule updated successfully." : `Points rule updated, ${STOREFRONT_NOT_UPDATED}`, syncFailed: !synced, rule, status: "success", submitType };
         } catch (err) {
             console.error("Update REVIEW Rule Error:", err);
             return { message: "Failed to update rule. Please try again.", status: "error", submitType };
