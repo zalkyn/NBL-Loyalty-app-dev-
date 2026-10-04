@@ -1,6 +1,6 @@
 // =============================================================================
 // app/widget-ui/ui/hooks/useCustomCss.js
-// Merchant custom CSS (Customize > Advanced > "Custom CSS (page & full
+// Merchant custom CSS (Customize > Custom CSS tab > "Custom CSS (page & full
 // screen)", stored as widgetConfig.customCss) -> a <style> in the shadow root.
 //
 // SCOPED to page + full screen: the merchant's rules are wrapped in a nested

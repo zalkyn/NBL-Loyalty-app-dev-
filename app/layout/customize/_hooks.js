@@ -215,7 +215,7 @@ export function useCustomizePage(loaderData, actionData) {
     }, [persistedVars, persistedWidgetConfig]);
 
     // Custom CSS is the one free-text field here that can be outright
-    // invalid, so it's checked live (inline error in the Advanced tab) and
+    // invalid, so it's checked live (inline error in the Custom CSS tab) and
     // again at save time — same validator the action runs server-side.
     const customCssError = useMemo(
         () => validateCustomCss(widgetConfig.customCss),
@@ -228,7 +228,7 @@ export function useCustomizePage(loaderData, actionData) {
             // bar can be clicked from any tab, where the inline error isn't
             // visible.
             shopify.toast.show(customCssError, { isError: true });
-            setPageTab("advanced");
+            setPageTab("css");
             return;
         }
         if (!tryLock()) return; // a save is already in flight (see useSubmitLock)

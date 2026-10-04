@@ -1,7 +1,7 @@
 import { CUSTOM_CSS_MAX_LENGTH } from "../constants/customCss";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CUSTOM CSS PANEL (Advanced tab)
+// CUSTOM CSS PANEL (Custom CSS tab)
 //
 // Free-form CSS for the page block and full-screen widget only. Stored as
 // widgetConfig.customCss through the normal config change → save bar flow,
@@ -38,6 +38,12 @@ export function CustomCssPanel({ value, error, onChange, disabled }) {
                         the default look.
                     </s-paragraph>
                 </s-stack>
+
+                <s-banner tone="info">
+                    The live preview switches to full screen while you&apos;re on this tab and updates as you type.
+                    Rules aimed only at the Loyalty page (<code>&amp;.nbl-widget-container--page</code>) show on your
+                    live page, not in the preview.
+                </s-banner>
 
                 <s-banner tone="warning">
                     Custom CSS can break the widget&apos;s layout if it&apos;s wrong. Check the live page after saving,
