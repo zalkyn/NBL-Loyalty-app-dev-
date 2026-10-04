@@ -45,18 +45,15 @@ export async function handleUpdate({ formData, session, admin }) {
 
         const synced = await upsertAndSync(session, admin, cssVars, presetKey, widgetConfig);
 
-        if (!synced) {
-            // Saved in the app, but the storefront still has the old styles.
-            // ok:false keeps the form dirty with the save bar showing, so one
-            // more click on Save re-runs the sync.
-            return {
-                ok: false, intent,
-                message: "Your changes were saved, but your store couldn't be updated right now. Click Save again to retry.",
-            };
-        }
-
+        // ok:true even when the sync failed: the styles ARE saved in the app
+        // DB, so the admin's "saved" snapshot must match them. ok:false here
+        // left the form dirty — Discard then showed the old styles while the
+        // DB kept the new ones, and the next save of anything (which re-syncs
+        // the whole config) pushed those "discarded" styles live.
+        // syncFailed turns the toast red; same as Reset all / Clear all.
         return {
-            ok: true, intent, message: "Widget styles saved successfully.",
+            ok: true, intent, syncFailed: !synced,
+            message: synced ? "Widget styles saved successfully." : `Widget styles saved, ${STOREFRONT_NOT_UPDATED}`,
             savedCssVars: cssVars, savedPresetKey: presetKey, savedWidgetConfig: widgetConfig,
         };
     } catch (err) {

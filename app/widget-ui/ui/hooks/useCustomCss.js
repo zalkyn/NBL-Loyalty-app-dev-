@@ -26,6 +26,28 @@ import { validateCustomCss } from '../../../layout/customize/constants/customCss
 
 var SCOPE = ':is(.nbl-widget-container--page, .nbl-widget-container--fullscreen)';
 
+// Second line of defence after validateCustomCss(): let the browser's own
+// CSS parser read the wrapped text and confirm it produced exactly ONE
+// top-level rule — the scoping block. Anything that closes the block early
+// (an input the validator's brace counting misread) shows up here as extra
+// top-level rules, and is refused rather than leaked onto the floating
+// widget. Also 0 rules = the browser doesn't support CSS nesting at all, in
+// which case there's nothing it would have applied anyway.
+// Browsers without constructable stylesheets skip this check and rely on
+// the validator alone.
+function parsesAsSingleScopedRule(wrapped) {
+    if (typeof CSSStyleSheet !== 'function' || typeof CSSStyleSheet.prototype.replaceSync !== 'function') {
+        return true;
+    }
+    try {
+        var sheet = new CSSStyleSheet();
+        sheet.replaceSync(wrapped);
+        return sheet.cssRules.length === 1;
+    } catch (e) {
+        return false;
+    }
+}
+
 export function useCustomCss(css, hostEl) {
     useEffect(function () {
         var root = hostEl && hostEl.shadowRoot;
@@ -34,7 +56,9 @@ export function useCustomCss(css, hostEl) {
         var styleEl = root.querySelector('style[data-nbl-custom-css]');
         var text = typeof css === 'string' ? css.trim() : '';
 
-        if (!text || validateCustomCss(text)) {
+        var wrapped = text ? SCOPE + ' {\n' + text + '\n}' : '';
+
+        if (!text || validateCustomCss(text) || !parsesAsSingleScopedRule(wrapped)) {
             if (styleEl) styleEl.remove();
             return;
         }
@@ -46,6 +70,6 @@ export function useCustomCss(css, hostEl) {
             // rules from the merchant also win on source order.
             root.appendChild(styleEl);
         }
-        styleEl.textContent = SCOPE + ' {\n' + text + '\n}';
+        styleEl.textContent = wrapped;
     }, [css, hostEl]);
 }

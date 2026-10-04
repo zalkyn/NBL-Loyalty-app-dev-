@@ -112,7 +112,11 @@ export function formatDate(d) {
  */
 export function restorableTotal(event) {
     if (event?.transaction && typeof event.transaction.points === "number") {
-        return Math.abs(event.transaction.points);
+        // A reset's points are negative (points removed). Never Math.abs:
+        // a reset that somehow ADDED points (a negative balance zeroed on a
+        // path without the negative-balance guard) removed nothing, so
+        // nothing is restorable from it.
+        return Math.max(0, -event.transaction.points);
     }
     return Math.max(0, Number(event?.previousBalance) || 0);
 }

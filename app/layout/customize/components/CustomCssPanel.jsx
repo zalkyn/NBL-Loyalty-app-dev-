@@ -27,7 +27,15 @@ export function CustomCssPanel({ value, error, onChange, disabled }) {
                     <s-heading>Custom CSS (page &amp; full screen)</s-heading>
                     <s-paragraph>
                         Applies only to the Loyalty &amp; Rewards page block and the full-screen widget — never to
-                        the small floating widget. You don&apos;t need to add any prefix; rules are scoped automatically.
+                        the small floating widget. You don&apos;t need to add any prefix; rules are scoped automatically
+                        to elements inside the widget.
+                    </s-paragraph>
+                    <s-paragraph>
+                        To style the widget box itself, start the rule with <code>&amp;</code> (for example{" "}
+                        <code>&amp; {"{"} border-radius: 0; {"}"}</code>). To target only one of the two, use{" "}
+                        <code>&amp;.nbl-widget-container--page</code> or <code>&amp;.nbl-widget-container--fullscreen</code>{" "}
+                        before your selector. Custom CSS needs an up-to-date browser; older browsers ignore it and show
+                        the default look.
                     </s-paragraph>
                 </s-stack>
 
