@@ -44,7 +44,8 @@ export function usePhysicalPrizesPage(loaderData, actionData) {
     // ── ACTION DATA EFFECT ────────────────────────────────────────────────────
     useEffect(() => {
         if (!actionData) return;
-        shopify.toast.show(actionData.message, { isError: actionData.status === "error" });
+        // syncFailed: saved, but the storefront copy wasn't updated (see syncAppConfig).
+        shopify.toast.show(actionData.message, { isError: actionData.status === "error" || !!actionData.syncFailed });
 
         if (actionData.status === "success") {
             if (actionData.submitType === "addPrize" || actionData.submitType === "updatePrize") {

@@ -1,5 +1,5 @@
 import prisma from "db-server";
-import syncAppConfig from "@controller/metafieldsSync/syncAppConfig";
+import syncAppConfig, { STOREFRONT_NOT_UPDATED } from "@controller/metafieldsSync/syncAppConfig";
 import searchPages from "@graphql/query/shop/searchPages";
 import { CSS_DEFAULTS, WIDGET_CONFIG_DEFAULTS, deepClone } from "./constants/cssVarsConfig";
 import { logger } from "app/utils/logger.js";
@@ -19,7 +19,8 @@ async function upsertAndSync(session, admin, cssVars, presetKey = null, widgetCo
         update: data,
         create: { shop: session.shop, sessionId: session.id, ...data },
     });
-    await syncAppConfig(admin, session);
+    // Whether the storefront copy was updated — see syncAppConfig's return.
+    return syncAppConfig(admin, session);
 }
 
 // ── UPDATE ───────────────────────────────────────────────────────────────────
@@ -33,7 +34,17 @@ export async function handleUpdate({ formData, session, admin }) {
         const rawWidgetConfig = formData.get("widgetConfig");
         const widgetConfig = rawWidgetConfig ? JSON.parse(rawWidgetConfig) : null;
 
-        await upsertAndSync(session, admin, cssVars, presetKey, widgetConfig);
+        const synced = await upsertAndSync(session, admin, cssVars, presetKey, widgetConfig);
+
+        if (!synced) {
+            // Saved in the app, but the storefront still has the old styles.
+            // ok:false keeps the form dirty with the save bar showing, so one
+            // more click on Save re-runs the sync.
+            return {
+                ok: false, intent,
+                message: "Your changes were saved, but your store couldn't be updated right now. Click Save again to retry.",
+            };
+        }
 
         return {
             ok: true, intent, message: "Widget styles saved successfully.",
@@ -65,10 +76,14 @@ export async function handleResetAll({ session, admin }) {
         // whole class of bug instead of relying on every single lbl() call
         // site remembering to duplicate a matching fallback.
         const freshWidgetConfig = deepClone(WIDGET_CONFIG_DEFAULTS);
-        await upsertAndSync(session, admin, fresh, null, freshWidgetConfig);
+        const synced = await upsertAndSync(session, admin, fresh, null, freshWidgetConfig);
 
+        // Stays ok:true even if the sync failed: the reset IS saved, and
+        // ok:false would leave the old values on screen, where one Save
+        // would overwrite the reset. syncFailed turns the toast red instead.
         return {
-            ok: true, intent, message: "All styles reset to defaults.",
+            ok: true, intent, syncFailed: !synced,
+            message: synced ? "All styles reset to defaults." : `All styles reset to defaults, ${STOREFRONT_NOT_UPDATED}`,
             savedCssVars: fresh, savedPresetKey: null, savedWidgetConfig: freshWidgetConfig,
         };
     } catch (err) {
@@ -98,10 +113,12 @@ export async function handleClearAll({ session, admin }) {
             update: { cssVars: null, presetKey: null, widgetConfig: freshWidgetConfig },
             create: { shop: session.shop, sessionId: session.id, cssVars: null, presetKey: null, widgetConfig: freshWidgetConfig },
         });
-        await syncAppConfig(admin, session);
+        const synced = await syncAppConfig(admin, session);
 
+        // ok:true for the same reason as handleResetAll.
         return {
-            ok: true, intent, message: "Custom styles cleared. Widget is now using default CSS.",
+            ok: true, intent, syncFailed: !synced,
+            message: synced ? "Custom styles cleared. Widget is now using default CSS." : `Custom styles cleared, ${STOREFRONT_NOT_UPDATED}`,
             savedCssVars: null, savedPresetKey: null, savedWidgetConfig: freshWidgetConfig,
         };
     } catch (err) {
