@@ -114,11 +114,12 @@ export function HowItWorksModal() {
                     <s-unordered-list>
                         <s-list-item>Only available on cancellations where points were actually deducted.</s-list-item>
                         <s-list-item>
-                            You can restore part or all of it, up to the &quot;Points at Cancellation&quot; amount.
+                            You can restore part or all of it, up to the points that reset actually removed. This can be
+                            more than &quot;Points at Cancellation&quot; when the reset was applied later and the customer
+                            had earned more in between.
                         </s-list-item>
                         <s-list-item>
-                            To give back more than that (for example, points earned after the cancellation), use
-                            &quot;Adjust Points&quot; on the customer&apos;s profile.
+                            To give back more than that, use &quot;Adjust Points&quot; on the customer&apos;s profile.
                         </s-list-item>
                     </s-unordered-list>
                 </s-stack>

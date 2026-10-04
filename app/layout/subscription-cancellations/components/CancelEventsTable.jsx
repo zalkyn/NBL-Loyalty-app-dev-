@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router";
 import Pagination from "@app/components/pagination/Pagination";
-import { formatDate, SKIP_REASON_LABEL } from "../_data";
+import { formatDate, SKIP_REASON_LABEL, restoreRemaining as getRestoreRemaining } from "../_data";
 
 /**
  * Main cancellations table — one row per Appstle subscription.cancelled
@@ -62,7 +62,7 @@ export function CancelEventsTable({
                             const busy = isBusy(event.id);
                             const isSelectable = selectableSet.has(event.id);
                             const fullName = event.customerName || "Unknown";
-                            const restoreRemaining = Math.max(0, event.previousBalance - event.restoredAmount);
+                            const restoreRemaining = getRestoreRemaining(event);
                             const canRestore = event.resetApplied && restoreRemaining > 0;
 
                             return (

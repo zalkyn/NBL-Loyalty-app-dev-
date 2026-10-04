@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSubmit, useNavigation, useSearchParams } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
-import { VALID_STATUSES, DEFAULT_PER_PAGE, isActionable } from "./_data";
+import { VALID_STATUSES, DEFAULT_PER_PAGE, isActionable, restoreRemaining } from "./_data";
 
 /**
  * Encapsulates all page-level state for the Subscription Cancellations
@@ -122,12 +122,12 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
 
     // ── Restore action — opens the shared confirm modal with an editable
     // amount, pre-filled with whatever's still restorable for this event
-    // (previousBalance minus whatever's already been restored). Capping the
+    // (what its reset actually removed, minus whatever's already been
+    // restored — see restoreRemaining in _data.js). Capping the
     // input itself happens server-side (handleRestorePoints) — this is only
     // a sane default, not the enforcement.
     const handleRestore = useCallback((event) => {
-        const remaining = Math.max(0, event.previousBalance - event.restoredAmount);
-        setRestoreAmountInput(String(remaining));
+        setRestoreAmountInput(String(restoreRemaining(event)));
         setConfirmTarget({ type: "restore", event });
         requestAnimationFrame(() => modalRef.current?.showOverlay());
     }, []);
