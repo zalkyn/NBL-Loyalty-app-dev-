@@ -20,7 +20,8 @@ export function useToastRedirect(actionData, redirectTo = "/app/points-rules") {
     useEffect(() => {
         if (!actionData) return;
         shopify.toast.show(actionData.message, {
-            isError: actionData.status === "error",
+            // syncFailed: saved, but the storefront copy wasn't updated.
+            isError: actionData.status === "error" || !!actionData.syncFailed,
         });
         if (actionData.status === "success") {
             navigate(redirectTo);

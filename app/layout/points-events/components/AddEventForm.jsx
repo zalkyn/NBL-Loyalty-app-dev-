@@ -1,6 +1,6 @@
 import { EVENT_TYPES } from "../_data";
 
-export function AddEventForm({ events, newEvent, setNewEvent, isAdding, onCancel, onSave }) {
+export function AddEventForm({ events, newEvent, setNewEvent, errors = {}, isAdding, onCancel, onSave }) {
     // Collect already-used type values so we can disable them in the dropdown
     const usedTypes = new Set(events.map((ev) => ev.type.toUpperCase()));
 
@@ -17,11 +17,13 @@ export function AddEventForm({ events, newEvent, setNewEvent, isAdding, onCancel
                     value={newEvent.name}
                     disabled={isAdding}
                     placeholder="e.g. Order Reward"
+                    error={errors.name}
                     onInput={(e) => setNewEvent((prev) => ({ ...prev, name: e.target.value }))}
                 />
                 <s-select
                     label="Event Type *"
                     value={newEvent.type}
+                    error={errors.type}
                     disabled={isAdding}
                     onChange={(e) => setNewEvent((prev) => ({ ...prev, type: e.target.value }))}
                 >
@@ -54,7 +56,7 @@ export function AddEventForm({ events, newEvent, setNewEvent, isAdding, onCancel
                 <s-button
                     variant="primary"
                     loading={isAdding}
-                    disabled={isAdding || !newEvent.name?.trim() || !newEvent.type}
+                    disabled={isAdding}
                     onClick={onSave}
                 >
                     Save Event

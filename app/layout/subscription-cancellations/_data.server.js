@@ -3,6 +3,7 @@ import createTransaction from "app/controller/transaction/createTransaction.js";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig.js";
 import { updateSubscriptionCancelResetSettings } from "app/controller/appSettings/subscriptionCancelResetSettings.js";
 import { logger } from "app/utils/logger.js";
+import { restorableTotal, restoreRemaining } from "./_data";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "layout/subscription-cancellations/_data.server.js";
@@ -18,7 +19,11 @@ async function getVerifiedEvent(sessionId, id) {
     const parsed = parseInt(id, 10);
     if (!Number.isFinite(parsed)) return null;
 
-    const event = await prisma.subscriptionCancelEvent.findFirst({ where: { id: parsed, sessionId } });
+    const event = await prisma.subscriptionCancelEvent.findFirst({
+        where: { id: parsed, sessionId },
+        // Restore cap = what the reset actually removed (see restoreRemaining).
+        include: { transaction: { select: { points: true } } },
+    });
     return event;
 }
 
@@ -152,7 +157,7 @@ export async function attachResetSiblings(sessionId, events) {
     const siblings = await prisma.subscriptionCancelEvent.findMany({
         where: { sessionId, customerId: { in: zeroCustomerIds }, resetApplied: true },
         orderBy: { cancelledAt: "desc" },
-        select: { id: true, customerId: true, cancelledAt: true, previousBalance: true, restoredAmount: true },
+        select: { id: true, customerId: true, cancelledAt: true, previousBalance: true, restoredAmount: true, transaction: { select: { points: true } } },
     });
 
     // Prefer a sibling that still has points left to restore, then the most
@@ -160,7 +165,7 @@ export async function attachResetSiblings(sessionId, events) {
     const byCustomer = new Map();
     for (const s of siblings) {
         const current = byCustomer.get(s.customerId);
-        const restorable = s.previousBalance - s.restoredAmount > 0;
+        const restorable = restoreRemaining(s) > 0;
         if (!current || (restorable && !current.restorable)) {
             byCustomer.set(s.customerId, { id: s.id, cancelledAt: s.cancelledAt, restorable });
         }
@@ -279,12 +284,19 @@ export async function handleRestorePoints({ formData, session, admin }) {
             return { message: "Nothing to restore — points were never reset for this cancellation.", status: "error", submitType, eventId: event.id };
         }
 
-        // Hard cap at what THIS reset actually took — restoring more than
-        // that is out of scope for this tool on purpose (see route.jsx's
-        // header comment): a deliberate bonus beyond the original balance
-        // is what the separate generic Adjust Points tool is for, which
-        // doesn't carry this event's "undo a specific reset" meaning.
-        const remaining = event.previousBalance - event.restoredAmount;
+        // Hard cap at what THIS reset actually took — its linked
+        // transaction, not previousBalance (see restoreRemaining in
+        // _data.js for why those differ). Restoring more than that is out
+        // of scope for this tool on purpose (see route.jsx's header
+        // comment): a deliberate bonus is what the separate generic Adjust
+        // Points tool is for, which doesn't carry this event's "undo a
+        // specific reset" meaning.
+        if (restorableTotal(event) === 0) {
+            // e.g. the second of two cancellations reset at the same moment:
+            // the first already zeroed the balance, so this one took nothing.
+            return { message: "Nothing to restore — this reset didn't remove any points.", status: "error", submitType, eventId: event.id };
+        }
+        const remaining = restoreRemaining(event);
         if (remaining <= 0) {
             return { message: "Already fully restored.", status: "error", submitType, eventId: event.id };
         }
@@ -299,7 +311,7 @@ export async function handleRestorePoints({ formData, session, admin }) {
         // The `remaining`/cap check above reads restoredAmount, then this
         // writes it — two requests racing (double-click, two admin tabs)
         // could both pass that check against the same stale value and both
-        // proceed, together restoring more than previousBalance allows.
+        // proceed, together restoring more than the reset removed.
         // Closing that requires the check-and-write to be one atomic
         // operation: this updateMany's `where` re-asserts the EXACT
         // restoredAmount this request read (optimistic-lock style) — if

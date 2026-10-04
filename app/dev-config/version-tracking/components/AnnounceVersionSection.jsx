@@ -52,7 +52,7 @@ export function AnnounceVersionSection({
             </s-paragraph>
 
             {fetcher.data?.message && (
-                <s-paragraph tone={fetcher.data.ok ? "success" : "critical"}>
+                <s-paragraph tone={fetcher.data.ok && !fetcher.data.syncFailed ? "success" : "critical"}>
                     {fetcher.data.message}
                 </s-paragraph>
             )}

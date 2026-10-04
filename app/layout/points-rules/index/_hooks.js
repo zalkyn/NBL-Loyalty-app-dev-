@@ -41,7 +41,8 @@ export function usePointsRulesIndexPage(loaderData, actionData) {
     // ── Toast + post-delete cleanup ───────────────────────────────────────────
     useEffect(() => {
         if (!actionData) return;
-        shopify.toast.show(actionData.message, { isError: actionData.status === "error" });
+        // syncFailed: saved, but the storefront copy wasn't updated (see syncAppConfig).
+        shopify.toast.show(actionData.message, { isError: actionData.status === "error" || !!actionData.syncFailed });
         if (actionData.status === "success" && actionData.submitType === "deleteRule") {
             setDeleteTarget(null);
         }

@@ -93,3 +93,36 @@ export function formatDate(d) {
         month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
     });
 }
+
+/**
+ * How many points a reset event can give back in total: what its reset
+ * transaction ACTUALLY removed — not previousBalance (the balance when the
+ * cancellation was recorded). The two differ when a manual reset runs later
+ * and the customer earned more in between (it removes the live balance), or
+ * when two of a customer's cancellations were reset at the same moment (the
+ * second removes 0 because the first already zeroed the balance). Capping
+ * at previousBalance under-restored the first case and, in the second, let
+ * both events "restore" points that were only taken once.
+ *
+ * Falls back to previousBalance only for an event with no linked
+ * transaction, which shouldn't exist for resetApplied events.
+ *
+ * @param {{ previousBalance: number, transaction?: { points: number } | null }} event
+ * @returns {number}
+ */
+export function restorableTotal(event) {
+    if (event?.transaction && typeof event.transaction.points === "number") {
+        return Math.abs(event.transaction.points);
+    }
+    return Math.max(0, Number(event?.previousBalance) || 0);
+}
+
+/**
+ * Points still restorable for an event (never negative).
+ *
+ * @param {{ previousBalance: number, restoredAmount?: number, transaction?: { points: number } | null }} event
+ * @returns {number}
+ */
+export function restoreRemaining(event) {
+    return Math.max(0, restorableTotal(event) - (Number(event?.restoredAmount) || 0));
+}

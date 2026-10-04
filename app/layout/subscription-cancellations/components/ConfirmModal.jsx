@@ -1,3 +1,5 @@
+import { restorableTotal, restoreRemaining as getRestoreRemaining } from "../_data";
+
 /**
  * One shared modal for every consequential action on this page — toggling
  * auto-reset (either direction), a single manual reset, a bulk reset, and
@@ -32,7 +34,7 @@ export function ConfirmModal({
     // How much is still restorable for THIS cancellation — the hard cap
     // handleRestorePoints enforces server-side. Shown here so the admin
     // isn't guessing, and to validate the input before they even submit.
-    const restoreRemaining = Math.max(0, (event?.previousBalance ?? 0) - (event?.restoredAmount ?? 0));
+    const restoreRemaining = event ? getRestoreRemaining(event) : 0;
     const restoreAmountNum = Number(restoreAmountInput);
     const restoreAmountValid = Number.isFinite(restoreAmountNum) && restoreAmountNum > 0 && restoreAmountNum <= restoreRemaining;
 
@@ -100,7 +102,7 @@ export function ConfirmModal({
                         </s-banner>
                         <s-text>
                             Up to {restoreRemaining.toLocaleString()} pts are still restorable for this cancellation
-                            (of {Number(event?.previousBalance ?? 0).toLocaleString()} pts originally reset).
+                            (of {(event ? restorableTotal(event) : 0).toLocaleString()} pts this reset removed).
                         </s-text>
                         <s-number-field
                             label="Points to restore"
