@@ -340,6 +340,13 @@ export function App({ initialData, bridgeRef, hostEl }) {
     useApplyTheme(initialData.cssVars, hostEl);
     // Merchant custom CSS, scoped to page / full screen — see useCustomCss.js.
     useCustomCss(widgetConfig.customCss, hostEl);
+    // Lets ui.css frame the preview-only full screen inside the small admin
+    // preview iframe (see ":host([data-nbl-preview-fullscreen])").
+    useEffect(function () {
+        if (!hostEl) return;
+        if (previewFullscreen) hostEl.setAttribute('data-nbl-preview-fullscreen', '');
+        else hostEl.removeAttribute('data-nbl-preview-fullscreen');
+    }, [previewFullscreen, hostEl]);
     // Live points for the merchant's theme ([data-nbl-points], NBL_v1.points,
     // nbl:points-updated) — see usePublishPoints.js.
     usePublishPoints(points, isLoggedIn && (hasConfig || syncedMember), isLoggedIn);
