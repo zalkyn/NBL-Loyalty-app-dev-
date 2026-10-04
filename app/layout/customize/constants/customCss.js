@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // CUSTOM CSS — shared validation (client + server)
 //
-// Customize > Advanced > "Custom CSS (page & full screen)". Stored as
+// Customize > Custom CSS tab > "Custom CSS (page & full screen)". Stored as
 // widgetConfig.customCss, synced to the shop config metafield, and injected
 // by the storefront widget into its shadow root, scoped to the page / full
 // screen containers only (see app/widget-ui/ui/hooks/useCustomCss.js).

@@ -130,6 +130,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
             return false; // storage blocked (private mode, cookie settings) — not an error worth surfacing
         }
     });
+    const [previewFullscreen, setPreviewFullscreen] = useState(false); // preview bridge only — see fullscreenActive
 
     // GuestPanel's Create Account / Sign In buttons (see GuestPanel.jsx)
     // save this flag right before navigating away, so that when the
@@ -239,7 +240,11 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // Gated here rather than by clearing the stored value, because the
     // merchant may switch back to "Full screen" tomorrow and the customer's
     // preference should still be there when they do.
-    const fullscreenActive = isFullscreen && showFullscreenToggle;
+    // previewFullscreen: admin live preview only (bridge 'fullscreen' scene,
+    // used by Customize > Custom CSS so the merchant can see CSS that only
+    // applies in full screen) — shown regardless of the shop's expand
+    // setting. Never set on the storefront: bridgeRef only exists in preview.
+    const fullscreenActive = (isFullscreen && showFullscreenToggle) || previewFullscreen;
     const currencySymbol = (appConfig.shop && appConfig.shop.currencySymbol) || '$';
     const [referralLink, setReferralLink] = useState(initialData.referralLink || '');
     const shopUrl = initialData.shopUrl || '';
@@ -532,6 +537,15 @@ export function App({ initialData, bridgeRef, hostEl }) {
             // isOpen value — closeModal() is a harmless no-op when already
             // closed.
             if (scene !== 'modal') refModal.closeModal();
+            // Leaving the Custom CSS tab's full-screen preview.
+            if (scene !== 'fullscreen') setPreviewFullscreen(false);
+
+            if (scene === 'fullscreen') {
+                setIsOpen(true);
+                setActiveTab('home');
+                setPreviewFullscreen(true);
+                return;
+            }
 
             if (scene === 'notification-toast') {
                 setIsOpen(false);

@@ -154,7 +154,7 @@ export default function SetupGuidePage() {
 
             <Step number={5} title="Add your own CSS (optional)">
                 <s-paragraph>
-                    In <s-link href="/app/customize">Widget Customize</s-link> → <strong>Advanced</strong>, use{" "}
+                    In <s-link href="/app/customize">Widget Customize</s-link> → <strong>Custom CSS</strong>, use{" "}
                     <strong>Custom CSS (page &amp; full screen)</strong>. It applies only to the Loyalty &amp; Rewards
                     page and the full-screen widget — never to the small floating widget — and you don&apos;t need any
                     prefix. Example:
