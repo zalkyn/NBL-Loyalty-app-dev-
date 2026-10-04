@@ -98,6 +98,8 @@ export const loader = async ({ request }) => {
             take: perPage,
             include: {
                 customer: { select: { id: true, shopifyId: true, points: true } },
+                // Restore cap = what the reset actually removed (restorableTotal in _data.js).
+                transaction: { select: { points: true } },
             },
         });
 

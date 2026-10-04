@@ -16,7 +16,7 @@
 import { useActionData, useLoaderData } from "react-router";
 import { authenticate } from "shopify-server";
 import prisma from "db-server";
-import syncAppConfig from "@controller/metafieldsSync/syncAppConfig";
+import syncAppConfig, { STOREFRONT_NOT_UPDATED } from "@controller/metafieldsSync/syncAppConfig";
 
 import { uploadImageIfPresent } from "./_data.server";
 import { usePhysicalPrizesPage } from "./_hooks";
@@ -71,8 +71,8 @@ export const action = async ({ request }) => {
                 },
             });
 
-            await syncAppConfig(admin, session);
-            return { message: "Prize created successfully.", prize: created, status: "success", submitType };
+            const synced = await syncAppConfig(admin, session);
+            return { message: synced ? "Prize created successfully." : `Prize created, ${STOREFRONT_NOT_UPDATED}`, syncFailed: !synced, prize: created, status: "success", submitType };
         } catch (err) {
             console.error("Create PhysicalPrize Error:", err);
             return { message: err.message || "Failed to create prize.", status: "error", submitType };
@@ -111,8 +111,8 @@ export const action = async ({ request }) => {
                 },
             });
 
-            await syncAppConfig(admin, session);
-            return { message: "Prize updated successfully.", prize: updated, status: "success", submitType };
+            const synced = await syncAppConfig(admin, session);
+            return { message: synced ? "Prize updated successfully." : `Prize updated, ${STOREFRONT_NOT_UPDATED}`, syncFailed: !synced, prize: updated, status: "success", submitType };
         } catch (err) {
             console.error("Update PhysicalPrize Error:", err);
             return { message: err.message || "Failed to update prize.", status: "error", submitType };
@@ -131,8 +131,8 @@ export const action = async ({ request }) => {
                 return { message: "Prize not found or access denied.", status: "error", submitType };
 
             await prisma.physicalPrize.delete({ where: { id: prizeId } });
-            await syncAppConfig(admin, session);
-            return { message: "Prize deleted successfully.", status: "success", submitType };
+            const synced = await syncAppConfig(admin, session);
+            return { message: synced ? "Prize deleted successfully." : `Prize deleted, ${STOREFRONT_NOT_UPDATED}`, syncFailed: !synced, status: "success", submitType };
         } catch (err) {
             console.error("Delete PhysicalPrize Error:", err);
             return { message: err.message || "Failed to delete prize.", status: "error", submitType };

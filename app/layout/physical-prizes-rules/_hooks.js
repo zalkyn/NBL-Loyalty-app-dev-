@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useCallback, useRef, useState } from "react";
 import { useSubmit, useNavigation } from "react-router";
+import { useSubmitLock } from "@app/hooks/useSubmitLock";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import { notifyInvalidForm } from "@app/utils/formFeedback";
 import { useFormState } from "@app/hooks/useFormState";
 
 import { EMPTY_PRIZE_DATA, buildFormShape, validate, PER_PAGE } from "./_data";
@@ -13,6 +15,7 @@ import { EMPTY_PRIZE_DATA, buildFormShape, validate, PER_PAGE } from "./_data";
 export function usePhysicalPrizesPage(loaderData, actionData) {
     const submitRR = useSubmit();
     const navigation = useNavigation();
+    const tryLock = useSubmitLock(navigation.state);
     const shopify = useAppBridge();
     const formRef = useRef(null);
 
@@ -33,12 +36,16 @@ export function usePhysicalPrizesPage(loaderData, actionData) {
     const busy = isSaving || isUpdating;
 
     // ── Form state ────────────────────────────────────────────────────────────
-    const fs = useFormState(EMPTY_PRIZE_DATA, buildFormShape, { validate });
+    const fs = useFormState(EMPTY_PRIZE_DATA, buildFormShape, {
+        validate,
+        onInvalid: (errors) => notifyInvalidForm(shopify, errors),
+    });
 
     // ── ACTION DATA EFFECT ────────────────────────────────────────────────────
     useEffect(() => {
         if (!actionData) return;
-        shopify.toast.show(actionData.message, { isError: actionData.status === "error" });
+        // syncFailed: saved, but the storefront copy wasn't updated (see syncAppConfig).
+        shopify.toast.show(actionData.message, { isError: actionData.status === "error" || !!actionData.syncFailed });
 
         if (actionData.status === "success") {
             if (actionData.submitType === "addPrize" || actionData.submitType === "updatePrize") {
@@ -101,12 +108,14 @@ export function usePhysicalPrizesPage(loaderData, actionData) {
     const handleSave = useCallback(async () => {
         const valid = await fs.submit();
         if (!valid) return;
+        if (!tryLock()) return; // a submit is already in flight (see useSubmitLock)
         submitRR(buildMultipartFD("addPrize"), { method: "post", encType: "multipart/form-data" });
     }, [fs, buildMultipartFD, submitRR]);
 
     const handleUpdate = useCallback(async () => {
         const valid = await fs.submit();
         if (!valid) return;
+        if (!tryLock()) return; // a submit is already in flight (see useSubmitLock)
         submitRR(buildMultipartFD("updatePrize"), { method: "post", encType: "multipart/form-data" });
     }, [fs, buildMultipartFD, submitRR]);
 
