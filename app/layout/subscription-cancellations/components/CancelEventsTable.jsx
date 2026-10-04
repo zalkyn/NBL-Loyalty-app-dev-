@@ -117,7 +117,7 @@ export function CancelEventsTable({
                                                 </s-text>
                                             )}
                                             {event.resolvedManually && (
-                                                <s-badge tone="info" size="small">Manually reset</s-badge>
+                                                <s-badge tone="info">Manually reset</s-badge>
                                             )}
                                             {event.restoredAmount > 0 && (
                                                 <s-text tone="subdued" variant="bodySm">
