@@ -77,6 +77,7 @@ export default [
 
         // Loox review points — Shopify Flow setup guide
         route("app/loox-setup", "./layout/loox-setup/route.jsx"),
+        route("app/setup-guide", "./layout/setup-guide/route.jsx"),
 
         // widget preview
         // route("widget/preview", "./widget-routes/preview.jsx"),
