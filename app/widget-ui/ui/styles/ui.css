@@ -5192,3 +5192,23 @@ input:not([type=checkbox], [type=radio]) {
    only thing worth stating is that the zoom above must NOT apply, which it
    doesn't — it is scoped to ="wide" and this is ="mobile". Recorded here so
    the absence of a mobile block reads as deliberate rather than forgotten. */
+
+/* ── Admin preview: full screen inside the small preview frame ────────────
+   Customize > Custom CSS switches the live preview to full screen (bridge
+   'fullscreen' scene) so CSS that only applies there is visible. Full screen
+   is `inset: 0` — right on a real screen, but in the 390px preview iframe,
+   which is pinned to the admin window's bottom-right corner, it ran edge to
+   edge with square corners and its bottom sat under the admin's own bottom
+   UI, so it looked cut off. Inset a little with rounded corners instead, so
+   it reads as a framed screen, clear of the window edge.
+
+   data-nbl-preview-fullscreen is set only by App.jsx while the bridge's
+   preview-only full-screen override is on; the bridge exists only in
+   public/widget/preview.html, so this can never match on a storefront. */
+:host([data-nbl-preview-fullscreen]) .nbl-widget-container.nbl-widget-container--fullscreen {
+    inset: 12px 12px 24px 12px;
+    width: auto;
+    height: auto;
+    border-radius: var(--nbl-radius);
+    overflow: hidden;
+}
