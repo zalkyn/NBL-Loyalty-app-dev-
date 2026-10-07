@@ -1,6 +1,7 @@
 import prisma from "../../db.server.js";
 import { logger } from "../../utils/logger.js";
 import { dbRetry } from "../../utils/retry/dbRetry.js";
+import { cancelResetDeduction } from "../../utils/subscriptionCancelReset.js";
 
 // ─── Default Select ───────────────────────────────────────────────────────────
 
@@ -51,10 +52,12 @@ const DEFAULT_TRANSACTION_SELECT = {
  *                        Transaction.type (dashboard stats, admin tables)
  *                        needs to decide explicitly what to do with this
  *                        type — nothing here does that automatically.
- * - SUBSCRIPTION_CANCEL_RESET -> always resets points to exactly 0 (computed
- *                        from the customer's live balance inside the
- *                        transaction — input.points is ignored, caller
- *                        doesn't need to know the balance up front).
+ * - SUBSCRIPTION_CANCEL_RESET -> resets points to 0 (computed from the
+ *                        customer's live balance inside the transaction —
+ *                        input.points is ignored, caller doesn't need to
+ *                        know the balance up front). With
+ *                        input.keepPointsAddedAfter, points added since
+ *                        that time are kept instead of reset.
  *                        lifetimePoints is deliberately left untouched
  *                        (it's the customer's permanent historical record,
  *                        not affected by a subscription cancelling — see
@@ -79,6 +82,7 @@ const DEFAULT_TRANSACTION_SELECT = {
  * @param {string}                                                    [input.activity]
  * @param {Date|string}                                               [input.expiresAt]
  * @param {Object}                                                    [input.metadata]
+ * @param {Date|string}                                               [input.keepPointsAddedAfter] - SUBSCRIPTION_CANCEL_RESET only: keep points added after this time (see utils/subscriptionCancelReset.js).
  * @param {Date}                                                      [input.notifiedAt] - Set to `new Date()` ONLY for actions the customer
  *   triggers themselves live inside the open widget (reward redeem, physical
  *   prize claim, applying a referral code) — they already see a direct
@@ -280,19 +284,41 @@ export default async function createTransaction(input, session, select = DEFAULT
                                 newLifetimePoints += amount;
                                 break;
 
-                            case "SUBSCRIPTION_CANCEL_RESET":
-                                // Always resets to exactly 0, computed from
-                                // the live balance just read above — NOT
-                                // input.points (caller enqueues this without
-                                // knowing the customer's current balance).
+                            case "SUBSCRIPTION_CANCEL_RESET": {
+                                // Computed from the live balance just read
+                                // above — NOT input.points (caller enqueues
+                                // this without knowing the customer's current
+                                // balance). By default resets to exactly 0.
+                                // With input.keepPointsAddedAfter (a Date —
+                                // the cancellation time; manual resets in
+                                // KEEP_EARNED_AFTER mode), points added since
+                                // then are kept — summed here, in the same
+                                // transaction as the write, so the figure
+                                // can't go stale between read and write.
+                                // See utils/subscriptionCancelReset.js.
                                 // lifetimePoints is intentionally left as-is:
                                 // it's the customer's permanent historical
                                 // record and a subscription cancelling
                                 // doesn't erase what they've earned overall
                                 // — see subscriptionCancelledJob.js.
-                                signedPoints = -customer.points;
-                                newBalance = 0;
+                                let mode = "FULL_BALANCE";
+                                let addedAfter = 0;
+                                if (input.keepPointsAddedAfter) {
+                                    mode = "KEEP_EARNED_AFTER";
+                                    const added = await tx.transaction.aggregate({
+                                        where: {
+                                            customerId: input.customerId,
+                                            points: { gt: 0 },
+                                            createdAt: { gt: new Date(input.keepPointsAddedAfter) },
+                                        },
+                                        _sum: { points: true },
+                                    });
+                                    addedAfter = added._sum.points ?? 0;
+                                }
+                                signedPoints = -cancelResetDeduction(customer.points, addedAfter, mode);
+                                newBalance = customer.points + signedPoints;
                                 break;
+                            }
 
                             case "SUBSCRIPTION_CANCEL_RESTORE":
                                 // Gives back part or all of a prior
