@@ -1,7 +1,8 @@
 import prisma from "db-server";
 import createTransaction from "app/controller/transaction/createTransaction.js";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig.js";
-import { updateSubscriptionCancelResetSettings } from "app/controller/appSettings/subscriptionCancelResetSettings.js";
+import { updateSubscriptionCancelResetSettings, getSubscriptionCancelResetSettings } from "app/controller/appSettings/subscriptionCancelResetSettings.js";
+import { MANUAL_RESET_MODES, cancelResetDeduction } from "app/utils/subscriptionCancelReset.js";
 import { logger } from "app/utils/logger.js";
 import { restorableTotal, restoreRemaining, pickResetSibling } from "./_data";
 
@@ -28,6 +29,53 @@ async function getVerifiedEvent(sessionId, id) {
 }
 
 /**
+ * Sum of every positive transaction a customer has had since `since` —
+ * what KEEP_EARNED_AFTER mode keeps (see utils/subscriptionCancelReset.js).
+ * createTransaction recomputes this inside its own DB transaction for the
+ * actual write; this copy only decides up front whether there's anything
+ * to remove at all.
+ */
+async function pointsAddedSince(customerId, since) {
+    const added = await prisma.transaction.aggregate({
+        where: { customerId, points: { gt: 0 }, createdAt: { gt: since } },
+        _sum: { points: true },
+    });
+    return added._sum.points ?? 0;
+}
+
+/**
+ * For the confirm modal: how many points a manual reset would remove right
+ * now for each actionable event on the page, under the current mode. One
+ * query for the page's customers, not one per row. Read-only.
+ *
+ * @param {Array<Object>} events - Rows with `customer` ({ id, points }) included
+ * @param {string} mode          - One of MANUAL_RESET_MODES
+ * @returns {Promise<Array<Object>>} The same events, actionable ones with `pointsToRemove`
+ */
+export async function attachResetPreview(events, mode) {
+    const pending = events.filter((e) => !e.resetApplied && e.customer && e.customer.points > 0);
+    if (!pending.length) return events;
+
+    let added = [];
+    if (mode === "KEEP_EARNED_AFTER") {
+        const earliest = new Date(Math.min(...pending.map((e) => new Date(e.cancelledAt).getTime())));
+        added = await prisma.transaction.findMany({
+            where: { customerId: { in: [...new Set(pending.map((e) => e.customer.id))] }, points: { gt: 0 }, createdAt: { gt: earliest } },
+            select: { customerId: true, points: true, createdAt: true },
+        });
+    }
+
+    return events.map((e) => {
+        if (!pending.includes(e)) return e;
+        const since = new Date(e.cancelledAt).getTime();
+        const addedAfter = added
+            .filter((t) => t.customerId === e.customer.id && new Date(t.createdAt).getTime() > since)
+            .reduce((n, t) => n + t.points, 0);
+        return { ...e, pointsToRemove: cancelResetDeduction(e.customer.points, addedAfter, mode) };
+    });
+}
+
+/**
  * Applies the reset for one already-recorded (but skipped) event: resolves
  * the customer live (they may have enrolled since the event was first
  * recorded as CUSTOMER_NOT_ENROLLED), writes the SUBSCRIPTION_CANCEL_RESET
@@ -36,12 +84,17 @@ async function getVerifiedEvent(sessionId, id) {
  * instead (`alreadyZero: true`). Returns `ok: false` on any failure instead
  * of throwing, so bulk callers can just skip and continue.
  *
+ * In KEEP_EARNED_AFTER mode, points added after the cancellation are kept.
+ * If that leaves nothing to remove, no transaction is written either — the
+ * event is resolved as NOTHING_BEFORE_CANCEL (`nothingToRemove: true`).
+ *
  * @param {Object} event   - A verified SubscriptionCancelEvent row
  * @param {Object} session - Shopify session
  * @param {Object} admin   - Shopify Admin API client
- * @returns {Promise<{ok: true, alreadyZero?: true, customerShopifyId: string} | {ok: false, reason: string}>}
+ * @param {string} mode    - One of MANUAL_RESET_MODES (the shop's setting)
+ * @returns {Promise<{ok: true, alreadyZero?: true, nothingToRemove?: true, removed?: number, customerShopifyId: string} | {ok: false, reason: string}>}
  */
-async function applyManualReset(event, session, admin) {
+async function applyManualReset(event, session, admin, mode) {
     if (event.resetApplied) return { ok: false, reason: "Already reset." };
 
     let customerId = event.customerId;
@@ -106,14 +159,33 @@ async function applyManualReset(event, session, admin) {
         return { ok: true, alreadyZero: true, customerShopifyId };
     }
 
+    const keepEarnedAfter = mode === "KEEP_EARNED_AFTER";
+
+    // Nothing left from before the cancellation — every point came after it
+    // and this mode keeps those. Resolve without a transaction, same shape
+    // as ALREADY_ZERO above (resetApplied stays false: nothing deducted, so
+    // nothing to restore), guarded the same way against a concurrent reset.
+    if (keepEarnedAfter && cancelResetDeduction(currentPoints, await pointsAddedSince(customerId, event.cancelledAt), mode) === 0) {
+        await prisma.subscriptionCancelEvent.updateMany({
+            where: { id: event.id, resetApplied: false },
+            data: { skipReason: "NOTHING_BEFORE_CANCEL", customerId },
+        });
+        return { ok: true, nothingToRemove: true, customerShopifyId };
+    }
+
     const transaction = await createTransaction(
         {
             customerId,
             type: "SUBSCRIPTION_CANCEL_RESET",
             status: "COMPLETED",
-            reason: "Subscription cancelled — points balance reset (manual)",
-            activity: "Points reset to 0 (subscription cancelled, applied manually by admin)",
-            metadata: { subscriptionContractId: event.subscriptionContractId, svixId: event.svixId, manualReset: true },
+            reason: keepEarnedAfter
+                ? "Subscription cancelled — points from before cancelling removed (manual)"
+                : "Subscription cancelled — points balance reset (manual)",
+            activity: keepEarnedAfter
+                ? "Points from before cancelling removed (subscription cancelled, applied manually by admin; points earned since kept)"
+                : "Points reset to 0 (subscription cancelled, applied manually by admin)",
+            metadata: { subscriptionContractId: event.subscriptionContractId, svixId: event.svixId, manualReset: true, manualResetMode: mode },
+            ...(keepEarnedAfter ? { keepPointsAddedAfter: event.cancelledAt } : {}),
         },
         session
     );
@@ -127,7 +199,12 @@ async function applyManualReset(event, session, admin) {
 
     await syncCustomerConfig(admin, customerShopifyId);
 
-    return { ok: true, customerShopifyId };
+    return { ok: true, removed: Math.max(0, -transaction.points), balanceAfter: transaction.balanceAfter, customerShopifyId };
+}
+
+/** The shop's manual reset mode, read fresh for every reset action. */
+async function manualResetModeFor(shop) {
+    return (await getSubscriptionCancelResetSettings(shop)).manualResetMode;
 }
 
 // ── RESET SIBLINGS (loader) ──────────────────────────────────────────────
@@ -183,12 +260,16 @@ export async function handleResetPoints({ formData, session, admin }) {
         const event = await getVerifiedEvent(session.id, eventId);
         if (!event) return { message: "Event not found or access denied.", status: "error", submitType };
 
-        const result = await applyManualReset(event, session, admin);
+        const result = await applyManualReset(event, session, admin, await manualResetModeFor(session.shop));
         if (!result.ok) return { message: result.reason, status: "error", submitType, eventId: event.id };
 
         const message = result.alreadyZero
             ? "Balance is already 0 — marked as resolved."
-            : "Points reset to 0.";
+            : result.nothingToRemove
+                ? "Nothing to remove — all of this customer's points were earned after cancelling. Marked as resolved."
+                : result.balanceAfter > 0
+                    ? `${result.removed.toLocaleString()} points removed. ${result.balanceAfter.toLocaleString()} points earned after cancelling were kept.`
+                    : "Points reset to 0.";
         return { message, status: "success", submitType, eventId: event.id };
     } catch (err) {
         logger.error(MODULE, "Manual reset failed", { error: err?.message, eventId });
@@ -212,7 +293,8 @@ export async function handleBulkResetPoints({ formData, session, admin }) {
     if (!eventIds.length) return { message: "No cancellations selected.", status: "error", submitType };
 
     try {
-        const results = { success: [], alreadyZero: [], failed: [] };
+        const results = { success: [], alreadyZero: [], nothingToRemove: [], failed: [] };
+        const mode = await manualResetModeFor(session.shop);
 
         // Batch-verify all selected ids in ONE query instead of a findFirst
         // per id (getVerifiedEvent, called in a loop) — that turned a
@@ -232,24 +314,25 @@ export async function handleBulkResetPoints({ formData, session, admin }) {
             const event = verifiedById.get(parseInt(id, 10));
             if (!event) { results.failed.push(id); continue; }
 
-            const result = await applyManualReset(event, session, admin);
+            const result = await applyManualReset(event, session, admin, mode);
             if (!result.ok) {
                 logger.warn(MODULE, "Bulk reset: skipped one event", { eventId: event.id, reason: result.reason });
                 results.failed.push(id);
                 continue;
             }
-            (result.alreadyZero ? results.alreadyZero : results.success).push(id);
+            (result.alreadyZero ? results.alreadyZero : result.nothingToRemove ? results.nothingToRemove : results.success).push(id);
         }
 
         const parts = [`${results.success.length} customer${results.success.length === 1 ? "" : "s"} reset.`];
         if (results.alreadyZero.length) parts.push(`${results.alreadyZero.length} already at 0 (marked resolved).`);
+        if (results.nothingToRemove.length) parts.push(`${results.nothingToRemove.length} had only points earned after cancelling, kept (marked resolved).`);
         if (results.failed.length) parts.push(`${results.failed.length} skipped (already resolved or not eligible).`);
 
         return {
             message: parts.join(" "),
             status: "success",
             submitType,
-            updatedIds: [...results.success, ...results.alreadyZero],
+            updatedIds: [...results.success, ...results.alreadyZero, ...results.nothingToRemove],
         };
     } catch (err) {
         logger.error(MODULE, "Bulk reset failed", { error: err?.message });
@@ -373,14 +456,28 @@ export async function handleRestorePoints({ formData, session, admin }) {
 
 export async function handleUpdateSettings({ formData, session }) {
     const submitType = "updateSettings";
-    const enabled = formData.get("enabled") === "true";
+    // Each setting is saved on its own — only the field that was sent
+    // changes (a missing "enabled" must not read as false).
+    const rawEnabled = formData.get("enabled");
+    const rawMode = formData.get("manualResetMode");
+    const enabled = rawEnabled === null ? undefined : rawEnabled === "true";
+    const manualResetMode = rawMode === null ? undefined : String(rawMode);
+
+    if (enabled === undefined && manualResetMode === undefined) {
+        return { message: "Nothing to update.", status: "error", submitType };
+    }
+    if (manualResetMode !== undefined && !MANUAL_RESET_MODES.includes(manualResetMode)) {
+        return { message: "Choose a valid manual reset option.", status: "error", submitType };
+    }
 
     try {
-        const settings = await updateSubscriptionCancelResetSettings({ shop: session.shop, sessionId: session.id, enabled });
-        return {
-            message: `Automatic points reset on cancellation is now ${settings.enabled ? "ON" : "OFF"}.`,
-            status: "success", submitType, settings,
-        };
+        const settings = await updateSubscriptionCancelResetSettings({ shop: session.shop, sessionId: session.id, enabled, manualResetMode });
+        const message = manualResetMode !== undefined
+            ? (settings.manualResetMode === "KEEP_EARNED_AFTER"
+                ? "Manual resets will now keep points earned after cancelling."
+                : "Manual resets will now reset the whole balance to 0.")
+            : `Automatic points reset on cancellation is now ${settings.enabled ? "ON" : "OFF"}.`;
+        return { message, status: "success", submitType, settings };
     } catch (err) {
         logger.error(MODULE, "Update settings failed", { error: err?.message });
         return { message: "Failed to update settings.", status: "error", submitType };

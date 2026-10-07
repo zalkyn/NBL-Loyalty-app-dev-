@@ -1,4 +1,4 @@
-import { restorableTotal, restoreRemaining as getRestoreRemaining } from "../_data";
+import { restorableTotal, restoreRemaining as getRestoreRemaining, MANUAL_RESET_MODE_OPTIONS } from "../_data";
 
 /**
  * One shared modal for every consequential action on this page — toggling
@@ -10,7 +10,7 @@ import { restorableTotal, restoreRemaining as getRestoreRemaining } from "../_da
  */
 export function ConfirmModal({
     modalRef, confirmTarget, selectedCount, isSubmitting, onConfirm, onHide,
-    restoreAmountInput, onRestoreAmountChange,
+    restoreAmountInput, onRestoreAmountChange, manualResetMode,
 }) {
     const type = confirmTarget?.type;
     const isToggle = type === "toggle";
@@ -19,6 +19,9 @@ export function ConfirmModal({
     const isResetOne = type === "resetOne";
     const isResetBulk = type === "resetBulk";
     const isRestore = type === "restore";
+    const isMode = type === "mode";
+    const keepEarnedAfter = manualResetMode === "KEEP_EARNED_AFTER";
+    const nextModeOption = MANUAL_RESET_MODE_OPTIONS.find((o) => o.value === confirmTarget?.nextMode);
 
     const event = confirmTarget?.event;
     const customerName = event?.customerName || "this customer";
@@ -30,6 +33,10 @@ export function ConfirmModal({
     // preview number says, not what actually gets reset — but showing the
     // stale figure here would be misleading either way.
     const pts = Number(event?.customer?.points ?? event?.previousBalance ?? 0).toLocaleString();
+    // What Reset Now will actually remove under the current mode (loader's
+    // attachResetPreview); the action recomputes it live. Falls back to the
+    // balance — the FULL_BALANCE figure — if the preview isn't there.
+    const toRemove = typeof event?.pointsToRemove === "number" ? event.pointsToRemove.toLocaleString() : pts;
 
     // How much is still restorable for THIS cancellation — the hard cap
     // handleRestorePoints enforces server-side. Shown here so the admin
@@ -46,7 +53,9 @@ export function ConfirmModal({
                 ? "Reset Selected Customers"
                 : isRestore
                     ? "Restore Points"
-                    : "Reset Points to 0";
+                    : isMode
+                        ? "Change Manual Reset"
+                        : keepEarnedAfter ? "Reset Points" : "Reset Points to 0";
 
     return (
         <s-modal
@@ -76,7 +85,16 @@ export function ConfirmModal({
                         <s-text>Turn on automatic points reset on cancellation?</s-text>
                     </>
                 )}
-                {isResetOne && (
+                {isMode && nextModeOption && (
+                    <>
+                        <s-banner tone="info" heading={nextModeOption.label}>
+                            {nextModeOption.details} This applies to manual resets from now on. Resets already done are
+                            not changed.
+                        </s-banner>
+                        <s-text>Change how manual resets work?</s-text>
+                    </>
+                )}
+                {isResetOne && !keepEarnedAfter && (
                     <>
                         <s-banner tone="warning" heading="Points will be reset to 0">
                             {pts} points will be removed from {customerName}&apos;s current balance. Lifetime points are
@@ -85,13 +103,27 @@ export function ConfirmModal({
                         <s-text>Reset {customerName}&apos;s points balance to 0?</s-text>
                     </>
                 )}
+                {isResetOne && keepEarnedAfter && (
+                    <>
+                        <s-banner tone="warning" heading="Points from before the cancellation will be removed">
+                            {toRemove} of {customerName}&apos;s {pts} points will be removed. Points earned after
+                            cancelling are kept. Lifetime points are never affected.
+                        </s-banner>
+                        <s-text>Remove {toRemove} points from {customerName}?</s-text>
+                    </>
+                )}
                 {isResetBulk && (
                     <>
-                        <s-banner tone="warning" heading="Points will be reset to 0">
-                            Every selected customer&apos;s current points balance will be reset to 0. Lifetime points
-                            are never affected.
+                        <s-banner tone="warning" heading={keepEarnedAfter ? "Points from before each cancellation will be removed" : "Points will be reset to 0"}>
+                            {keepEarnedAfter
+                                ? "Each selected customer loses the points left from before their cancellation. Points earned after cancelling are kept. Lifetime points are never affected."
+                                : "Every selected customer's current points balance will be reset to 0. Lifetime points are never affected."}
                         </s-banner>
-                        <s-text>Reset {selectedCount} selected customer{selectedCount > 1 ? "s" : ""} to 0 points?</s-text>
+                        <s-text>
+                            {keepEarnedAfter
+                                ? `Reset ${selectedCount} selected customer${selectedCount > 1 ? "s" : ""}?`
+                                : `Reset ${selectedCount} selected customer${selectedCount > 1 ? "s" : ""} to 0 points?`}
+                        </s-text>
                     </>
                 )}
                 {isRestore && (
@@ -134,9 +166,10 @@ export function ConfirmModal({
             >
                 {isToggleOff ? "Turn Off"
                     : isToggleOn ? "Turn On"
-                        : isResetBulk ? `Reset ${selectedCount} to 0`
-                            : isRestore ? `Restore ${restoreAmountInput || 0} pts`
-                                : "Reset to 0"}
+                        : isMode ? "Change"
+                            : isResetBulk ? (keepEarnedAfter ? `Reset ${selectedCount}` : `Reset ${selectedCount} to 0`)
+                                : isRestore ? `Restore ${restoreAmountInput || 0} pts`
+                                    : keepEarnedAfter ? `Remove ${toRemove} pts` : "Reset to 0"}
             </s-button>
         </s-modal>
     );

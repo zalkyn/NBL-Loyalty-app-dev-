@@ -23,7 +23,7 @@ import { authenticate } from "shopify-server";
 import prisma from "db-server";
 
 import { VALID_STATUSES, DEFAULT_PER_PAGE, MAX_PER_PAGE, parseIntParam, buildWhere, NON_ACTIONABLE_SKIP_REASONS } from "./_data";
-import { handleUpdateSettings, handleResetPoints, handleBulkResetPoints, handleRestorePoints, attachResetSiblings } from "./_data.server";
+import { handleUpdateSettings, handleResetPoints, handleBulkResetPoints, handleRestorePoints, attachResetSiblings, attachResetPreview } from "./_data.server";
 import { getSubscriptionCancelResetSettings } from "app/controller/appSettings/subscriptionCancelResetSettings.js";
 import { useSubscriptionCancellationsPage } from "./_hooks";
 
@@ -111,8 +111,16 @@ export const loader = async ({ request }) => {
             return events;
         });
 
+        // ── 4. What Reset Now would remove under the current mode ──────────
+        // Shown in the confirm modal only (the action recomputes it live);
+        // on failure the modal falls back to the live balance.
+        const eventsWithPreview = await attachResetPreview(eventsWithSibling, settings.manualResetMode).catch((err) => {
+            console.error("[SubscriptionCancellations Loader] attachResetPreview failed", err);
+            return eventsWithSibling;
+        });
+
         return {
-            events: eventsWithSibling,
+            events: eventsWithPreview,
             stats,
             settings,
             pagination: { page, perPage, totalItems, totalPages },
@@ -122,7 +130,7 @@ export const loader = async ({ request }) => {
         return {
             events: [],
             stats: { total: 0, applied: 0, needsAction: 0 },
-            settings: { enabled: true },
+            settings: { enabled: true, manualResetMode: "FULL_BALANCE" },
             pagination: { page: 1, perPage, totalItems: 0, totalPages: 1 },
             loaderError: "Failed to load cancellations. Please refresh.",
         };
@@ -194,12 +202,15 @@ export default function SubscriptionCancellationsPage() {
                 onHide={page.closeConfirmModal}
                 restoreAmountInput={page.restoreAmountInput}
                 onRestoreAmountChange={page.setRestoreAmountInput}
+                manualResetMode={page.manualResetMode}
             />
 
             <SettingsCard
                 enabled={page.settingsEnabled}
+                manualResetMode={page.manualResetMode}
                 isSubmitting={page.isSubmitting}
                 onChange={page.handleToggleSettings}
+                onModeChange={page.handleModeChange}
             />
 
             <FilterBar

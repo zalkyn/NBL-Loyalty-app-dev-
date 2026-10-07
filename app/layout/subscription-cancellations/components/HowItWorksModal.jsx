@@ -65,6 +65,11 @@ export function HowItWorksModal() {
                             nothing to deduct. No action needed.
                         </s-list-item>
                         <s-list-item>
+                            <s-badge tone="warning">No</s-badge> <s-text type="strong">Nothing to remove</s-text>: a
+                            manual reset kept the customer&apos;s points because all of them were earned after
+                            cancelling. No action needed.
+                        </s-list-item>
+                        <s-list-item>
                             <s-badge tone="warning">No</s-badge> <s-text type="strong">Balance is negative</s-text>:
                             the customer owes points from a cancelled or refunded order. Left untouched on purpose so
                             that debt isn&apos;t cleared.
@@ -93,8 +98,20 @@ export function HowItWorksModal() {
                     <s-heading>Reset Now and bulk reset</s-heading>
                     <s-unordered-list>
                         <s-list-item>
-                            Resets the customer&apos;s balance as it is at the moment you click, including any points
-                            earned after the cancellation.
+                            What gets removed depends on the &quot;When you reset manually&quot; setting:
+                        </s-list-item>
+                        <s-list-item>
+                            <s-text type="strong">Reset the whole balance to 0</s-text> (default): removes the balance
+                            as it is when you click, including points earned after the cancellation.
+                        </s-list-item>
+                        <s-list-item>
+                            <s-text type="strong">Keep points earned after cancelling</s-text>: removes only the points
+                            left from before the cancellation. If the customer has only points earned since, nothing is
+                            removed and the row shows &quot;Nothing to remove&quot;.
+                        </s-list-item>
+                        <s-list-item>
+                            The automatic reset always removes the whole balance. It runs at the moment of cancellation,
+                            before the customer can earn anything new.
                         </s-list-item>
                         <s-list-item>
                             If the balance is already 0, the cancellation is marked as resolved and nothing is

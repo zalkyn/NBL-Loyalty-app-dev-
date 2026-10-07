@@ -29,6 +29,9 @@ export const SKIP_REASON_LABEL = {
     // never meant to open. Labeled distinctly so the audit trail says what
     // actually happened instead of the factually wrong "balance was 0".
     NEGATIVE_BALANCE: "Balance is negative (existing debt) — left untouched",
+    // Manual reset in KEEP_EARNED_AFTER mode found nothing left from before
+    // the cancellation — every point the customer has came after it.
+    NOTHING_BEFORE_CANCEL: "Nothing to remove — all points were earned after cancelling",
 };
 
 /**
@@ -40,7 +43,21 @@ export const SKIP_REASON_LABEL = {
  * customer-profile stat card, row selection for bulk actions) — duplicating
  * the check risked one of them drifting out of sync with the others.
  */
-export const NON_ACTIONABLE_SKIP_REASONS = ["ALREADY_ZERO", "NEGATIVE_BALANCE"];
+export const NON_ACTIONABLE_SKIP_REASONS = ["ALREADY_ZERO", "NEGATIVE_BALANCE", "NOTHING_BEFORE_CANCEL"];
+
+/** Admin-facing names for the manual reset modes (utils/subscriptionCancelReset.js). */
+export const MANUAL_RESET_MODE_OPTIONS = [
+    {
+        value: "FULL_BALANCE",
+        label: "Reset the whole balance to 0",
+        details: "Removes every point the customer has when you reset, including points earned after they cancelled.",
+    },
+    {
+        value: "KEEP_EARNED_AFTER",
+        label: "Keep points earned after cancelling",
+        details: "Removes only the points left from before the cancellation. Points earned since are kept.",
+    },
+];
 
 /**
  * @param {{ resetApplied: boolean, skipReason: string|null }} event
