@@ -1,5 +1,5 @@
 import prisma from "db-server";
-import syncAppConfig, { STOREFRONT_NOT_UPDATED } from "@controller/metafieldsSync/syncAppConfig";
+import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppConfig";
 import searchPages from "@graphql/query/shop/searchPages";
 import { CSS_DEFAULTS, WIDGET_CONFIG_DEFAULTS, deepClone } from "./constants/cssVarsConfig";
 import { validateCustomCss } from "./constants/customCss";
@@ -52,8 +52,8 @@ export async function handleUpdate({ formData, session, admin }) {
         // the whole config) pushed those "discarded" styles live.
         // syncFailed turns the toast red; same as Reset all / Clear all.
         return {
-            ok: true, intent, syncFailed: !synced,
-            message: synced ? "Widget styles saved successfully." : `Widget styles saved, ${STOREFRONT_NOT_UPDATED}`,
+            ok: true, intent, 
+            ...syncOutcome(synced, "Widget styles saved successfully.", "Widget styles saved"),
             savedCssVars: cssVars, savedPresetKey: presetKey, savedWidgetConfig: widgetConfig,
         };
     } catch (err) {
@@ -88,8 +88,8 @@ export async function handleResetAll({ session, admin }) {
         // ok:false would leave the old values on screen, where one Save
         // would overwrite the reset. syncFailed turns the toast red instead.
         return {
-            ok: true, intent, syncFailed: !synced,
-            message: synced ? "All styles reset to defaults." : `All styles reset to defaults, ${STOREFRONT_NOT_UPDATED}`,
+            ok: true, intent, 
+            ...syncOutcome(synced, "All styles reset to defaults.", "All styles reset to defaults"),
             savedCssVars: fresh, savedPresetKey: null, savedWidgetConfig: freshWidgetConfig,
         };
     } catch (err) {
@@ -123,8 +123,8 @@ export async function handleClearAll({ session, admin }) {
 
         // ok:true for the same reason as handleResetAll.
         return {
-            ok: true, intent, syncFailed: !synced,
-            message: synced ? "Custom styles cleared. Widget is now using default CSS." : `Custom styles cleared, ${STOREFRONT_NOT_UPDATED}`,
+            ok: true, intent, 
+            ...syncOutcome(synced, "Custom styles cleared. Widget is now using default CSS.", "Custom styles cleared"),
             savedCssVars: null, savedPresetKey: null, savedWidgetConfig: freshWidgetConfig,
         };
     } catch (err) {

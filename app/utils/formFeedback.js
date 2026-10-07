@@ -1,6 +1,7 @@
 // =============================================================================
 // app/utils/formFeedback.js
-// What a form tells the user when Save is clicked but validation fails.
+// What a form tells the user when Save is clicked but validation fails, and
+// whether a save's result toast should be red (isErrorResult, at the end).
 //
 // Field errors alone aren't enough since the Save button moved to Shopify's
 // contextual save bar at the top of the admin: the field that failed can be
@@ -70,4 +71,17 @@ export function notifyInvalidForm(shopify, errors) {
     const n = countErrors(errors) || 1;
     shopify?.toast?.show(`Please fix ${n} field${n === 1 ? "" : "s"} before saving.`, { isError: true });
     scrollToFirstFieldError();
+}
+
+/**
+ * Whether an action result's toast should show as an error: the action
+ * failed (`status: "error"` or `ok: false`, depending on the page), or it
+ * saved but the storefront wasn't updated (`syncFailed` — see syncOutcome in
+ * controller/metafieldsSync/syncAppConfig.js).
+ *
+ * @param {{ status?: string, ok?: boolean, syncFailed?: boolean }} result
+ * @returns {boolean}
+ */
+export function isErrorResult(result) {
+    return result?.status === "error" || result?.ok === false || !!result?.syncFailed;
 }

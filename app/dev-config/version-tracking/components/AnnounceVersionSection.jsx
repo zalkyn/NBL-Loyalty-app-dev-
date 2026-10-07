@@ -7,6 +7,7 @@
  */
 
 import { MODAL_ID } from "../_hooks";
+import { isErrorResult } from "@app/utils/formFeedback";
 
 export function AnnounceVersionSection({
     updateMode, fetcher, busy,
@@ -52,7 +53,7 @@ export function AnnounceVersionSection({
             </s-paragraph>
 
             {fetcher.data?.message && (
-                <s-paragraph tone={fetcher.data.ok && !fetcher.data.syncFailed ? "success" : "critical"}>
+                <s-paragraph tone={isErrorResult(fetcher.data) ? "critical" : "success"}>
                     {fetcher.data.message}
                 </s-paragraph>
             )}

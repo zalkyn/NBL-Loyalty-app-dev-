@@ -2,7 +2,7 @@ import { useEffect, useMemo, useCallback, useRef, useState } from "react";
 import { useSubmit, useNavigation } from "react-router";
 import { useSubmitLock } from "@app/hooks/useSubmitLock";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { notifyInvalidForm } from "@app/utils/formFeedback";
+import { notifyInvalidForm, isErrorResult } from "@app/utils/formFeedback";
 import { useFormState } from "@app/hooks/useFormState";
 
 import { EMPTY_PRIZE_DATA, buildFormShape, validate, PER_PAGE } from "./_data";
@@ -44,8 +44,8 @@ export function usePhysicalPrizesPage(loaderData, actionData) {
     // ── ACTION DATA EFFECT ────────────────────────────────────────────────────
     useEffect(() => {
         if (!actionData) return;
-        // syncFailed: saved, but the storefront copy wasn't updated (see syncAppConfig).
-        shopify.toast.show(actionData.message, { isError: actionData.status === "error" || !!actionData.syncFailed });
+        // isErrorResult also covers syncFailed: saved, but the storefront copy wasn't updated.
+        shopify.toast.show(actionData.message, { isError: isErrorResult(actionData) });
 
         if (actionData.status === "success") {
             if (actionData.submitType === "addPrize" || actionData.submitType === "updatePrize") {

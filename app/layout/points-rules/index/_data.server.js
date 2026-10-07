@@ -1,5 +1,5 @@
 import prisma from "db-server";
-import syncAppConfig, { STOREFRONT_NOT_UPDATED } from "@controller/metafieldsSync/syncAppConfig";
+import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppConfig";
 import { logger } from "app/utils/logger.js";
 
 /** @constant {string} Module identifier for structured logging */
@@ -20,7 +20,7 @@ export async function handleDeleteRule({ formData, session, admin }) {
 
         // sync app config after delete
         const synced = await syncAppConfig(admin, session);
-        return { message: synced ? "Points rule deleted successfully." : `Points rule deleted, ${STOREFRONT_NOT_UPDATED}`, syncFailed: !synced, status: "success", submitType };
+        return { ...syncOutcome(synced, "Points rule deleted successfully.", "Points rule deleted"), status: "success", submitType };
     } catch (err) {
         logger.error("Delete points rule failed", { module: MODULE, error: err?.message, shop: session.shop, ruleId });
         return { message: err.message || "Failed to delete rule.", status: "error", submitType };
