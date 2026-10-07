@@ -3,7 +3,7 @@ import { useSubmit, useNavigation } from "react-router";
 import { useSubmitLock } from "@app/hooks/useSubmitLock";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useFormState } from "@app/hooks/useFormState";
-import { notifyInvalidForm } from "@app/utils/formFeedback";
+import { notifyInvalidForm, isErrorResult } from "@app/utils/formFeedback";
 
 import { EMPTY_RULE, buildFormShape, validate, previewTitle, PER_PAGE } from "./_data";
 
@@ -42,8 +42,8 @@ export function useRewardRulesPage(loaderData, actionData) {
     // ── ACTION DATA EFFECT ────────────────────────────────────────────────────
     useEffect(() => {
         if (!actionData) return;
-        // syncFailed: saved, but the storefront copy wasn't updated (see syncAppConfig).
-        shopify.toast.show(actionData.message, { isError: actionData.status === "error" || !!actionData.syncFailed });
+        // isErrorResult also covers syncFailed: saved, but the storefront copy wasn't updated.
+        shopify.toast.show(actionData.message, { isError: isErrorResult(actionData) });
 
         if (actionData.status === "success") {
             if (actionData.submitType === "addRule" || actionData.submitType === "updateRule") {

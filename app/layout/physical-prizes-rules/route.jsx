@@ -16,7 +16,7 @@
 import { useActionData, useLoaderData } from "react-router";
 import { authenticate } from "shopify-server";
 import prisma from "db-server";
-import syncAppConfig, { STOREFRONT_NOT_UPDATED } from "@controller/metafieldsSync/syncAppConfig";
+import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppConfig";
 
 import { uploadImageIfPresent } from "./_data.server";
 import { usePhysicalPrizesPage } from "./_hooks";
@@ -72,7 +72,7 @@ export const action = async ({ request }) => {
             });
 
             const synced = await syncAppConfig(admin, session);
-            return { message: synced ? "Prize created successfully." : `Prize created, ${STOREFRONT_NOT_UPDATED}`, syncFailed: !synced, prize: created, status: "success", submitType };
+            return { ...syncOutcome(synced, "Prize created successfully.", "Prize created"), prize: created, status: "success", submitType };
         } catch (err) {
             console.error("Create PhysicalPrize Error:", err);
             return { message: err.message || "Failed to create prize.", status: "error", submitType };
@@ -112,7 +112,7 @@ export const action = async ({ request }) => {
             });
 
             const synced = await syncAppConfig(admin, session);
-            return { message: synced ? "Prize updated successfully." : `Prize updated, ${STOREFRONT_NOT_UPDATED}`, syncFailed: !synced, prize: updated, status: "success", submitType };
+            return { ...syncOutcome(synced, "Prize updated successfully.", "Prize updated"), prize: updated, status: "success", submitType };
         } catch (err) {
             console.error("Update PhysicalPrize Error:", err);
             return { message: err.message || "Failed to update prize.", status: "error", submitType };
@@ -132,7 +132,7 @@ export const action = async ({ request }) => {
 
             await prisma.physicalPrize.delete({ where: { id: prizeId } });
             const synced = await syncAppConfig(admin, session);
-            return { message: synced ? "Prize deleted successfully." : `Prize deleted, ${STOREFRONT_NOT_UPDATED}`, syncFailed: !synced, status: "success", submitType };
+            return { ...syncOutcome(synced, "Prize deleted successfully.", "Prize deleted"), status: "success", submitType };
         } catch (err) {
             console.error("Delete PhysicalPrize Error:", err);
             return { message: err.message || "Failed to delete prize.", status: "error", submitType };

@@ -162,3 +162,23 @@ export default async function syncAppConfig(admin, session) {
  */
 export const STOREFRONT_NOT_UPDATED =
     "but your store couldn't be updated right now. It will update the next time you save a change — if this keeps happening, please contact support.";
+
+/**
+ * The message + flag every admin save returns after syncAppConfig():
+ * `okMessage` when the storefront was updated, otherwise `failLead` followed
+ * by STOREFRONT_NOT_UPDATED, with `syncFailed: true` so the toast turns red
+ * (see isErrorResult in utils/formFeedback.js). Spread into the action result:
+ *
+ *   return { ...syncOutcome(synced, "Prize created successfully.", "Prize created"), status: "success" };
+ *
+ * @param {boolean} synced    - syncAppConfig()'s return value
+ * @param {string}  okMessage - Full message when the sync worked
+ * @param {string}  failLead  - What was saved, e.g. "Prize created"
+ * @returns {{ message: string, syncFailed: boolean }}
+ */
+export function syncOutcome(synced, okMessage, failLead) {
+    return {
+        message: synced ? okMessage : `${failLead}, ${STOREFRONT_NOT_UPDATED}`,
+        syncFailed: !synced,
+    };
+}

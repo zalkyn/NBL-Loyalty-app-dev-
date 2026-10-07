@@ -8,7 +8,7 @@
 import { authenticate } from "shopify-server";
 
 import createConfigUpdateVersion from "@controller/configUpdateVersion/createConfigUpdateVersion";
-import syncAppConfig, { STOREFRONT_NOT_UPDATED } from "@controller/metafieldsSync/syncAppConfig";
+import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppConfig";
 import { logger } from "app/utils/logger.js";
 
 const MODULE = "dev-config/version-tracking/_action.server.js";
@@ -29,10 +29,8 @@ export const action = async ({ request }) => {
         const synced = await syncAppConfig(admin, session);
 
         return {
-            ok: true, syncFailed: !synced,
-            message: synced
-                ? `"${version.title}" is now the active version.`
-                : `"${version.title}" is now the active version, ${STOREFRONT_NOT_UPDATED}`,
+            ok: true,
+            ...syncOutcome(synced, `"${version.title}" is now the active version.`, `"${version.title}" is now the active version`),
         };
     } catch (error) {
         logger.error(MODULE, "Failed to create config update version", { shop: session.shop, error: error?.message });

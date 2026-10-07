@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef, useDeferredValue } f
 import { useSubmit, useNavigation } from "react-router";
 import { useSubmitLock } from "@app/hooks/useSubmitLock";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import { isErrorResult } from "@app/utils/formFeedback";
 import { validateCustomCss } from "./constants/customCss";
 
 import {
@@ -81,7 +82,7 @@ export function useCustomizePage(loaderData, actionData) {
         if (actionData === lastSyncedActionRef.current) return;
         lastSyncedActionRef.current = actionData;
 
-        shopify.toast.show(actionData.message, { isError: !actionData.ok || !!actionData.syncFailed });
+        shopify.toast.show(actionData.message, { isError: isErrorResult(actionData) });
         setActiveIntent(null);
         if (!actionData.ok) return;
 
