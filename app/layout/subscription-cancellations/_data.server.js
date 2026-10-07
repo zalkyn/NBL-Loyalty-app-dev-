@@ -3,7 +3,7 @@ import createTransaction from "app/controller/transaction/createTransaction.js";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig.js";
 import { updateSubscriptionCancelResetSettings } from "app/controller/appSettings/subscriptionCancelResetSettings.js";
 import { logger } from "app/utils/logger.js";
-import { restorableTotal, restoreRemaining } from "./_data";
+import { restorableTotal, restoreRemaining, pickResetSibling } from "./_data";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "layout/subscription-cancellations/_data.server.js";
@@ -157,23 +157,18 @@ export async function attachResetSiblings(sessionId, events) {
     const siblings = await prisma.subscriptionCancelEvent.findMany({
         where: { sessionId, customerId: { in: zeroCustomerIds }, resetApplied: true },
         orderBy: { cancelledAt: "desc" },
-        select: { id: true, customerId: true, cancelledAt: true, previousBalance: true, restoredAmount: true, transaction: { select: { points: true } } },
+        select: { id: true, customerId: true, cancelledAt: true, resetApplied: true, previousBalance: true, restoredAmount: true, transaction: { select: { points: true } } },
     });
 
-    // Prefer a sibling that still has points left to restore, then the most
-    // recent — siblings are already sorted newest first.
     const byCustomer = new Map();
     for (const s of siblings) {
-        const current = byCustomer.get(s.customerId);
-        const restorable = restoreRemaining(s) > 0;
-        if (!current || (restorable && !current.restorable)) {
-            byCustomer.set(s.customerId, { id: s.id, cancelledAt: s.cancelledAt, restorable });
-        }
+        if (!byCustomer.has(s.customerId)) byCustomer.set(s.customerId, []);
+        byCustomer.get(s.customerId).push(s);
     }
 
     return events.map((e) => {
-        const sibling = e.skipReason === "ALREADY_ZERO" ? byCustomer.get(e.customerId) : null;
-        return sibling ? { ...e, resetBySibling: { id: sibling.id, cancelledAt: sibling.cancelledAt } } : e;
+        const sibling = e.skipReason === "ALREADY_ZERO" ? pickResetSibling(byCustomer.get(e.customerId) ?? []) : null;
+        return sibling ? { ...e, resetBySibling: sibling } : e;
     });
 }
 
