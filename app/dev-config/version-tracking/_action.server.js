@@ -8,7 +8,7 @@
 import { authenticate } from "shopify-server";
 
 import createConfigUpdateVersion from "@controller/configUpdateVersion/createConfigUpdateVersion";
-import syncAppConfig from "@controller/metafieldsSync/syncAppConfig";
+import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppConfig";
 import { logger } from "app/utils/logger.js";
 
 const MODULE = "dev-config/version-tracking/_action.server.js";
@@ -26,9 +26,12 @@ export const action = async ({ request }) => {
         // Push the new active version to the shop metafield so it's visible
         // to the storefront right away — mirrors the Customize page's own
         // upsertAndSync pattern (save to DB, then sync).
-        await syncAppConfig(admin, session);
+        const synced = await syncAppConfig(admin, session);
 
-        return { ok: true, message: `"${version.title}" is now the active version.` };
+        return {
+            ok: true,
+            ...syncOutcome(synced, `"${version.title}" is now the active version.`, `"${version.title}" is now the active version`),
+        };
     } catch (error) {
         logger.error(MODULE, "Failed to create config update version", { shop: session.shop, error: error?.message });
         return { ok: false, message: error?.message || "Failed to create version." };

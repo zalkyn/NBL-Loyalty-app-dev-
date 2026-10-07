@@ -1,0 +1,173 @@
+{% comment %}
+  ===========================================================================
+  loyalty-points.liquid — the "Loyalty points" APP BLOCK.
+  Shows the logged-in customer's current points balance as plain text, so a
+  merchant can put it anywhere their theme accepts app blocks (a members-only
+  page, an account page, a banner) and style it with the theme around it.
+
+  Server-rendered from the same customer metafield the widget boots from, so
+  the number is right on first paint with no JavaScript. The value sits in a
+  [data-nbl-points] element, which the widget (usePublishPoints.js) keeps
+  current after a claim or resync — so it updates live without a reload when
+  the NB Loyalty app embed is on. Without the embed it still shows the
+  balance at page load.
+
+  "Member" means the same thing the widget and the Setup Guide's Liquid
+  snippet mean by it: the customer's loyalty config metafield exists and has
+  an id. Logged-in non-members and logged-out visitors get their own optional
+  text; leaving that text empty hides the block for them.
+
+  The Liquid here deliberately mirrors the snippet documented on the admin
+  Setup Guide page (app/layout/setup-guide) — keep the two in step.
+  ===========================================================================
+{% endcomment %}
+{%- liquid
+  assign nbl_core = customer.metafields.app.nbl_customer_core_v1.value
+  assign nbl_legacy = customer.metafields.app.nbl_customer_v1.value
+
+  assign nbl_is_member = false
+  if customer
+    if nbl_core.id != blank or nbl_legacy.id != blank
+      assign nbl_is_member = true
+    endif
+  endif
+
+  assign nbl_points = nbl_core.points | default: nbl_legacy.points | default: 0
+
+  comment
+    Thousands separators (5180 -> 5,180), the same as the widget shows, so
+    the number doesn't visibly change when the widget loads.
+  endcomment
+  assign nbl_digits = nbl_points | abs | floor | append: ''
+  assign nbl_chars = nbl_digits | split: ''
+  assign nbl_len = nbl_chars | size
+  assign nbl_points_text = ''
+  if nbl_points < 0
+    assign nbl_points_text = '-'
+  endif
+  for nbl_char in nbl_chars
+    assign nbl_points_text = nbl_points_text | append: nbl_char
+    assign nbl_left = nbl_len | minus: forloop.index
+    assign nbl_mod = nbl_left | modulo: 3
+    if nbl_left > 0 and nbl_mod == 0
+      assign nbl_points_text = nbl_points_text | append: ','
+    endif
+  endfor
+
+  assign nbl_link = block.settings.link
+-%}
+
+{%- capture nbl_content -%}
+  {%- if nbl_is_member -%}
+    {{- block.settings.text_before | escape -}}
+    <span class="nbl-points-block__value" data-nbl-points>{{ nbl_points_text }}</span>
+    {{- block.settings.text_after | escape -}}
+  {%- elsif customer -%}
+    {{- block.settings.non_member_text | escape -}}
+  {%- else -%}
+    {{- block.settings.guest_text | escape -}}
+  {%- endif -%}
+{%- endcapture -%}
+
+{%- comment -%}
+  In the theme editor the merchant is usually not logged in as a member, so
+  the real output would be empty or the guest text — show a sample instead,
+  or the block would look broken and be impossible to select and style.
+{%- endcomment -%}
+{%- if request.design_mode and nbl_is_member == false -%}
+  {%- capture nbl_content -%}
+    {{- block.settings.text_before | escape -}}
+    <span class="nbl-points-block__value">1,234</span>
+    {{- block.settings.text_after | escape -}}
+  {%- endcapture -%}
+{%- endif -%}
+
+{%- if nbl_content != blank -%}
+  <div
+    class="nbl-points-block"
+    style="text-align: {{ block.settings.alignment | default: 'left' }}; font-size: {{ block.settings.font_size | default: 16 }}px;"
+    {{ block.shopify_attributes }}
+  >
+    {%- if nbl_link != blank -%}
+      <a class="nbl-points-block__link" href="{{ nbl_link }}">{{ nbl_content }}</a>
+    {%- else -%}
+      {{ nbl_content }}
+    {%- endif -%}
+  </div>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Loyalty points",
+  "target": "section",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Shows the logged-in member's current points balance. It updates live after a claim when the NB Loyalty app embed is on. The theme editor shows a sample value."
+    },
+    {
+      "type": "header",
+      "content": "Members"
+    },
+    {
+      "type": "text",
+      "id": "text_before",
+      "label": "Text before the number",
+      "info": "Example: 'Your balance: '"
+    },
+    {
+      "type": "text",
+      "id": "text_after",
+      "label": "Text after the number",
+      "default": " pts"
+    },
+    {
+      "type": "header",
+      "content": "Everyone else"
+    },
+    {
+      "type": "text",
+      "id": "non_member_text",
+      "label": "Logged in, not a member yet",
+      "info": "Leave empty to hide the block for them."
+    },
+    {
+      "type": "text",
+      "id": "guest_text",
+      "label": "Logged out",
+      "info": "Leave empty to hide the block for them."
+    },
+    {
+      "type": "header",
+      "content": "Link and style"
+    },
+    {
+      "type": "url",
+      "id": "link",
+      "label": "Link",
+      "info": "Optional. For example, your Loyalty & Rewards page."
+    },
+    {
+      "type": "select",
+      "id": "alignment",
+      "label": "Alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Centre" },
+        { "value": "right", "label": "Right" }
+      ],
+      "default": "left"
+    },
+    {
+      "type": "range",
+      "id": "font_size",
+      "label": "Text size",
+      "min": 10,
+      "max": 48,
+      "step": 1,
+      "unit": "px",
+      "default": 16
+    }
+  ]
+}
+{% endschema %}

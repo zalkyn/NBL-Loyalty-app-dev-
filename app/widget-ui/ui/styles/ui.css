@@ -18,6 +18,23 @@ input:not([type=checkbox], [type=radio]) {
     border-color: inherit;
 }
 
+/* Custom font — app embed setting "Use a custom font" (loyalty.liquid sets
+   --nbl-font-family and loads the files; main.preact.jsx adds the class to
+   the shadow mount only when it's on). Without it the widget inherits the
+   theme's font as before, and buttons/inputs keep the browser's default
+   control font as before.
+
+   Controls are opted in with zero specificity (:where) so any rule that
+   deliberately sets a font — the monospace referral link and voucher codes —
+   still wins. */
+.nbl-custom-font {
+    font-family: var(--nbl-font-family);
+}
+
+:where(.nbl-custom-font) :where(button, input, select, textarea) {
+    font-family: inherit;
+}
+
 /* ─────────────────────────────────────────────────────
    ROOT VARIABLES
    One source of truth per visual property, grouped by
@@ -4758,6 +4775,42 @@ input:not([type=checkbox], [type=radio]) {
     min-height: var(--nbl-page-min-height, 560px);
 }
 
+/* Text size (theme editor: "Text size", 80–150%, default 100%).
+   `zoom`, not font-size variables: most of this stylesheet sets font sizes
+   in literal px, so only scaling the --nbl-text-* tokens would grow some
+   text and not the rest. `zoom` re-runs layout at the new size, so text,
+   spacing, icons and buttons all grow together and keep their proportions.
+
+   Applied to the wrapper's CHILDREN (header + body / guest hero), not the
+   container or the wrapper, so the merchant's Width / Minimum height /
+   scrolling Height settings — which live on those two — stay exactly as
+   set instead of being multiplied too. The fixed-position overlays
+   (notification panel, image preview, provisioning spinner) are siblings of
+   the scroll area, outside the zoomed subtree, so the inset:0-under-zoom
+   overflow described in the full-screen zoom note above can't happen here.
+
+   The three children are named rather than matched with `> *`: that
+   selector is already the wide-only type-scale rule further down, and
+   check-widget-css.js classifies rules by selector. These are every direct
+   child WidgetShell.jsx renders into the wrapper — a new one added there
+   must be added here too, or it won't scale.
+
+   Browsers without `zoom` (Firefox < 126) ignore it and render at 100%. */
+.nbl-widget-container--page .nbl-widget-wrapper > .nbl-sticky-top,
+.nbl-widget-container--page .nbl-widget-wrapper > .nbl-widget-body,
+.nbl-widget-container--page .nbl-widget-wrapper > .nbl-guest {
+    zoom: var(--nbl-page-zoom, 1);
+}
+
+/* Both .nbl-guest panels (signed-out GuestPanel, a direct wrapper child, and
+   JoinProgramPanel, nested inside the logged-in body) are inside the zoomed
+   subtree, so their own min-height would be multiplied by the zoom and
+   outgrow the wrapper's floor. Dividing it back keeps them exactly as tall
+   as the merchant set. */
+.nbl-widget-container--page .nbl-widget-wrapper .nbl-guest {
+    min-height: calc(var(--nbl-page-min-height, 560px) / var(--nbl-page-zoom, 1));
+}
+
 /* ── Header ──────────────────────────────────────────────────────────────
    Static by default. With the page doing the scrolling, the wrapper isn't a
    scrollport so sticky has nothing to stick within — and a widget header
@@ -4894,6 +4947,17 @@ input:not([type=checkbox], [type=radio]) {
 
     .nbl-widget-container--page .nbl-guest {
         min-height: var(--nbl-page-min-height-mobile, 420px);
+    }
+
+    /* Mobile "Text size" — same mechanism as desktop, its own setting. */
+    .nbl-widget-container--page .nbl-widget-wrapper > .nbl-sticky-top,
+    .nbl-widget-container--page .nbl-widget-wrapper > .nbl-widget-body,
+    .nbl-widget-container--page .nbl-widget-wrapper > .nbl-guest {
+        zoom: var(--nbl-page-zoom-mobile, 1);
+    }
+
+    .nbl-widget-container--page .nbl-widget-wrapper .nbl-guest {
+        min-height: calc(var(--nbl-page-min-height-mobile, 420px) / var(--nbl-page-zoom-mobile, 1));
     }
 }
 
@@ -5128,3 +5192,23 @@ input:not([type=checkbox], [type=radio]) {
    only thing worth stating is that the zoom above must NOT apply, which it
    doesn't — it is scoped to ="wide" and this is ="mobile". Recorded here so
    the absence of a mobile block reads as deliberate rather than forgotten. */
+
+/* ── Admin preview: full screen inside the small preview frame ────────────
+   Customize > Custom CSS switches the live preview to full screen (bridge
+   'fullscreen' scene) so CSS that only applies there is visible. Full screen
+   is `inset: 0` — right on a real screen, but in the 390px preview iframe,
+   which is pinned to the admin window's bottom-right corner, it ran edge to
+   edge with square corners and its bottom sat under the admin's own bottom
+   UI, so it looked cut off. Inset a little with rounded corners instead, so
+   it reads as a framed screen, clear of the window edge.
+
+   data-nbl-preview-fullscreen is set only by App.jsx while the bridge's
+   preview-only full-screen override is on; the bridge exists only in
+   public/widget/preview.html, so this can never match on a storefront. */
+:host([data-nbl-preview-fullscreen]) .nbl-widget-container.nbl-widget-container--fullscreen {
+    inset: 12px 12px 24px 12px;
+    width: auto;
+    height: auto;
+    border-radius: var(--nbl-radius);
+    overflow: hidden;
+}

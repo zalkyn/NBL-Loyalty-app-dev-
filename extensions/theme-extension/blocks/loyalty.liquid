@@ -88,8 +88,45 @@
 %}
 
 {% unless nbl_widget_hidden %}
+{%- comment -%}
+  Custom font (embed setting "Use a custom font"). Off by default, in which
+  case nothing is emitted and the widget keeps inheriting the theme's font.
+
+  The @font-face rules go in the DOCUMENT, not inside the widget's shadow
+  root: fonts declared inside a shadow root aren't reliably available to it,
+  while document-level @font-face applies to every tree on the page. The
+  family itself crosses the shadow boundary as --nbl-font-family (custom
+  properties inherit into shadow trees); ui.css's .nbl-custom-font reads it.
+
+  The widget uses weights 300–800, and font_face only declares the one
+  variant picked — so every other weight in that range the family actually
+  has is declared too (font_modify returns nil for ones it doesn't), letting
+  bold/semibold text use real files instead of browser-synthesised bolding.
+  Declaring a weight costs nothing until text in that weight renders.
+  System fonts have no files; font_face returns an empty string for them.
+{%- endcomment -%}
+{%- if block.settings.use_custom_font -%}
+  {%- assign nbl_font = block.settings.custom_font -%}
+  {%- assign nbl_font_weights = '300,400,500,600,700,800' | split: ',' -%}
+  {%- style -%}
+    {{ nbl_font | font_face: font_display: 'swap' }}
+    {%- for nbl_w in nbl_font_weights -%}
+      {%- assign nbl_font_variant = nbl_font | font_modify: 'weight', nbl_w -%}
+      {%- if nbl_font_variant and nbl_font_variant.weight != nbl_font.weight -%}
+        {{ nbl_font_variant | font_face: font_display: 'swap' }}
+      {%- endif -%}
+    {%- endfor -%}
+    :root {
+      --nbl-font-family: {{ nbl_font.family }}, {{ nbl_font.fallback_families }};
+    }
+  {%- endstyle -%}
+{%- endif -%}
 <script>
   window.NBL_v1 = window.NBL_v1 || {};
+
+  // Read by main.preact.jsx: tags the shadow mount with .nbl-custom-font so
+  // the font also reaches buttons/inputs (see ui.css).
+  NBL_v1.customFont = {{ block.settings.use_custom_font | json }};
 
   NBL_v1.appConfig = {{ nbl_config | json }};
 
@@ -144,6 +181,25 @@
 {
   "name": "NB Loyalty",
   "target": "body",
-  "settings": []
+  "settings": [
+    {
+      "type": "header",
+      "content": "Typography"
+    },
+    {
+      "type": "checkbox",
+      "id": "use_custom_font",
+      "label": "Use a custom font",
+      "default": false,
+      "info": "Off: the widget uses your theme's font. On: the font below is used across the floating widget and the Loyalty & Rewards page block."
+    },
+    {
+      "type": "font_picker",
+      "id": "custom_font",
+      "label": "Font",
+      "default": "inter_n4",
+      "info": "Only used when 'Use a custom font' is on."
+    }
+  ]
 }
 {% endschema %}

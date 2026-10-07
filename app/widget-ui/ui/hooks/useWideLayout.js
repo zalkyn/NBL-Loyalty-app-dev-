@@ -57,7 +57,17 @@ export function useWideLayout(ref, enabled) {
             // setState with the same value is a no-op in Preact, so this is
             // safe to call on every observer tick — no re-render unless the
             // answer actually changed.
-            setIsWide(width >= WIDE_THRESHOLD_PX);
+            //
+            // The page block's "Text size" zooms the wrapper's children
+            // (ui.css), so content lays out in width / zoom CSS px — a 700px
+            // block at 150% only has ~467px to work with. Compare that, not
+            // the raw width, or the multi-column layout kicks in where it no
+            // longer fits. Read from the zoomed child's computed style so the
+            // desktop / mobile setting actually in effect is the one used.
+            var zoomed = el.querySelector('.nbl-widget-wrapper > .nbl-sticky-top');
+            var zoom = zoomed ? parseFloat(getComputedStyle(zoomed).zoom) : 1;
+            if (!(zoom > 0)) zoom = 1;
+            setIsWide(width / zoom >= WIDE_THRESHOLD_PX);
         }
 
         measure(el.getBoundingClientRect().width);

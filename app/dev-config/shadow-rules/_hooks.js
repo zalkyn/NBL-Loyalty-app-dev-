@@ -1,6 +1,8 @@
 import { useEffect, useCallback, useState } from "react";
 import { useSubmit, useNavigation } from "react-router";
+import { useSubmitLock } from "@app/hooks/useSubmitLock";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import { notifyInvalidForm } from "@app/utils/formFeedback";
 import { useFormState } from "@app/hooks/useFormState";
 
 import { EMPTY_SHADOW_RULE_DATA, buildFormShape, validate, PER_PAGE } from "./_data";
@@ -18,6 +20,7 @@ import { DELETE_MODAL_ID } from "./components/DeleteConfirmModal";
 export function useShadowRulesPage(loaderData, actionData) {
     const submitRR = useSubmit();
     const navigation = useNavigation();
+    const tryLock = useSubmitLock(navigation.state);
     const shopify = useAppBridge();
 
     // ── View state ────────────────────────────────────────────────────────────
@@ -50,7 +53,10 @@ export function useShadowRulesPage(loaderData, actionData) {
     const busy = isSaving || isUpdating;
 
     // ── Form state ────────────────────────────────────────────────────────────
-    const fs = useFormState(EMPTY_SHADOW_RULE_DATA, buildFormShape, { validate });
+    const fs = useFormState(EMPTY_SHADOW_RULE_DATA, buildFormShape, {
+        validate,
+        onInvalid: (errors) => notifyInvalidForm(shopify, errors),
+    });
 
     // ── ACTION DATA EFFECT ────────────────────────────────────────────────────
     useEffect(() => {
@@ -118,12 +124,14 @@ export function useShadowRulesPage(loaderData, actionData) {
     const handleSave = useCallback(async () => {
         const valid = await fs.submit();
         if (!valid) return;
+        if (!tryLock()) return; // a submit is already in flight (see useSubmitLock)
         submitRR(buildPayload("createShadowRule"), { method: "post" });
     }, [fs, buildPayload, submitRR]);
 
     const handleUpdate = useCallback(async () => {
         const valid = await fs.submit();
         if (!valid) return;
+        if (!tryLock()) return; // a submit is already in flight (see useSubmitLock)
         submitRR(buildPayload("updateShadowRule"), { method: "post" });
     }, [fs, buildPayload, submitRR]);
 

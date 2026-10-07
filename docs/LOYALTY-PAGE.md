@@ -429,11 +429,12 @@ editor it shows a notice saying so.
 | Heading | Optional; skip it if the page already has a title above the block |
 | Alignment | Left / Centre / Right — applies to the block and its heading |
 | **Desktop** — Width | Narrows automatically when the page has less room |
+| **Desktop** — Text size | 80–150%, default 100%. CSS `zoom` on the wrapper's children (header, body, guest hero), so text, spacing and icons scale together while Width / heights stay as set. Fixed overlays (notification panel, image preview, provisioning) sit outside the zoomed subtree and stay at 100% |
 | **Desktop** — Minimum height | Floor, so a sparse tab doesn't collapse the block |
 | **Desktop** — Scroll inside the block | Off by default. On caps the height and pins the tab bar |
 | **Desktop** — Height when scrolling | Only used when the above is on |
 | **Mobile** — Width | A **percentage** of the space the theme gives the block, not pixels — a phone's usable width isn't a number the merchant can guess. 100% lines up with the page's other sections |
-| **Mobile** — Minimum height, Scroll, Height when scrolling | Independent of the desktop values, applied below 749px |
+| **Mobile** — Text size, Minimum height, Scroll, Height when scrolling | Independent of the desktop values, applied below 749px |
 | Top / bottom spacing | Clamped down on mobile |
 
 Desktop and mobile are separate settings rather than one scaled value: a

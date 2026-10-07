@@ -25,6 +25,8 @@ import { useCustomerProvision } from './hooks/useCustomerProvision.js';
 import { useJoinProgram } from './hooks/useJoinProgram.js';
 import { useConfigResync } from './hooks/useConfigResync.js';
 import { useApplyTheme } from './hooks/useApplyTheme.js';
+import { useCustomCss } from './hooks/useCustomCss.js';
+import { usePublishPoints } from './hooks/usePublishPoints.js';
 import { useToastNotifications } from './hooks/useToastNotifications.js';
 import { useUpdateBanner } from './hooks/useUpdateBanner.js';
 import { useAutoUpdateSync } from './hooks/useAutoUpdateSync.js';
@@ -128,6 +130,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
             return false; // storage blocked (private mode, cookie settings) — not an error worth surfacing
         }
     });
+    const [previewFullscreen, setPreviewFullscreen] = useState(false); // preview bridge only — see fullscreenActive
 
     // GuestPanel's Create Account / Sign In buttons (see GuestPanel.jsx)
     // save this flag right before navigating away, so that when the
@@ -237,7 +240,11 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // Gated here rather than by clearing the stored value, because the
     // merchant may switch back to "Full screen" tomorrow and the customer's
     // preference should still be there when they do.
-    const fullscreenActive = isFullscreen && showFullscreenToggle;
+    // previewFullscreen: admin live preview only (bridge 'fullscreen' scene,
+    // used by Customize > Custom CSS so the merchant can see CSS that only
+    // applies in full screen) — shown regardless of the shop's expand
+    // setting. Never set on the storefront: bridgeRef only exists in preview.
+    const fullscreenActive = (isFullscreen && showFullscreenToggle) || previewFullscreen;
     const currencySymbol = (appConfig.shop && appConfig.shop.currencySymbol) || '$';
     const [referralLink, setReferralLink] = useState(initialData.referralLink || '');
     const shopUrl = initialData.shopUrl || '';
@@ -301,6 +308,12 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // that's what lets needsJoin/isMember switch the widget straight to
     // the normal member view without a page reload.
     const [hasConfig, setHasConfig] = useState(!!(customer && customer.config && customer.config.id));
+    // Public "is a loyalty member" flag for usePublishPoints (theme code /
+    // Setup Guide). Separate from hasConfig on purpose: hasConfig drives the
+    // join flow and auto-enrol success deliberately doesn't flip it, but a
+    // synced config carrying the customer's id (auto-enrol, join, resync)
+    // is exactly the Liquid snippet's own test for membership.
+    const [syncedMember, setSyncedMember] = useState(false);
     const autoProvisionEnabled = widgetConfig.autoProvisionCustomer === true;
     const needsJoin = !!(
         isLoggedIn
@@ -325,6 +338,18 @@ export function App({ initialData, bridgeRef, hostEl }) {
         },
     });
     useApplyTheme(initialData.cssVars, hostEl);
+    // Merchant custom CSS, scoped to page / full screen — see useCustomCss.js.
+    useCustomCss(widgetConfig.customCss, hostEl);
+    // Lets ui.css frame the preview-only full screen inside the small admin
+    // preview iframe (see ":host([data-nbl-preview-fullscreen])").
+    useEffect(function () {
+        if (!hostEl) return;
+        if (previewFullscreen) hostEl.setAttribute('data-nbl-preview-fullscreen', '');
+        else hostEl.removeAttribute('data-nbl-preview-fullscreen');
+    }, [previewFullscreen, hostEl]);
+    // Live points for the merchant's theme ([data-nbl-points], NBL_v1.points,
+    // nbl:points-updated) — see usePublishPoints.js.
+    usePublishPoints(points, isLoggedIn && (hasConfig || syncedMember), isLoggedIn);
 
     // Admin Customize > Widget Config > New Customer Onboarding live
     // preview override — see bridgeRef.setScene's 'join-program' case
@@ -401,6 +426,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
     //    Shop-level data staying fresh is normal storefront/liquid
     //    behavior (next navigation or reload), unrelated to this sync path.
     function applySyncedConfig(config) {
+        if (config && config.id) setSyncedMember(true);
         if (typeof config.points === 'number') setPoints(config.points);
         if (Array.isArray(config.rewards)) setCustomerRewards(config.rewards);
         if (Array.isArray(config.prizeClaims)) setPrizeClaims(config.prizeClaims);
@@ -518,6 +544,15 @@ export function App({ initialData, bridgeRef, hostEl }) {
             // isOpen value — closeModal() is a harmless no-op when already
             // closed.
             if (scene !== 'modal') refModal.closeModal();
+            // Leaving the Custom CSS tab's full-screen preview.
+            if (scene !== 'fullscreen') setPreviewFullscreen(false);
+
+            if (scene === 'fullscreen') {
+                setIsOpen(true);
+                setActiveTab('home');
+                setPreviewFullscreen(true);
+                return;
+            }
 
             if (scene === 'notification-toast') {
                 setIsOpen(false);

@@ -1,5 +1,5 @@
 import prisma from "db-server";
-import syncAppConfig from "@controller/metafieldsSync/syncAppConfig";
+import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppConfig";
 import { logger } from "app/utils/logger.js";
 
 /** @constant {string} Module identifier for structured logging */
@@ -61,8 +61,8 @@ export async function handleAddRule({ formData, session, admin }) {
             },
         });
 
-        await syncAppConfig(admin, session);
-        return { message: "Reward rule created successfully.", rule: created, status: "success", submitType };
+        const synced = await syncAppConfig(admin, session);
+        return { ...syncOutcome(synced, "Reward rule created successfully.", "Reward rule created"), rule: created, status: "success", submitType };
     } catch (err) {
         logger.error("Create reward rule failed", { module: MODULE, error: err?.message, shop: session.shop });
         return { message: "Failed to create reward rule. Please try again.", status: "error", submitType };
@@ -110,8 +110,8 @@ export async function handleUpdateRule({ formData, session, admin }) {
             },
         });
 
-        await syncAppConfig(admin, session);
-        return { message: "Reward rule updated successfully.", rule, status: "success", submitType };
+        const synced = await syncAppConfig(admin, session);
+        return { ...syncOutcome(synced, "Reward rule updated successfully.", "Reward rule updated"), rule, status: "success", submitType };
     } catch (err) {
         logger.error("Update reward rule failed", { module: MODULE, error: err?.message, shop: session.shop, ruleId: updatedRule.id });
         return { message: "Failed to update reward rule. Please try again.", status: "error", submitType };
@@ -132,8 +132,8 @@ export async function handleDeleteRule({ formData, session, admin }) {
             return { message: "Rule not found or access denied.", status: "error", submitType };
 
         await prisma.rewardRule.delete({ where: { id: ruleId } });
-        await syncAppConfig(admin, session);
-        return { message: "Reward rule deleted successfully.", status: "success", submitType };
+        const synced = await syncAppConfig(admin, session);
+        return { ...syncOutcome(synced, "Reward rule deleted successfully.", "Reward rule deleted"), status: "success", submitType };
     } catch (err) {
         logger.error("Delete reward rule failed", { module: MODULE, error: err?.message, shop: session.shop, ruleId });
         return { message: err.message || "Failed to delete rule. Please try again.", status: "error", submitType };

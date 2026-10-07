@@ -50,3 +50,18 @@ export function findDuplicateEventError(events, ev, excludeId = null) {
     }
     return null;
 }
+
+/**
+ * Required-field check for the Add / Edit event forms. Mirrors the action's
+ * own "Name and Type are required." guard (_data.server.js), so the form
+ * can say which field is missing instead of only refusing to save.
+ *
+ * @param {{ name?: string, type?: string }} ev
+ * @returns {{ name?: string, type?: string }} Empty when valid.
+ */
+export function requiredEventErrors(ev) {
+    const errors = {};
+    if (!ev?.name?.trim()) errors.name = "Event name is required.";
+    if (!ev?.type?.trim()) errors.type = "Choose an event type.";
+    return errors;
+}

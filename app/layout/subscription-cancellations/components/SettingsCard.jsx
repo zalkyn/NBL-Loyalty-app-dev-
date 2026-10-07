@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { MANUAL_RESET_MODE_OPTIONS } from "../_data";
 
 /**
  * Controls whether a customer's points balance is automatically reset to 0
@@ -16,12 +17,18 @@ import { useEffect, useRef } from "react";
  * DOM back — leaving the switch showing the wrong state until the admin
  * confirms or cancels. The ref + effect below force-writes `.checked`
  * back to the true `enabled` value on every render, closing that gap.
+ *
+ * The manual reset mode below works the same way: a change is confirmed in
+ * the modal first, and the choice list is forced back to the saved value
+ * (`manualResetMode`) until then.
  */
-export function SettingsCard({ enabled, isSubmitting, onChange }) {
+export function SettingsCard({ enabled, manualResetMode, isSubmitting, onChange, onModeChange }) {
     const switchRef = useRef(null);
+    const modeRef = useRef(null);
 
     useEffect(() => {
         if (switchRef.current) switchRef.current.checked = enabled;
+        if (modeRef.current) modeRef.current.values = [manualResetMode];
     });
 
     return (
@@ -43,6 +50,35 @@ export function SettingsCard({ enabled, isSubmitting, onChange }) {
                     onChange={(e) => onChange(e.target.checked)}
                 />
             </s-stack>
+
+            <s-box paddingBlockStart="base">
+                <s-divider />
+            </s-box>
+
+            <s-box paddingBlockStart="base">
+                <s-stack direction="block" gap="small-300">
+                    <s-heading>When you reset manually</s-heading>
+                    <s-text tone="subdued" variant="bodySm">
+                        Applies to Reset Now and bulk reset. A manual reset can happen days after the cancellation,
+                        when the customer may have earned more points. The automatic reset happens at the moment of
+                        cancellation, so this setting doesn&apos;t change it.
+                    </s-text>
+                    <s-choice-list
+                        ref={modeRef}
+                        name="manualResetMode"
+                        label="When you reset manually"
+                        labelAccessibilityVisibility="exclusive"
+                        disabled={isSubmitting}
+                        onChange={(e) => onModeChange(e.currentTarget.values?.[0])}
+                    >
+                        {MANUAL_RESET_MODE_OPTIONS.map((o) => (
+                            <s-choice key={o.value} value={o.value} selected={manualResetMode === o.value} details={o.details}>
+                                {o.label}{o.value === "FULL_BALANCE" ? " (default)" : ""}
+                            </s-choice>
+                        ))}
+                    </s-choice-list>
+                </s-stack>
+            </s-box>
         </s-section>
     );
 }

@@ -29,6 +29,9 @@ export const SKIP_REASON_LABEL = {
     // never meant to open. Labeled distinctly so the audit trail says what
     // actually happened instead of the factually wrong "balance was 0".
     NEGATIVE_BALANCE: "Balance is negative (existing debt) — left untouched",
+    // Manual reset in KEEP_EARNED_AFTER mode found nothing left from before
+    // the cancellation — every point the customer has came after it.
+    NOTHING_BEFORE_CANCEL: "Nothing to remove — all points were earned after cancelling",
 };
 
 /**
@@ -40,7 +43,21 @@ export const SKIP_REASON_LABEL = {
  * customer-profile stat card, row selection for bulk actions) — duplicating
  * the check risked one of them drifting out of sync with the others.
  */
-export const NON_ACTIONABLE_SKIP_REASONS = ["ALREADY_ZERO", "NEGATIVE_BALANCE"];
+export const NON_ACTIONABLE_SKIP_REASONS = ["ALREADY_ZERO", "NEGATIVE_BALANCE", "NOTHING_BEFORE_CANCEL"];
+
+/** Admin-facing names for the manual reset modes (utils/subscriptionCancelReset.js). */
+export const MANUAL_RESET_MODE_OPTIONS = [
+    {
+        value: "FULL_BALANCE",
+        label: "Reset the whole balance to 0",
+        details: "Removes every point the customer has when you reset, including points earned after they cancelled.",
+    },
+    {
+        value: "KEEP_EARNED_AFTER",
+        label: "Keep points earned after cancelling",
+        details: "Removes only the points left from before the cancellation. Points earned since are kept.",
+    },
+];
 
 /**
  * @param {{ resetApplied: boolean, skipReason: string|null }} event
@@ -92,4 +109,72 @@ export function formatDate(d) {
     return new Date(d).toLocaleString("en-US", {
         month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
     });
+}
+
+/**
+ * How many points a reset event can give back in total: what its reset
+ * transaction ACTUALLY removed — not previousBalance (the balance when the
+ * cancellation was recorded). The two differ when a manual reset runs later
+ * and the customer earned more in between (it removes the live balance), or
+ * when two of a customer's cancellations were reset at the same moment (the
+ * second removes 0 because the first already zeroed the balance). Capping
+ * at previousBalance under-restored the first case and, in the second, let
+ * both events "restore" points that were only taken once.
+ *
+ * Falls back to previousBalance only for an event with no linked
+ * transaction, which shouldn't exist for resetApplied events.
+ *
+ * @param {{ previousBalance: number, transaction?: { points: number } | null }} event
+ * @returns {number}
+ */
+export function restorableTotal(event) {
+    if (event?.transaction && typeof event.transaction.points === "number") {
+        // A reset's points are negative (points removed). Never Math.abs:
+        // a reset that somehow ADDED points (a negative balance zeroed on a
+        // path without the negative-balance guard) removed nothing, so
+        // nothing is restorable from it.
+        return Math.max(0, -event.transaction.points);
+    }
+    return Math.max(0, Number(event?.previousBalance) || 0);
+}
+
+/**
+ * Points still restorable for an event (never negative).
+ *
+ * @param {{ previousBalance: number, restoredAmount?: number, transaction?: { points: number } | null }} event
+ * @returns {number}
+ */
+export function restoreRemaining(event) {
+    return Math.max(0, restorableTotal(event) - (Number(event?.restoredAmount) || 0));
+}
+
+/**
+ * Picks which of one customer's applied resets an ALREADY_ZERO row should
+ * point the admin at: one that still has points left to restore, else the
+ * most recent. Shared by the cancellations page (attachResetSiblings in
+ * _data.server.js) and the customer profile table, so both name the same row.
+ *
+ * @param {Array<{ id: number, cancelledAt: string|Date, resetApplied: boolean, previousBalance: number, restoredAmount?: number, transaction?: { points: number } | null }>} events
+ *   One customer's events, in any order.
+ * @returns {{ id: number, cancelledAt: string|Date } | null}
+ */
+export function pickResetSibling(events) {
+    const applied = events
+        .filter((e) => e.resetApplied)
+        .sort((a, b) => new Date(b.cancelledAt) - new Date(a.cancelledAt));
+    const pick = applied.find((e) => restoreRemaining(e) > 0) ?? applied[0];
+    return pick ? { id: pick.id, cancelledAt: pick.cancelledAt } : null;
+}
+
+/**
+ * Admin-facing explanation for an ALREADY_ZERO row, which never offers
+ * Restore Points (no points were deducted by it).
+ *
+ * @param {{ cancelledAt: string|Date } | null} resetBySibling - from pickResetSibling
+ * @returns {string}
+ */
+export function nothingToRestoreNote(resetBySibling) {
+    return resetBySibling
+        ? `No points were deducted here. This customer's reset was applied on their cancellation from ${formatDate(resetBySibling.cancelledAt)} — restore from that row.`
+        : "No points were deducted for this cancellation, so there's nothing to restore.";
 }

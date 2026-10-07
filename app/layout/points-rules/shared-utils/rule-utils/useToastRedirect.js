@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import { isErrorResult } from "@app/utils/formFeedback";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // useToastRedirect
@@ -19,9 +20,9 @@ export function useToastRedirect(actionData, redirectTo = "/app/points-rules") {
 
     useEffect(() => {
         if (!actionData) return;
-        shopify.toast.show(actionData.message, {
-            isError: actionData.status === "error",
-        });
+        // isErrorResult also covers syncFailed: saved, but the storefront
+        // copy wasn't updated.
+        shopify.toast.show(actionData.message, { isError: isErrorResult(actionData) });
         if (actionData.status === "success") {
             navigate(redirectTo);
         }

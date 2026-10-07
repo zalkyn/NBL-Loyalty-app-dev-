@@ -1,7 +1,7 @@
 import { useLoaderData, useActionData, useNavigate, redirect } from "react-router";
 import { authenticate } from "shopify-server";
 import prisma from "db-server";
-import syncAppConfig from "@controller/metafieldsSync/syncAppConfig";
+import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppConfig";
 
 import { useRuleForm } from "@shared-utils/rule-utils/useRuleForm";
 import { useSubmitBusy } from "@shared-utils/rule-utils/useSubmitBusy";
@@ -11,6 +11,7 @@ import { DescriptionField } from "@shared-utils/rule-components/DescriptionField
 import { SaveBar } from "@app/components/saveBar/SaveBar";
 
 import { buildConditions, buildFormShape, validate, REVIEW_TYPES } from "./_data";
+import { parseRulePayload, validateRulePayload } from "../shared-utils/rule-utils/validateRulePayload";
 import { ReviewTypeCard } from "./components/ReviewTypeCard";
 import { RewardModeSelector } from "./components/RewardModeSelector";
 import { SummaryPanel } from "./components/SummaryPanel";
@@ -48,7 +49,15 @@ export const action = async ({ request }) => {
     const { session, admin } = await authenticate.admin(request);
     const formData = await request.formData();
     const submitType = formData.get("submitType");
-    const payload = JSON.parse(formData.get("payload") || "{}");
+    const payload = parseRulePayload(formData.get("payload"));
+
+    // Same rules the form runs (./_data.js validate) — enforced here too so
+    // a request that skipped the form can't save a rule with 0 / negative
+    // points. See validateRulePayload.js.
+    if (submitType === "createRule" || submitType === "updateRule") {
+        const payloadError = validateRulePayload(validate, payload);
+        if (payloadError) return { message: payloadError, status: "error", submitType };
+    }
 
     if (submitType === "createRule") {
         try {
@@ -72,8 +81,8 @@ export const action = async ({ request }) => {
                     event: { connect: { id: event.id } },
                 },
             });
-            await syncAppConfig(admin, session);
-            return { message: "Points rule created successfully.", rule: created, status: "success", submitType };
+            const synced = await syncAppConfig(admin, session);
+            return { ...syncOutcome(synced, "Points rule created successfully.", "Points rule created"), rule: created, status: "success", submitType };
         } catch (err) {
             console.error("Create REVIEW Rule Error:", err);
             return { message: "Failed to create rule. Please try again.", status: "error", submitType };
@@ -97,8 +106,8 @@ export const action = async ({ request }) => {
                     conditions: buildConditions(payload.review),
                 },
             });
-            await syncAppConfig(admin, session);
-            return { message: "Points rule updated successfully.", rule, status: "success", submitType };
+            const synced = await syncAppConfig(admin, session);
+            return { ...syncOutcome(synced, "Points rule updated successfully.", "Points rule updated"), rule, status: "success", submitType };
         } catch (err) {
             console.error("Update REVIEW Rule Error:", err);
             return { message: "Failed to update rule. Please try again.", status: "error", submitType };
