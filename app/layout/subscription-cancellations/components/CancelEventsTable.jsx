@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router";
 import Pagination from "@app/components/pagination/Pagination";
-import { formatDate, SKIP_REASON_LABEL, restoreRemaining as getRestoreRemaining } from "../_data";
+import { formatDate, SKIP_REASON_LABEL, nothingToRestoreNote, restoreRemaining as getRestoreRemaining } from "../_data";
 
 /**
  * Main cancellations table — one row per Appstle subscription.cancelled
@@ -149,9 +149,7 @@ export function CancelEventsTable({
                                                 // Actions column across the table.
                                                 <s-box maxInlineSize="280px">
                                                     <s-text tone="subdued" variant="bodySm">
-                                                        {event.resetBySibling
-                                                            ? `No points were deducted here. This customer's reset was applied on their cancellation from ${formatDate(event.resetBySibling.cancelledAt)} — restore from that row.`
-                                                            : "No points were deducted for this cancellation, so there's nothing to restore."}
+                                                        {nothingToRestoreNote(event.resetBySibling)}
                                                     </s-text>
                                                 </s-box>
                                             )}

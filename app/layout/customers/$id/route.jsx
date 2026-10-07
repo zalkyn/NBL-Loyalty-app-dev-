@@ -132,7 +132,10 @@ export default function CustomerDetails() {
             <PhysicalPrizeClaimsTable pagination={page.prizeClaimPagination} />
 
             {/* ── Subscription Cancellations (read-only) ── */}
-            <SubscriptionCancelEventsTable pagination={page.cancelEventPagination} />
+            <SubscriptionCancelEventsTable
+                pagination={page.cancelEventPagination}
+                allEvents={page.customer?.subscriptionCancelEvents ?? []}
+            />
 
         </s-page>
     );

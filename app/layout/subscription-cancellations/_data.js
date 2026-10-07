@@ -130,3 +130,34 @@ export function restorableTotal(event) {
 export function restoreRemaining(event) {
     return Math.max(0, restorableTotal(event) - (Number(event?.restoredAmount) || 0));
 }
+
+/**
+ * Picks which of one customer's applied resets an ALREADY_ZERO row should
+ * point the admin at: one that still has points left to restore, else the
+ * most recent. Shared by the cancellations page (attachResetSiblings in
+ * _data.server.js) and the customer profile table, so both name the same row.
+ *
+ * @param {Array<{ id: number, cancelledAt: string|Date, resetApplied: boolean, previousBalance: number, restoredAmount?: number, transaction?: { points: number } | null }>} events
+ *   One customer's events, in any order.
+ * @returns {{ id: number, cancelledAt: string|Date } | null}
+ */
+export function pickResetSibling(events) {
+    const applied = events
+        .filter((e) => e.resetApplied)
+        .sort((a, b) => new Date(b.cancelledAt) - new Date(a.cancelledAt));
+    const pick = applied.find((e) => restoreRemaining(e) > 0) ?? applied[0];
+    return pick ? { id: pick.id, cancelledAt: pick.cancelledAt } : null;
+}
+
+/**
+ * Admin-facing explanation for an ALREADY_ZERO row, which never offers
+ * Restore Points (no points were deducted by it).
+ *
+ * @param {{ cancelledAt: string|Date } | null} resetBySibling - from pickResetSibling
+ * @returns {string}
+ */
+export function nothingToRestoreNote(resetBySibling) {
+    return resetBySibling
+        ? `No points were deducted here. This customer's reset was applied on their cancellation from ${formatDate(resetBySibling.cancelledAt)} — restore from that row.`
+        : "No points were deducted for this cancellation, so there's nothing to restore.";
+}
