@@ -49,11 +49,28 @@ const POINTS_SNIPPET = `{%- liquid
   endif
 
   assign nbl_points = nbl_core.points | default: nbl_legacy.points | default: 0
+
+  # 5180 -> 5,180, same as the widget shows
+  assign nbl_digits = nbl_points | abs | floor | append: ''
+  assign nbl_chars = nbl_digits | split: ''
+  assign nbl_len = nbl_chars | size
+  assign nbl_points_text = ''
+  if nbl_points < 0
+    assign nbl_points_text = '-'
+  endif
+  for nbl_char in nbl_chars
+    assign nbl_points_text = nbl_points_text | append: nbl_char
+    assign nbl_left = nbl_len | minus: forloop.index
+    assign nbl_mod = nbl_left | modulo: 3
+    if nbl_left > 0 and nbl_mod == 0
+      assign nbl_points_text = nbl_points_text | append: ','
+    endif
+  endfor
 -%}
 
 {%- if nbl_is_member -%}
   <div class="members-card">
-    <span data-nbl-points>{{ nbl_points }}</span> pts
+    <span data-nbl-points>{{ nbl_points_text }}</span> pts
     <a href="/pages/loyalty-rewards">View rewards</a>
   </div>
 {%- elsif customer -%}

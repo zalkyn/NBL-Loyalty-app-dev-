@@ -13,7 +13,10 @@
 //      { points, isMember, isLoggedIn }, for anything custom
 //
 // Numbers are written with the same formatNumber() the widget header uses,
-// so the page and the widget always show the same figure.
+// so the page and the widget always show the same figure. An element that
+// already shows the right number (Liquid renders it with thousands
+// separators at page load) is left alone, so it doesn't visibly reformat
+// as the widget loads; it's rewritten only when the number itself changes.
 //
 // This touches the light DOM on purpose (it's the merchant's page, outside
 // our shadow root) but only ever sets textContent on elements the merchant
@@ -22,6 +25,13 @@
 
 import { useEffect } from 'preact/hooks';
 import { formatNumber } from '../utils.js';
+
+// "5,180", "5.180", "5 180" and "5180" all read as 5180 — only the
+// grouping differs. A minus sign is kept so -50 never matches 50.
+function sameNumber(text, value) {
+    var digits = String(text || '').replace(/[^0-9-]/g, '');
+    return digits !== '' && digits !== '-' && Number(digits) === value;
+}
 
 export function usePublishPoints(points, isMember, isLoggedIn) {
     useEffect(function () {
@@ -34,7 +44,8 @@ export function usePublishPoints(points, isMember, isLoggedIn) {
         var formatted = formatNumber(value);
         var els = document.querySelectorAll('[data-nbl-points]');
         for (var i = 0; i < els.length; i++) {
-            if (els[i].textContent !== formatted) els[i].textContent = formatted;
+            if (sameNumber(els[i].textContent, value)) continue;
+            els[i].textContent = formatted;
         }
 
         var detail = { points: value, isMember: !!isMember, isLoggedIn: !!isLoggedIn };
