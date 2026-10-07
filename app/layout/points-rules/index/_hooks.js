@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useSubmit, useNavigation, useNavigate } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import { isErrorResult } from "@app/utils/formFeedback";
 
 import { EVENT_ROUTES, PER_PAGE } from "./_data";
 
@@ -41,7 +42,8 @@ export function usePointsRulesIndexPage(loaderData, actionData) {
     // ── Toast + post-delete cleanup ───────────────────────────────────────────
     useEffect(() => {
         if (!actionData) return;
-        shopify.toast.show(actionData.message, { isError: actionData.status === "error" });
+        // isErrorResult also covers syncFailed: saved, but the storefront copy wasn't updated.
+        shopify.toast.show(actionData.message, { isError: isErrorResult(actionData) });
         if (actionData.status === "success" && actionData.submitType === "deleteRule") {
             setDeleteTarget(null);
         }

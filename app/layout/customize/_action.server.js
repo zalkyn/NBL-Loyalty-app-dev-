@@ -1,7 +1,8 @@
 import prisma from "db-server";
-import syncAppConfig from "@controller/metafieldsSync/syncAppConfig";
+import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppConfig";
 import searchPages from "@graphql/query/shop/searchPages";
 import { CSS_DEFAULTS, WIDGET_CONFIG_DEFAULTS, deepClone } from "./constants/cssVarsConfig";
+import { validateCustomCss } from "./constants/customCss";
 import { logger } from "app/utils/logger.js";
 
 /** @constant {string} Module identifier for structured logging */
@@ -19,7 +20,8 @@ async function upsertAndSync(session, admin, cssVars, presetKey = null, widgetCo
         update: data,
         create: { shop: session.shop, sessionId: session.id, ...data },
     });
-    await syncAppConfig(admin, session);
+    // Whether the storefront copy was updated — see syncAppConfig's return.
+    return syncAppConfig(admin, session);
 }
 
 // ── UPDATE ───────────────────────────────────────────────────────────────────
@@ -33,10 +35,25 @@ export async function handleUpdate({ formData, session, admin }) {
         const rawWidgetConfig = formData.get("widgetConfig");
         const widgetConfig = rawWidgetConfig ? JSON.parse(rawWidgetConfig) : null;
 
-        await upsertAndSync(session, admin, cssVars, presetKey, widgetConfig);
+        // Same check the form runs before submitting — repeated here so a
+        // request that skipped the form can't store CSS it would have refused
+        // (notably "<", which could break out of the storefront <script>).
+        const customCssError = validateCustomCss(widgetConfig?.customCss);
+        if (customCssError) {
+            return { ok: false, intent, message: customCssError };
+        }
 
+        const synced = await upsertAndSync(session, admin, cssVars, presetKey, widgetConfig);
+
+        // ok:true even when the sync failed: the styles ARE saved in the app
+        // DB, so the admin's "saved" snapshot must match them. ok:false here
+        // left the form dirty — Discard then showed the old styles while the
+        // DB kept the new ones, and the next save of anything (which re-syncs
+        // the whole config) pushed those "discarded" styles live.
+        // syncFailed turns the toast red; same as Reset all / Clear all.
         return {
-            ok: true, intent, message: "Widget styles saved successfully.",
+            ok: true, intent, 
+            ...syncOutcome(synced, "Widget styles saved successfully.", "Widget styles saved"),
             savedCssVars: cssVars, savedPresetKey: presetKey, savedWidgetConfig: widgetConfig,
         };
     } catch (err) {
@@ -65,10 +82,14 @@ export async function handleResetAll({ session, admin }) {
         // whole class of bug instead of relying on every single lbl() call
         // site remembering to duplicate a matching fallback.
         const freshWidgetConfig = deepClone(WIDGET_CONFIG_DEFAULTS);
-        await upsertAndSync(session, admin, fresh, null, freshWidgetConfig);
+        const synced = await upsertAndSync(session, admin, fresh, null, freshWidgetConfig);
 
+        // Stays ok:true even if the sync failed: the reset IS saved, and
+        // ok:false would leave the old values on screen, where one Save
+        // would overwrite the reset. syncFailed turns the toast red instead.
         return {
-            ok: true, intent, message: "All styles reset to defaults.",
+            ok: true, intent, 
+            ...syncOutcome(synced, "All styles reset to defaults.", "All styles reset to defaults"),
             savedCssVars: fresh, savedPresetKey: null, savedWidgetConfig: freshWidgetConfig,
         };
     } catch (err) {
@@ -98,10 +119,12 @@ export async function handleClearAll({ session, admin }) {
             update: { cssVars: null, presetKey: null, widgetConfig: freshWidgetConfig },
             create: { shop: session.shop, sessionId: session.id, cssVars: null, presetKey: null, widgetConfig: freshWidgetConfig },
         });
-        await syncAppConfig(admin, session);
+        const synced = await syncAppConfig(admin, session);
 
+        // ok:true for the same reason as handleResetAll.
         return {
-            ok: true, intent, message: "Custom styles cleared. Widget is now using default CSS.",
+            ok: true, intent, 
+            ...syncOutcome(synced, "Custom styles cleared. Widget is now using default CSS.", "Custom styles cleared"),
             savedCssVars: null, savedPresetKey: null, savedWidgetConfig: freshWidgetConfig,
         };
     } catch (err) {

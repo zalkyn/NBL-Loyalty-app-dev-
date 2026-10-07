@@ -356,6 +356,13 @@ function toPathKey(path) {
  *   Called by `submit()` once validation passes. If it returns a promise,
  *   `isSubmitting` stays true until it resolves or rejects.
  *
+ * @property {function(Object): void} [onInvalid]
+ *   Called by `submit()` when validation fails, with the errors object —
+ *   after the errors have been set and every field marked touched. Used to
+ *   tell the user why nothing happened (toast + scroll to the first error,
+ *   see app/utils/formFeedback.js), which matters when the Save button
+ *   lives somewhere the field errors aren't visible, like the save bar.
+ *
  * @property {boolean} [syncOnServerDataChange=true]
  *   When `true` (default), if `serverData` reference changes the hook
  *   re-initialises form + snapshot automatically (like a fresh page load).
@@ -384,6 +391,7 @@ export function useFormState(serverData, buildFormShape, options = {}) {
         schema,
         validateOnChange = false,
         onSubmit,
+        onInvalid,
         syncOnServerDataChange = true,
     } = options;
 
@@ -392,6 +400,8 @@ export function useFormState(serverData, buildFormShape, options = {}) {
     const validateRef = useRef(validate);
     const schemaRef = useRef(schema);
     const onSubmitRef = useRef(onSubmit);
+    const onInvalidRef = useRef(onInvalid);
+    onInvalidRef.current = onInvalid;
     buildFormShapeRef.current = buildFormShape;
     validateRef.current = validate;
     schemaRef.current = schema;
@@ -1064,6 +1074,7 @@ export function useFormState(serverData, buildFormShape, options = {}) {
 
         if (Object.keys(errors).length > 0) {
             touchAllFields();
+            onInvalidRef.current?.(errors);
             return false;
         }
 

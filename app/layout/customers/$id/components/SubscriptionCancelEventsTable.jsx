@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router";
 import Pagination from "@components/pagination/Pagination";
-import { SKIP_REASON_LABEL, isActionable } from "@app/layout/subscription-cancellations/_data";
+import { SKIP_REASON_LABEL, isActionable, pickResetSibling, nothingToRestoreNote } from "@app/layout/subscription-cancellations/_data";
 
 /**
  * Read-only history of this customer's subscription cancellations (Appstle
@@ -8,9 +8,12 @@ import { SKIP_REASON_LABEL, isActionable } from "@app/layout/subscription-cancel
  * Now" action lives on the dedicated Subscription Cancellations page —
  * same "read-only here, manage there" split as PhysicalPrizeClaimsTable.
  */
-export function SubscriptionCancelEventsTable({ pagination }) {
+export function SubscriptionCancelEventsTable({ pagination, allEvents }) {
     const { paginatedData: events } = pagination;
     const navigate = useNavigate();
+    // From ALL of this customer's events, not just the current page — the
+    // reset an ALREADY_ZERO row points at may be on another page.
+    const resetBySibling = pickResetSibling(allEvents ?? events);
 
     return (
         <s-section>
@@ -41,6 +44,15 @@ export function SubscriptionCancelEventsTable({ pagination }) {
                                         <s-text tone="subdued" variant="bodySm">
                                             {SKIP_REASON_LABEL[event.skipReason] ?? event.skipReason}
                                         </s-text>
+                                    )}
+                                    {/* Same note as the cancellations page's Actions column —
+                                        explains why this row has no Restore Points. */}
+                                    {event.skipReason === "ALREADY_ZERO" && (
+                                        <s-box maxInlineSize="280px">
+                                            <s-text tone="subdued" variant="bodySm">
+                                                {nothingToRestoreNote(resetBySibling)}
+                                            </s-text>
+                                        </s-box>
                                     )}
                                     {/* Shared isActionable, not a local re-check — a bare
                                         `skipReason !== "ALREADY_ZERO"` here previously missed

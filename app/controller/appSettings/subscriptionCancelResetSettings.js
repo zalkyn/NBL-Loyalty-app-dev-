@@ -1,5 +1,6 @@
 import prisma from "../../db.server.js";
 import { logger } from "../../utils/logger.js";
+import { MANUAL_RESET_MODES, DEFAULT_MANUAL_RESET_MODE } from "../../utils/subscriptionCancelReset.js";
 
 const MODULE = "controller/appSettings/subscriptionCancelResetSettings.js";
 
@@ -12,6 +13,10 @@ export const DEFAULT_SUBSCRIPTION_CANCEL_RESET_SETTINGS = {
     // in SubscriptionCancelEvent either way (see subscriptionCancelledJob.js)
     // — this toggle only controls whether the reset is actually applied.
     enabled: true,
+    // How the MANUAL reset (Reset Now / bulk) treats points earned after the
+    // cancellation — see MANUAL_RESET_MODES in utils/subscriptionCancelReset.js.
+    // Default keeps the original behaviour: reset the whole balance.
+    manualResetMode: DEFAULT_MANUAL_RESET_MODE,
 };
 
 /**
@@ -30,7 +35,9 @@ export async function getSubscriptionCancelResetSettings(shop) {
         select: { settings: true },
     });
 
-    return { ...DEFAULT_SUBSCRIPTION_CANCEL_RESET_SETTINGS, ...(row?.settings?.subscriptionCancelReset || {}) };
+    const merged = { ...DEFAULT_SUBSCRIPTION_CANCEL_RESET_SETTINGS, ...(row?.settings?.subscriptionCancelReset || {}) };
+    if (!MANUAL_RESET_MODES.includes(merged.manualResetMode)) merged.manualResetMode = DEFAULT_MANUAL_RESET_MODE;
+    return merged;
 }
 
 /**
@@ -41,18 +48,30 @@ export async function getSubscriptionCancelResetSettings(shop) {
  * @param {Object} params
  * @param {string} params.shop
  * @param {string} params.sessionId - Needed for the create branch of the upsert (AppSettings.sessionId is required).
- * @param {boolean} params.enabled
+ * @param {boolean} [params.enabled]         - Left as-is when omitted.
+ * @param {string}  [params.manualResetMode] - Left as-is when omitted; must be one of MANUAL_RESET_MODES.
  * @returns {Promise<typeof DEFAULT_SUBSCRIPTION_CANCEL_RESET_SETTINGS>}
  */
-export async function updateSubscriptionCancelResetSettings({ shop, sessionId, enabled }) {
+export async function updateSubscriptionCancelResetSettings({ shop, sessionId, enabled, manualResetMode }) {
+    if (manualResetMode !== undefined && !MANUAL_RESET_MODES.includes(manualResetMode)) {
+        throw new Error(`Invalid manual reset mode: ${manualResetMode}`);
+    }
+
     const existing = await prisma.appSettings.findUnique({
         where: { shop },
         select: { settings: true },
     });
 
+    // Merge field by field — each setting is changed on its own from the
+    // page, and saving one must never reset the other to its default.
+    const current = { ...DEFAULT_SUBSCRIPTION_CANCEL_RESET_SETTINGS, ...(existing?.settings?.subscriptionCancelReset || {}) };
     const nextSettings = {
         ...(existing?.settings || {}),
-        subscriptionCancelReset: { enabled: !!enabled },
+        subscriptionCancelReset: {
+            ...current,
+            ...(enabled !== undefined ? { enabled: !!enabled } : {}),
+            ...(manualResetMode !== undefined ? { manualResetMode } : {}),
+        },
     };
 
     await prisma.appSettings.upsert({

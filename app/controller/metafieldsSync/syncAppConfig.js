@@ -16,9 +16,15 @@ const MODULE = "controller/metafieldsSync/syncAppConfig.js";
  * Retries internally on transient network failure and never throws — this
  * is a best-effort background sync, not a critical path.
  *
+ * Resolves to whether the metafield was actually written. Callers that just
+ * saved something in the admin should check it and tell the merchant when
+ * the storefront wasn't updated (see STOREFRONT_NOT_UPDATED) — before, a
+ * failure here was only logged, so the admin said "saved" while the store
+ * kept showing the old config.
+ *
  * @param {Object} admin   - Shopify Admin GraphQL client
  * @param {Object} session - Shopify session (used to look up shop config from DB)
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} true if synced, false if it failed (already logged)
  */
 export default async function syncAppConfig(admin, session) {
     try {
@@ -141,7 +147,38 @@ export default async function syncAppConfig(admin, session) {
                 context: { module: MODULE, shop: session?.shop },
             }
         );
+        return true;
     } catch (error) {
         logger.error(MODULE, "syncAppConfig failed", { shop: session?.shop, error: error?.message });
+        return false;
     }
+}
+
+/**
+ * Appended to an admin save's success message when syncAppConfig() returned
+ * false: the change IS saved in the app, only the storefront copy is stale.
+ * Deliberately doesn't say "save again" for create actions — that would make
+ * a duplicate; any later save of anything re-syncs the whole config.
+ */
+export const STOREFRONT_NOT_UPDATED =
+    "but your store couldn't be updated right now. It will update the next time you save a change — if this keeps happening, please contact support.";
+
+/**
+ * The message + flag every admin save returns after syncAppConfig():
+ * `okMessage` when the storefront was updated, otherwise `failLead` followed
+ * by STOREFRONT_NOT_UPDATED, with `syncFailed: true` so the toast turns red
+ * (see isErrorResult in utils/formFeedback.js). Spread into the action result:
+ *
+ *   return { ...syncOutcome(synced, "Prize created successfully.", "Prize created"), status: "success" };
+ *
+ * @param {boolean} synced    - syncAppConfig()'s return value
+ * @param {string}  okMessage - Full message when the sync worked
+ * @param {string}  failLead  - What was saved, e.g. "Prize created"
+ * @returns {{ message: string, syncFailed: boolean }}
+ */
+export function syncOutcome(synced, okMessage, failLead) {
+    return {
+        message: synced ? okMessage : `${failLead}, ${STOREFRONT_NOT_UPDATED}`,
+        syncFailed: !synced,
+    };
 }

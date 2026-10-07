@@ -1,7 +1,9 @@
 import { useEffect, useCallback, useState } from "react";
 import { useSubmit, useNavigation } from "react-router";
+import { useSubmitLock } from "@app/hooks/useSubmitLock";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useFormState } from "@app/hooks/useFormState";
+import { notifyInvalidForm, isErrorResult } from "@app/utils/formFeedback";
 
 import { EMPTY_RULE, buildFormShape, validate, previewTitle, PER_PAGE } from "./_data";
 
@@ -13,6 +15,7 @@ import { EMPTY_RULE, buildFormShape, validate, previewTitle, PER_PAGE } from "./
 export function useRewardRulesPage(loaderData, actionData) {
     const submit = useSubmit();
     const navigation = useNavigation();
+    const tryLock = useSubmitLock(navigation.state);
     const shopify = useAppBridge();
 
     // ── View state ────────────────────────────────────────────────────────────
@@ -31,12 +34,16 @@ export function useRewardRulesPage(loaderData, actionData) {
     const busy = isSaving || isUpdating;
 
     // ── Form state ────────────────────────────────────────────────────────────
-    const fs = useFormState(EMPTY_RULE, buildFormShape, { validate });
+    const fs = useFormState(EMPTY_RULE, buildFormShape, {
+        validate,
+        onInvalid: (errors) => notifyInvalidForm(shopify, errors),
+    });
 
     // ── ACTION DATA EFFECT ────────────────────────────────────────────────────
     useEffect(() => {
         if (!actionData) return;
-        shopify.toast.show(actionData.message, { isError: actionData.status === "error" });
+        // isErrorResult also covers syncFailed: saved, but the storefront copy wasn't updated.
+        shopify.toast.show(actionData.message, { isError: isErrorResult(actionData) });
 
         if (actionData.status === "success") {
             if (actionData.submitType === "addRule" || actionData.submitType === "updateRule") {
@@ -89,12 +96,14 @@ export function useRewardRulesPage(loaderData, actionData) {
     const handleSave = useCallback(async () => {
         const valid = await fs.submit();
         if (!valid) return;
+        if (!tryLock()) return; // a submit is already in flight (see useSubmitLock)
         submit({ submitType: "addRule", rule: JSON.stringify(fs.form) }, { method: "post" });
     }, [fs, submit]);
 
     const handleUpdate = useCallback(async () => {
         const valid = await fs.submit();
         if (!valid) return;
+        if (!tryLock()) return; // a submit is already in flight (see useSubmitLock)
         submit({ submitType: "updateRule", rule: JSON.stringify(fs.form) }, { method: "post" });
     }, [fs, submit]);
 

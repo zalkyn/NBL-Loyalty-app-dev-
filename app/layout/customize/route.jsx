@@ -41,6 +41,7 @@ import { CustomizeTab } from "./components/CustomizeTab";
 import { ConfigTab } from "./components/ConfigTab";
 import { LabelsTab } from "./components/LabelsTab";
 import { AdvancedTab } from "./components/AdvancedTab";
+import { CustomCssPanel } from "./components/CustomCssPanel";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -100,7 +101,11 @@ export default function CustomizeNew() {
                     ? (CONFIG_SECTION_TO_SCENE[page.activeConfigSection] ?? "home")
                     : page.pageTab === "labels"
                         ? (LABEL_GROUP_TO_SCENE[page.activeLabelGroup] ?? "home")
-                        : "home";
+                        // Custom CSS only applies in full screen / page mode,
+                        // so the preview switches to full screen to show it.
+                        : page.pageTab === "css"
+                            ? "fullscreen"
+                            : "home";
 
     return (
         <s-page inlineSize="large">
@@ -176,6 +181,17 @@ export default function CustomizeNew() {
                     onSimpleChange={page.handleSimpleChange}
                     isNetworkSubmitting={page.isNetworkSubmitting}
                 />
+            )}
+
+            {page.pageTab === "css" && (
+                <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+                    <CustomCssPanel
+                        value={page.widgetConfig.customCss}
+                        error={page.customCssError}
+                        onChange={(v) => page.handleConfigChange("customCss", v)}
+                        disabled={page.isNetworkSubmitting}
+                    />
+                </s-grid>
             )}
 
             {/* ══ FLOATING SAVE BAR ══ */}

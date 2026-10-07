@@ -40,6 +40,12 @@ const STRUCTURAL = [
   ".nbl-image-preview-overlay",
   ".nbl-provision-overlay",
   ".nbl-notify-panel",
+  // Text size (zoom) on the wrapper's direct children, and the guest
+  // min-height that compensates for it — must apply at every width.
+  ".nbl-widget-wrapper > .nbl-sticky-top",
+  ".nbl-widget-wrapper > .nbl-widget-body",
+  ".nbl-widget-wrapper > .nbl-guest",
+  ".nbl-widget-wrapper .nbl-guest",
 ];
 
 // The multi-column treatment. Only correct once the widget is actually wide;

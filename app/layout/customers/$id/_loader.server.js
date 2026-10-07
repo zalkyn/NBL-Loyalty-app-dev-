@@ -27,12 +27,17 @@ export async function loadCustomerDetails(admin, sessionId, customerId) {
             // manual "Reset Now" action stays on the dedicated Subscription
             // Cancellations page; this is just per-customer context. select
             // trimmed to exactly what SubscriptionCancelEventsTable.jsx reads
-            // (id/cancelledAt/previousBalance/resetApplied/skipReason) — the
-            // rest (metadata like customerEmail/subscriptionContractId/svixId)
+            // (id/cancelledAt/previousBalance/resetApplied/skipReason, plus
+            // restoredAmount + the reset transaction's points for its
+            // "nothing to restore" note — see pickResetSibling) — the rest
+            // (metadata like customerEmail/subscriptionContractId/svixId)
             // is only useful on the dedicated page, which already loads it.
             subscriptionCancelEvents: {
                 orderBy: { cancelledAt: "desc" },
-                select: { id: true, cancelledAt: true, previousBalance: true, resetApplied: true, skipReason: true },
+                select: {
+                    id: true, cancelledAt: true, previousBalance: true, resetApplied: true, skipReason: true,
+                    restoredAmount: true, transaction: { select: { points: true } },
+                },
             },
             referralsSent: true,
             referralsUsed: true,

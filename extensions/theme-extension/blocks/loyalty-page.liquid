@@ -131,6 +131,8 @@
 
     --nbl-page-pad-top: {{ block.settings.padding_top }}px;
     --nbl-page-pad-bottom: {{ block.settings.padding_bottom }}px;
+    --nbl-page-zoom: {{ block.settings.text_size | default: 100 | divided_by: 100.0 }};
+    --nbl-page-zoom-mobile: {{ block.settings.text_size_mobile | default: 100 | divided_by: 100.0 }};
   "
   {{ block.shopify_attributes }}
 >
@@ -348,6 +350,17 @@
     },
     {
       "type": "range",
+      "id": "text_size",
+      "label": "Text size",
+      "min": 80,
+      "max": 150,
+      "step": 5,
+      "unit": "%",
+      "default": 100,
+      "info": "Scales the text and everything around it together, so the layout keeps its proportions. Width and height above stay as set."
+    },
+    {
+      "type": "range",
       "id": "min_height",
       "label": "Minimum height",
       "min": 300,
@@ -389,6 +402,17 @@
       "unit": "%",
       "default": 100,
       "info": "Share of the width the page gives this block. 100% lines up with your other sections."
+    },
+    {
+      "type": "range",
+      "id": "text_size_mobile",
+      "label": "Text size",
+      "min": 80,
+      "max": 150,
+      "step": 5,
+      "unit": "%",
+      "default": 100,
+      "info": "Scales the text and everything around it together on phones."
     },
     {
       "type": "range",

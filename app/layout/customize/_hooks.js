@@ -1,6 +1,9 @@
 import { useState, useMemo, useEffect, useCallback, useRef, useDeferredValue } from "react";
 import { useSubmit, useNavigation } from "react-router";
+import { useSubmitLock } from "@app/hooks/useSubmitLock";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import { isErrorResult } from "@app/utils/formFeedback";
+import { validateCustomCss } from "./constants/customCss";
 
 import {
     SIMPLE_SECTIONS, WIDGET_CONFIG_SECTIONS, LABEL_GROUPS, CSS_DEFAULTS, PRESETS,
@@ -21,6 +24,7 @@ export function useCustomizePage(loaderData, actionData) {
     const { savedCssVars, savedWidgetConfig } = loaderData;
     const submit = useSubmit();
     const navigation = useNavigation();
+    const tryLock = useSubmitLock(navigation.state);
     const shopify = useAppBridge();
 
     const isNetworkSubmitting = navigation.state === "submitting";
@@ -78,7 +82,7 @@ export function useCustomizePage(loaderData, actionData) {
         if (actionData === lastSyncedActionRef.current) return;
         lastSyncedActionRef.current = actionData;
 
-        shopify.toast.show(actionData.message, { isError: !actionData.ok });
+        shopify.toast.show(actionData.message, { isError: isErrorResult(actionData) });
         setActiveIntent(null);
         if (!actionData.ok) return;
 
@@ -211,7 +215,24 @@ export function useCustomizePage(loaderData, actionData) {
         // preset (if any) persistedVars itself matches.
     }, [persistedVars, persistedWidgetConfig]);
 
+    // Custom CSS is the one free-text field here that can be outright
+    // invalid, so it's checked live (inline error in the Custom CSS tab) and
+    // again at save time — same validator the action runs server-side.
+    const customCssError = useMemo(
+        () => validateCustomCss(widgetConfig.customCss),
+        [widgetConfig.customCss]
+    );
+
     const handleSave = useCallback(() => {
+        if (customCssError) {
+            // Block the save and take the merchant to the field — the save
+            // bar can be clicked from any tab, where the inline error isn't
+            // visible.
+            shopify.toast.show(customCssError, { isError: true });
+            setPageTab("css");
+            return;
+        }
+        if (!tryLock()) return; // a save is already in flight (see useSubmitLock)
         setActiveIntent("update");
         const fd = new FormData();
         fd.set("intent", "update");
@@ -220,7 +241,7 @@ export function useCustomizePage(loaderData, actionData) {
         fd.set("presetKey", activePreset ?? "");
         fd.set("widgetConfig", JSON.stringify(widgetConfig));
         submit(fd, { method: "post" });
-    }, [cssVars, activePreset, widgetConfig, submit]);
+    }, [customCssError, shopify, tryLock, cssVars, activePreset, widgetConfig, submit]);
 
     const handleResetAll = useCallback(() => {
         setActiveIntent("resetAll");
@@ -246,6 +267,7 @@ export function useCustomizePage(loaderData, actionData) {
         notificationPreviewType, setNotificationPreviewType,
 
         hasChanges, isFirstSave, isUpdating, isNetworkSubmitting, activeIntent,
+        customCssError,
         totalDirtyVarCount,
         simpleSectionDirtyCount, configSectionDirtyCount,
 

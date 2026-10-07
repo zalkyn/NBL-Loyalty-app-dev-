@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSubmit, useNavigation, useSearchParams } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
-import { VALID_STATUSES, DEFAULT_PER_PAGE, isActionable } from "./_data";
+import { VALID_STATUSES, DEFAULT_PER_PAGE, isActionable, restoreRemaining } from "./_data";
 
 /**
  * Encapsulates all page-level state for the Subscription Cancellations
@@ -21,6 +21,8 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
     // instead of waiting for the loader to re-run after the action commits.
     // Reset back to null (defer to loaderData) once the action settles.
     const [pendingSettingsEnabled, setPendingSettingsEnabled] = useState(null);
+    // Same optimistic pattern for the manual reset mode.
+    const [pendingMode, setPendingMode] = useState(null);
 
     // Shared confirm modal — turning auto-reset OFF, a single reset, and a
     // bulk reset all route through this one modal/ref, same "target state +
@@ -42,6 +44,7 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
     const events = loaderData?.events ?? [];
     const stats = loaderData?.stats ?? { total: 0, applied: 0, needsAction: 0 };
     const settingsEnabled = pendingSettingsEnabled ?? loaderData?.settings?.enabled ?? true;
+    const manualResetMode = pendingMode ?? loaderData?.settings?.manualResetMode ?? "FULL_BALANCE";
 
     const isSubmitting = navigation.state === "submitting";
     const pendingEventId = navigation.formData?.get("eventId");
@@ -88,6 +91,7 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
         if (actionData.submitType === "updateSettings") {
             // Settled — defer back to loaderData's fresh value either way.
             setPendingSettingsEnabled(null);
+            setPendingMode(null);
         }
         if (actionData.status === "success" && (actionData.submitType === "resetPoints" || actionData.submitType === "bulkResetPoints")) {
             setSelectedIds(new Set());
@@ -107,6 +111,15 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
         requestAnimationFrame(() => modalRef.current?.showOverlay());
     }, []);
 
+    // ── Manual reset mode — confirmed first, same as the toggle above (it
+    // changes how many points future manual resets remove). SettingsCard
+    // re-syncs the choice list to `manualResetMode` until confirmed.
+    const handleModeChange = useCallback((mode) => {
+        if (!mode || mode === manualResetMode) return;
+        setConfirmTarget({ type: "mode", nextMode: mode });
+        requestAnimationFrame(() => modalRef.current?.showOverlay());
+    }, [manualResetMode]);
+
     // ── Reset actions — both open the shared confirm modal; the actual
     // submit happens in handleConfirm below once the admin confirms ────────
     const handleResetOne = useCallback((event) => {
@@ -122,12 +135,12 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
 
     // ── Restore action — opens the shared confirm modal with an editable
     // amount, pre-filled with whatever's still restorable for this event
-    // (previousBalance minus whatever's already been restored). Capping the
+    // (what its reset actually removed, minus whatever's already been
+    // restored — see restoreRemaining in _data.js). Capping the
     // input itself happens server-side (handleRestorePoints) — this is only
     // a sane default, not the enforcement.
     const handleRestore = useCallback((event) => {
-        const remaining = Math.max(0, event.previousBalance - event.restoredAmount);
-        setRestoreAmountInput(String(remaining));
+        setRestoreAmountInput(String(restoreRemaining(event)));
         setConfirmTarget({ type: "restore", event });
         requestAnimationFrame(() => modalRef.current?.showOverlay());
     }, []);
@@ -139,6 +152,9 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
         if (confirmTarget.type === "toggle") {
             setPendingSettingsEnabled(confirmTarget.nextEnabled);
             submit({ submitType: "updateSettings", enabled: String(confirmTarget.nextEnabled) }, { method: "post" });
+        } else if (confirmTarget.type === "mode") {
+            setPendingMode(confirmTarget.nextMode);
+            submit({ submitType: "updateSettings", manualResetMode: confirmTarget.nextMode }, { method: "post" });
         } else if (confirmTarget.type === "resetOne") {
             submit({ submitType: "resetPoints", eventId: String(confirmTarget.event.id) }, { method: "post" });
         } else if (confirmTarget.type === "resetBulk") {
@@ -175,12 +191,12 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
     const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
     return {
-        events, stats, settingsEnabled,
+        events, stats, settingsEnabled, manualResetMode,
         activeTab, setActiveTab,
         currentPage, perPage, totalItems, totalPages, startIndex, setCurrentPage, setPerPage,
         isSubmitting, isBusy,
         selectedIds, selectableIds, allSelected, toggleSelect, toggleSelectAll, clearSelection,
-        handleToggleSettings, handleResetOne, handleBulkReset, handleRestore,
+        handleToggleSettings, handleModeChange, handleResetOne, handleBulkReset, handleRestore,
         modalRef, confirmTarget, handleConfirm, closeConfirmModal,
         restoreAmountInput, setRestoreAmountInput,
         loaderError: loaderData?.loaderError ?? null,

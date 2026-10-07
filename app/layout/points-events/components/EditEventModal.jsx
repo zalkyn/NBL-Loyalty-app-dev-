@@ -9,6 +9,7 @@ export function EditEventModal({ selectedEvent, setSelectedEvent, isUpdating, on
                         <s-text-field
                             label="Name *"
                             value={selectedEvent.name ?? ""}
+                            error={!selectedEvent.name?.trim() ? "Event name is required." : undefined}
                             disabled={isUpdating}
                             onInput={(e) => setSelectedEvent((prev) => ({ ...prev, name: e.target.value }))}
                         />

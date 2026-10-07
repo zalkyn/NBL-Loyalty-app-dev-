@@ -442,6 +442,12 @@ function boot() {
     shadowRoot.appendChild(styleEl);
 
     var mountPoint = document.createElement('div');
+    // Custom font from the app embed's "Use a custom font" setting
+    // (loyalty.liquid). The family itself arrives as --nbl-font-family; this
+    // class is what lets ui.css also apply it to buttons/inputs, which don't
+    // inherit font by default — and only when the setting is on, so stores
+    // that don't use it keep exactly their current rendering.
+    if (window.NBL_v1.customFont) mountPoint.className = 'nbl-custom-font';
     shadowRoot.appendChild(mountPoint);
 
     // ── Theme-editor remount hook ───────────────────────────────────────────

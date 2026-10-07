@@ -29,8 +29,8 @@
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
-    "widget:build": "node scripts/check-widget-css.js && node app/widget-ui/ui/build.js",
-    "widget:build:debug": "node scripts/check-widget-css.js && node app/widget-ui/ui/build.js --debug",
+    "widget:build": "node scripts/check-widget-css.js && node scripts/generate-widget-selectors.js && node app/widget-ui/ui/build.js",
+    "widget:build:debug": "node scripts/check-widget-css.js && node scripts/generate-widget-selectors.js && node app/widget-ui/ui/build.js --debug",
     "widget:dev": "node app/widget-ui/ui/build.js --watch",
     "widget:check": "node scripts/check-widget-css.js"
   },
