@@ -28,7 +28,7 @@ import prisma from "db-server";
 import { useRewardRulesPage } from "./_hooks";
 import { handleAddRule, handleUpdateRule, handleDeleteRule } from "./_data.server";
 
-import { PageHeading } from "./components/PageHeading";
+import { PageHeading, pageTitle } from "./components/PageHeading";
 import { RulesTable } from "./components/RulesTable";
 import { RewardRuleForm } from "./components/RewardRuleForm";
 import { DeleteRuleModal } from "./components/DeleteRuleModal";
@@ -77,20 +77,18 @@ export default function RewardRulesPage() {
     const page = useRewardRulesPage(loaderData, actionData);
 
     return (
-        <s-page inlineSize="base">
-            <s-section>
-                <PageHeading
-                    view={page.view}
-                    fs={page.fs}
-                    isAnyBusy={page.isAnyBusy}
-                    isSaving={page.isSaving}
-                    isUpdating={page.isUpdating}
-                    onCreate={page.goToCreate}
-                    onCancel={page.goToList}
-                    onSave={page.handleSave}
-                    onUpdate={page.handleUpdate}
-                />
-            </s-section>
+        <s-page heading={pageTitle(page.view)} inlineSize="base">
+            <PageHeading
+                view={page.view}
+                fs={page.fs}
+                isAnyBusy={page.isAnyBusy}
+                isSaving={page.isSaving}
+                isUpdating={page.isUpdating}
+                onCreate={page.goToCreate}
+                onCancel={page.goToList}
+                onSave={page.handleSave}
+                onUpdate={page.handleUpdate}
+            />
 
             {page.view === "list" && (
                 <RulesTable

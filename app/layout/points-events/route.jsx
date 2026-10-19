@@ -72,14 +72,12 @@ export default function EventsPage() {
     const handleDeleteClick = (ev) => page.setSelectedEvent(ev);
 
     return (
-        <s-page inlineSize="base">
-            <s-section>
-                <PageHeading
-                    showAddForm={page.showAddForm}
-                    isAnyBusy={page.isAnyBusy}
-                    onToggle={page.toggleAddForm}
-                />
-            </s-section>
+        <s-page heading="Points Events" inlineSize="base">
+            <PageHeading
+                showAddForm={page.showAddForm}
+                isAnyBusy={page.isAnyBusy}
+                onToggle={page.toggleAddForm}
+            />
 
             {page.showAddForm ? (
                 <AddEventForm
