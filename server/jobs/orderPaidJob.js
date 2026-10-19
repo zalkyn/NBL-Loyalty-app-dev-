@@ -789,7 +789,30 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop, subscr
 
     logger.info(MODULE, "Order points resolved", { shop, points, orderLabel, subscriptionInterval });
 
-    await createTransaction(
+    // A retried job (automatic, or the merchant's "Retry failed orders") must
+    // never pay the same order twice: if this customer already has an EARN for
+    // this order under this rule, the points are already there.
+    const alreadyEarned = await dbRetry(
+        () =>
+            prisma.transaction.findFirst({
+                where: {
+                    customerId: customer.id,
+                    type: "EARN",
+                    pointsRuleId: rule.id,
+                    metadata: { path: ["orderId"], equals: order.admin_graphql_api_id },
+                },
+                select: { id: true },
+            }),
+        { module: MODULE, shop, orderId: order.admin_graphql_api_id }
+    );
+    if (alreadyEarned) {
+        logger.warn(MODULE, "Order points already recorded — not awarding twice", {
+            shop, orderLabel, customerId: customer.id, transactionId: alreadyEarned.id,
+        });
+        return;
+    }
+
+    const earnTransaction = await createTransaction(
         {
             customerId: customer.id,
             type: "EARN",
@@ -808,6 +831,11 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop, subscr
         },
         session
     );
+    // createTransaction returns null on failure rather than throwing; without this
+    // the job would be marked complete with no points recorded.
+    if (!earnTransaction) {
+        throw new Error(`Order points could not be recorded for customer ${customer.id} (${orderLabel})`);
+    }
 
     // Non-critical — points already saved. syncCustomerConfig retries transient
     // network failures internally and never throws, so no outer retry/catch needed.
