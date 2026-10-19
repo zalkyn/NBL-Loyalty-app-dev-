@@ -1,31 +1,23 @@
 /**
- * Header bar — "Points Backfill Rules + Add Points Backfill Rule" on the list view, or a
- * breadcrumb ("Points Backfill Rules › Add Points Backfill Rule" / "Points Backfill Rules › Edit
- * Points Backfill Rule") on the create/edit views.
+ * Page actions for <s-page> (the title is the page's own `heading`, see
+ * pageTitle): "Add Points Backfill Rule" as the primary action on the list
+ * view, or a breadcrumb back to the list on the create/edit views.
  */
+export const pageTitle = (view) =>
+    view === "list" ? "Points Backfill Rules" : view === "edit" ? "Edit Points Backfill Rule" : "Add Points Backfill Rule";
+
 export function PageHeading({ view, isAnyBusy, onCreate, onBackToList }) {
     if (view === "list") {
         return (
-            <s-grid gridTemplateColumns="1fr auto" gap="large" alignItems="center">
-                <h2 style={{ marginBlock: "0" }}>Points Backfill Rules</h2>
-                <s-button variant="primary" onClick={onCreate} disabled={isAnyBusy}>
-                    Add Points Backfill Rule
-                </s-button>
-            </s-grid>
+            <s-button slot="primary-action" variant="primary" onClick={onCreate} disabled={isAnyBusy}>
+                Add Points Backfill Rule
+            </s-button>
         );
     }
 
-    const isEdit = view === "edit";
     return (
-        <s-stack direction="inline" gap="small" alignItems="center">
-            <s-button
-                variant="plain" onClick={onBackToList} disabled={isAnyBusy}
-                style={{ padding: 0, minHeight: "unset" }}
-            >
-                Points Backfill Rules
-            </s-button>
-            <s-text tone="subdued">›</s-text>
-            <h2 style={{ marginBlock: "0" }}>{isEdit ? "Edit Points Backfill Rule" : "Add Points Backfill Rule"}</h2>
-        </s-stack>
+        <s-button slot="breadcrumb-actions" onClick={onBackToList} disabled={isAnyBusy}>
+            Points Backfill Rules
+        </s-button>
     );
 }

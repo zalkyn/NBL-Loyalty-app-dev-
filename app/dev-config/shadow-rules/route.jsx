@@ -22,7 +22,7 @@ import shopCurrency from "@graphql/query/shop/shopCurrency.js";
 
 import { useShadowRulesPage } from "./_hooks";
 import { DevConfigNav } from "../components/DevConfigNav";
-import { PageHeading } from "./components/PageHeading";
+import { PageHeading, pageTitle } from "./components/PageHeading";
 import { ShadowRuleTable } from "./components/ShadowRuleTable";
 import { ShadowRuleForm } from "./components/ShadowRuleForm";
 import { DeleteConfirmModal } from "./components/DeleteConfirmModal";
@@ -248,17 +248,15 @@ export default function ShadowRulesPage() {
     const isEdit = page.view === "edit";
 
     return (
-        <s-page heading="Points Backfill Rules">
+        <s-page heading={pageTitle(page.view)}>
             <DevConfigNav active="points-backfill-rules" />
 
-            <s-section>
-                <PageHeading
-                    view={page.view}
-                    isAnyBusy={page.isAnyBusy}
-                    onCreate={page.goToCreate}
-                    onBackToList={page.goToList}
-                />
-            </s-section>
+            <PageHeading
+                view={page.view}
+                isAnyBusy={page.isAnyBusy}
+                onCreate={page.goToCreate}
+                onBackToList={page.goToList}
+            />
 
             {page.view === "list" && (
                 <ShadowRuleTable
