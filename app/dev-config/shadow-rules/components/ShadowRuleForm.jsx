@@ -25,6 +25,13 @@ export function ShadowRuleForm({
 }) {
     const rateLocked = hasEntries;
 
+    // What the field shows: an unlocked rule is re-verified against the live
+    // shop currency on save (see route.jsx), so show that. A locked rule keeps
+    // the currency it was created with — show exactly that.
+    const savedCurrency = fs.form.currencyCode ?? null;
+    const shownCurrency = rateLocked ? (savedCurrency ?? shopCurrencyCode) : (shopCurrencyCode ?? savedCurrency);
+    const currencyChanged = Boolean(savedCurrency && shopCurrencyCode && savedCurrency !== shopCurrencyCode);
+
     return (
         <s-grid gridTemplateColumns="2fr 1fr" gap="base">
             {/* ── Left ───────────────────────────────────────────── */}
@@ -135,10 +142,24 @@ export function ShadowRuleForm({
 
                         <s-text-field
                             label="Currency"
-                            value={fs.form.currencyCode ?? shopCurrencyCode ?? ""}
+                            value={shownCurrency ?? ""}
                             disabled
-                            details="Always your shop's current currency — re-verified automatically on every save, cannot be edited here."
+                            details={rateLocked
+                                ? "This rule has already been used, so it keeps the currency it was created with."
+                                : "Always your shop's current currency — re-verified automatically on every save, cannot be edited here."}
                         />
+
+                        {currencyChanged && (
+                            <s-box paddingBlockStart="small">
+                                <s-banner tone="warning">
+                                    <s-paragraph>
+                                        {rateLocked
+                                            ? `This rule is in ${savedCurrency} but your shop is now in ${shopCurrencyCode}. Because it has already been used it can't be switched — customers whose spend is in ${shopCurrencyCode} will be skipped as a currency mismatch. Create a new rule in ${shopCurrencyCode} instead.`
+                                            : `This rule was saved in ${savedCurrency}. Your shop is now in ${shopCurrencyCode}, so saving will switch it to ${shopCurrencyCode}. Check the amount above still makes sense in ${shopCurrencyCode}.`}
+                                    </s-paragraph>
+                                </s-banner>
+                            </s-box>
+                        )}
 
                         {/* The loader treats a failed shopCurrency() call as
                             best-effort and falls back to null, which is right
