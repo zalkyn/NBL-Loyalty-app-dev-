@@ -68,19 +68,12 @@ export default function Customers() {
                 The sync itself is unaffected — this is only about whether
                 this page keeps watching it. */}
             {page.pollExpired && (
-                <s-box paddingBlockEnd="base">
-                    <s-banner tone="warning">
-                        <s-paragraph>
-                            <strong>Stopped watching for updates.</strong> This sync has been running a long time —
-                            it carries on regardless.
-                        </s-paragraph>
-                        <s-box paddingBlockStart="small">
-                            <s-button variant="secondary" size="small" onClick={page.resumePolling}>
-                                Check again
-                            </s-button>
-                        </s-box>
-                    </s-banner>
-                </s-box>
+                <s-banner slot="supplemental-start" tone="warning" heading="Stopped watching for updates">
+                    <s-text>This sync has been running a long time — it carries on regardless.</s-text>
+                    <s-button slot="secondary-actions" variant="secondary" onClick={page.resumePolling}>
+                        Check again
+                    </s-button>
+                </s-banner>
             )}
 
             {(page.isSyncRunning || page.syncJobStatus === "FAILED") && (

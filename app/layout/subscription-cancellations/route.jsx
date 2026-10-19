@@ -169,33 +169,28 @@ export default function SubscriptionCancellationsPage() {
     return (
         <s-page heading="Subscription Cancellations" inlineSize="large">
 
-            <s-section>
-                <s-banner tone="info" heading="Subscription cancellations">
-                    <s-stack gap="small">
-                        <s-text>
-                            Every Appstle subscription cancellation this app has seen, and whether the customer&apos;s points
-                            balance was reset to 0. Lifetime points are never affected — see the toggle below.
-                        </s-text>
-                        <s-stack direction="inline">
-                            <s-button
-                                variant="secondary"
-                                icon="info"
-                                commandFor={HOW_IT_WORKS_MODAL_ID}
-                                command="--show"
-                            >
-                                How it works
-                            </s-button>
-                        </s-stack>
-                    </s-stack>
-                </s-banner>
-            </s-section>
+            <s-banner slot="supplemental-start" tone="info" heading="Subscription cancellations" dismissible>
+                <s-text>
+                    Every Appstle subscription cancellation this app has seen, and whether the customer&apos;s points
+                    balance was reset to 0. Lifetime points are never affected — see the toggle below.
+                </s-text>
+                <s-button
+                    slot="secondary-actions"
+                    variant="secondary"
+                    icon="info"
+                    commandFor={HOW_IT_WORKS_MODAL_ID}
+                    command="--show"
+                >
+                    How it works
+                </s-button>
+            </s-banner>
 
             <HowItWorksModal />
 
             {page.loaderError && (
-                <s-section>
-                    <s-banner tone="critical">{page.loaderError}</s-banner>
-                </s-section>
+                <s-banner slot="supplemental-start" tone="critical" heading="Something went wrong">
+                    <s-text>{page.loaderError}</s-text>
+                </s-banner>
             )}
 
             <ConfirmModal

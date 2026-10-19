@@ -101,41 +101,45 @@ export function AttentionPanel({ health }) {
 
     const allClear = items.length === 0;
 
+    // Page-wide banners: direct children of <s-page> in its supplemental-start
+    // slot (outside any section), next steps as secondary-actions, one message
+    // per banner. Only banners the merchant doesn't have to act on can be closed.
     return (
         <>
             {items.map((item) => (
-                <s-section key={item.key}>
-                    <s-banner tone={item.tone} heading={item.heading}>
-                        <s-stack direction="inline" gap="base" alignItems="center">
-                            <s-text>{item.text}</s-text>
-                            {item.action && (
-                                <s-button variant="primary" onClick={() => navigate(item.action.href)}>
-                                    {item.action.label}
-                                </s-button>
-                            )}
-                        </s-stack>
-                    </s-banner>
-                </s-section>
+                <s-banner key={item.key} slot="supplemental-start" tone={item.tone} heading={item.heading}>
+                    <s-text>{item.text}</s-text>
+                    {item.action && (
+                        <s-button slot="secondary-actions" variant="secondary" onClick={() => navigate(item.action.href)}>
+                            {item.action.label}
+                        </s-button>
+                    )}
+                </s-banner>
             ))}
 
             {allClear && (
-                <s-section>
-                    <s-banner tone="success" heading="Everything looks healthy">
-                        <s-text>Orders are processing, no referral rewards are waiting, and your rules match your store currency.</s-text>
-                    </s-banner>
-                </s-section>
+                <s-banner slot="supplemental-start" tone="success" heading="Everything looks healthy" dismissible>
+                    <s-text>Orders are processing, no referral rewards are waiting, and your rules match your store currency.</s-text>
+                </s-banner>
             )}
 
             {!introDismissed && (
-                <s-section>
-                    <s-banner ref={introRef} tone="info" heading="New: referral protection and store currency" dismissible>
-                        <s-text>
-                            Referral rewards are now checked before they are paid: accounts that look like the same person are held for your approval
-                            (see Referral Reviews). Customers are told when a reward is held, rejected or skipped. Amounts and symbols now follow your
-                            store currency everywhere.
-                        </s-text>
-                    </s-banner>
-                </s-section>
+                <s-banner
+                    ref={introRef}
+                    slot="supplemental-start"
+                    tone="info"
+                    heading="New: referral protection and store currency"
+                    dismissible
+                >
+                    <s-text>
+                        Referral rewards are now checked before they are paid: accounts that look like the same person are held for your approval
+                        (see Referral Reviews). Customers are told when a reward is held, rejected or skipped. Amounts and symbols now follow your
+                        store currency everywhere.
+                    </s-text>
+                    <s-button slot="secondary-actions" variant="secondary" onClick={() => navigate("/app/referral-reviews")}>
+                        Open Referral Reviews
+                    </s-button>
+                </s-banner>
             )}
         </>
     );
