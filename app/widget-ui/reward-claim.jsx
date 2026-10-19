@@ -30,6 +30,8 @@ import checkUpdateRequired from "@controller/customers/checkUpdateRequired.js";
 import { withRetry } from "app/utils/retry/withRetry.js";
 import { dbRetry } from "app/utils/retry/dbRetry.js";
 import { previewTitle } from "app/layout/rewards-rules/_data.js";
+import getShopCurrencyCached from "../utils/shopCurrencyCache.server.js";
+import { currencySymbol } from "../utils/currency.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "widget-data.get-voucher";
@@ -193,7 +195,10 @@ async function redeemReward({ admin, session, customer, rewardRule, customerId, 
     // discountType/rewardValue actually are. Falls back to the raw title
     // itself if it has no placeholder to resolve (previewTitle just
     // returns it unchanged in that case) or is empty.
-    const resolvedRuleTitle = previewTitle(rewardRule.title, rewardRule.discountType, rewardRule.rewardValue) || rewardRule.title;
+    // Symbol comes from the store's live currency — never a hardcoded "$".
+    const shopCurrencyCode = await getShopCurrencyCached(admin, shop).catch(() => null);
+    const resolvedRuleTitle =
+        previewTitle(rewardRule.title, rewardRule.discountType, rewardRule.rewardValue, currencySymbol(shopCurrencyCode)) || rewardRule.title;
 
     // ── 1. Deduct points FIRST ──────────────────────────────────────────────
     //
