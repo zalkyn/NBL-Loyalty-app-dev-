@@ -3,7 +3,7 @@ import { normalizeCustomerGid } from "../../../controller/customers/normalizeCus
 import { generateDiscountCode } from "../../../utils/generateDiscountCode.js";
 import { getPointRuleByEvent } from "../../../controller/pointsRule/getPointRuleByEvent";
 import { callShopifyGraphql } from "../../../utils/shopifyGraphql.js";
-import shopCurrency from "../query/shop/shopCurrency.js";
+import shopCurrency from "../../query/shop/shopCurrency.js";
 import { currencySymbol } from "../../../utils/currency.js";
 
 /** @constant {string} Module identifier for structured logging */
