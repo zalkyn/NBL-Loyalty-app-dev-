@@ -13,7 +13,7 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const EMPTY_HEALTH = {
     referral: { ruleActive: null, trigger: null, held: 0, skipped30d: 0, flagged30d: 0, stuck: 0 },
-    jobs: { failed: 0, waiting: 0 },
+    jobs: { failed: 0, failedOrders: [], waiting: 0 },
     ruleCurrencies: [],
 };
 
@@ -47,8 +47,13 @@ export async function loadHealthData(session) {
                 WHERE c."sessionId" = ${session.id}
                   AND r.status = 'ACTIVE' AND r."discountUsed" = false AND rw.status = 'USED'`,
 
-            prisma.job.count({
+            // Newest few failures, so the merchant can quote the order ids to support
+            // (the Background Jobs page is developer-only and not available to them).
+            prisma.job.findMany({
                 where: { shop: session.shop, status: "FAILED", type: { in: ["ORDER_PAID", "ORDER_REVERSED"] }, updatedAt: { gte: since } },
+                orderBy: { updatedAt: "desc" },
+                select: { payload: true },
+                take: 200,
             }),
             prisma.job.count({
                 where: { shop: session.shop, status: "PENDING", attempts: { gt: 0 }, type: { in: ["ORDER_PAID", "ORDER_REVERSED"] } },
@@ -70,7 +75,11 @@ export async function loadHealthData(session) {
                 flagged30d: recentUsed.filter((r) => r.metadata?.reviewFlag).length,
                 stuck: Number(stuckRows?.[0]?.n ?? 0),
             },
-            jobs: { failed: failedJobs, waiting: waitingJobs },
+            jobs: {
+                failed: failedJobs.length,
+                failedOrders: [...new Set(failedJobs.map((j) => String(j.payload?.orderId ?? "").split("/").pop()).filter(Boolean))].slice(0, 5),
+                waiting: waitingJobs,
+            },
             ruleCurrencies: shadowRules.map((r) => r.currencyCode).filter(Boolean),
         };
     } catch (err) {

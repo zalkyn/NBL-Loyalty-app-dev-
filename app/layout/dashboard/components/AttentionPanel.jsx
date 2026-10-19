@@ -56,7 +56,7 @@ export function AttentionPanel({ health }) {
         items.push({
             key: "failed-jobs", tone: "critical",
             heading: "Some orders could not be processed",
-            text: `${jobs.failed.toLocaleString()} order${jobs.failed > 1 ? "s" : ""} failed in the last 30 days, so their points or reversals were not applied. These need a developer to look at the Background Jobs page.`,
+            text: `${jobs.failed.toLocaleString()} order${jobs.failed > 1 ? "s" : ""} could not be processed in the last 30 days, so their points or reversals were not applied. The app already retried automatically. Please contact support so we can fix ${jobs.failed > 1 ? "them" : "it"}${jobs.failedOrders?.length ? ` — quote ${jobs.failedOrders.length > 1 ? "these order IDs" : "this order ID"}: ${jobs.failedOrders.join(", ")}` : ""}.`,
         });
     }
     if (referral.stuck > 0) {
