@@ -18,7 +18,7 @@ import { authenticate } from "shopify-server";
 import Pagination from "@components/pagination/Pagination";
 
 import { loadReviews, handleDecide } from "./_data.server";
-import { TABS, PER_PAGE_OPTIONS, BULK_LIMIT } from "./_data";
+import { TABS, PER_PAGE_OPTIONS, BULK_LIMIT } from "./_data.js";
 import { ReviewTable } from "./components/ReviewTable";
 import { ConfirmDecisionModal } from "./components/ConfirmDecisionModal";
 

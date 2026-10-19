@@ -1,4 +1,4 @@
-import { personName, sentence, gidNumber } from "../_data";
+import { personName, sentence, gidNumber } from "../_data.js";
 import { DECISION_MODAL_ID } from "./ConfirmDecisionModal";
 
 // Stacked (block) so name, email and the points lines never run together.
