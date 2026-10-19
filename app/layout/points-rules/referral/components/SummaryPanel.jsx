@@ -1,5 +1,6 @@
 import { TRIGGER_DESCRIPTIONS, getIntervalLabel } from "@shared-utils/constants/ruleConstants";
 import { ActiveToggle } from "@shared-utils/rule-components/ActiveToggle";
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SummaryPanel
@@ -16,12 +17,13 @@ import { ActiveToggle } from "@shared-utils/rule-components/ActiveToggle";
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function SummaryPanel({ event, referral, isSubscription, isActive, onActiveChange, busy }) {
+    const { symbol } = useShopCurrency();
     const ref = referral.referrer;
     const referred = referral.referred;
 
     const friendDiscountLabel = referred.discountType === "percentage"
         ? `${referred.discountValue || 0}% off`
-        : `$${referred.discountValue || 0} off`;
+        : `${symbol}${referred.discountValue || 0} off`;
 
     const renewalText = (cfg) =>
         isSubscription && cfg?.allowRenewalReward

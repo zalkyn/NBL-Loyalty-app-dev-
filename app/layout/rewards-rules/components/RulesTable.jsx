@@ -1,4 +1,5 @@
 import { previewTitle, formatDiscount } from "../_data";
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RULES TABLE
@@ -15,6 +16,7 @@ export function RulesTable({
     onEdit,
     onDelete,
 }) {
+    const { symbol } = useShopCurrency();
     return (
         <s-section>
             <s-table>
@@ -37,11 +39,11 @@ export function RulesTable({
                         paginatedRules.map((r) => (
                             <s-table-row key={r.id}>
                                 <s-table-cell>
-                                    <s-heading>{previewTitle(r.title, r.discountType, r.rewardValue)}</s-heading>
+                                    <s-heading>{previewTitle(r.title, r.discountType, r.rewardValue, symbol)}</s-heading>
                                 </s-table-cell>
                                 <s-table-cell>{r.pointsCost} pts</s-table-cell>
                                 <s-table-cell>{r.discountType}</s-table-cell>
-                                <s-table-cell>{formatDiscount(r.discountType, r.rewardValue)}</s-table-cell>
+                                <s-table-cell>{formatDiscount(r.discountType, r.rewardValue, symbol)}</s-table-cell>
                                 <s-table-cell><s-badge tone={r.isActive ? "success" : "critical"}>{r.isActive ? "Yes" : "No"}</s-badge></s-table-cell>
                                 <s-table-cell>
                                     <s-stack gap="small" direction="inline">
