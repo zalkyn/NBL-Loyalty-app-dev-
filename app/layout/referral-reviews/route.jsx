@@ -16,7 +16,7 @@ import { loadReviews, handleApprove, handleReject } from "./_data.server";
 
 export const loader = async ({ request }) => {
     const { session } = await authenticate.admin(request);
-    return loadReviews(session);
+    return { ...(await loadReviews(session)), shop: session.shop };
 };
 
 export const action = async ({ request }) => {
@@ -34,17 +34,33 @@ export const action = async ({ request }) => {
 
 const personName = (p) => [p.firstName, p.lastName].filter(Boolean).join(" ") || p.name || "—";
 
+// Stacked (block) so name, email and the points lines never run together.
 function Person({ person }) {
     return (
-        <>
+        <s-stack direction="block" gap="small-500">
             <s-text>{personName(person)}</s-text>
             <s-text tone="subdued">{person.email}</s-text>
-        </>
+        </s-stack>
     );
 }
 
+// The order's page in the Shopify admin, opened in a new tab so the review
+// list isn't lost. Falls back to plain text when the id isn't a real Shopify
+// order (e.g. test data).
+function OrderLink({ shop, orderGid, label }) {
+    const id = String(orderGid ?? "").match(/\/(\d+)$/)?.[1];
+    if (!id || !shop) return <s-text>{label ?? "—"}</s-text>;
+    return (
+        <s-link href={`https://${shop}/admin/orders/${id}`} target="_blank">
+            {label ?? `Order ${id}`}
+        </s-link>
+    );
+}
+
+const sentence = (text) => (text ? text.charAt(0).toUpperCase() + text.slice(1) + "." : "—");
+
 export default function ReferralReviewsPage() {
-    const { held, flagged } = useLoaderData();
+    const { held, flagged, shop } = useLoaderData();
     const actionData = useActionData();
     const submit = useSubmit();
     const navigation = useNavigation();
@@ -93,11 +109,13 @@ export default function ReferralReviewsPage() {
                                 <s-table-row key={r.id}>
                                     <s-table-cell><Person person={r.referrer} /></s-table-cell>
                                     <s-table-cell><Person person={r.referred} /></s-table-cell>
-                                    <s-table-cell>{hold.orderLabel ?? "—"}</s-table-cell>
-                                    <s-table-cell>{hold.reason ?? "—"}</s-table-cell>
+                                    <s-table-cell><OrderLink shop={shop} orderGid={hold.orderId} label={hold.orderLabel} /></s-table-cell>
+                                    <s-table-cell>{sentence(hold.reason)}</s-table-cell>
                                     <s-table-cell>
-                                        <s-text>Referrer: {hold.referrerPoints ?? 0}</s-text>
-                                        <s-text tone="subdued">Friend: {hold.referredPoints ?? 0}</s-text>
+                                        <s-stack direction="block" gap="small-500">
+                                            <s-text>Referrer: {(hold.referrerPoints ?? 0).toLocaleString()}</s-text>
+                                            <s-text tone="subdued">Friend: {(hold.referredPoints ?? 0).toLocaleString()}</s-text>
+                                        </s-stack>
                                     </s-table-cell>
                                     <s-table-cell>
                                         <s-stack direction="inline" gap="small">
@@ -127,12 +145,13 @@ export default function ReferralReviewsPage() {
                     <s-table-header-row>
                         <s-table-header>Referrer</s-table-header>
                         <s-table-header>Referred customer</s-table-header>
+                        <s-table-header>Order</s-table-header>
                         <s-table-header>Note</s-table-header>
                     </s-table-header-row>
                     <s-table-body>
                         {flagged.length === 0 ? (
                             <s-table-row>
-                                <s-table-cell colSpan="3" style={{ textAlign: "center", padding: "2rem" }}>
+                                <s-table-cell colSpan="4" style={{ textAlign: "center", padding: "2rem" }}>
                                     Nothing flagged.
                                 </s-table-cell>
                             </s-table-row>
@@ -140,6 +159,7 @@ export default function ReferralReviewsPage() {
                             <s-table-row key={r.id}>
                                 <s-table-cell><Person person={r.referrer} /></s-table-cell>
                                 <s-table-cell><Person person={r.referred} /></s-table-cell>
+                                <s-table-cell><OrderLink shop={shop} orderGid={r.orderId} /></s-table-cell>
                                 <s-table-cell>
                                     {r.metadata?.approval
                                         ? `Approved by you — ${r.metadata.approval.heldReason ?? ""}`
