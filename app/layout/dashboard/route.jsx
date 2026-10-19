@@ -21,7 +21,7 @@ import { useLoaderData } from "react-router";
 import { authenticate } from "shopify-server";
 
 import { loadDashboardData } from "./_loader.server";
-import { loadHealthData, retryFailedOrderJobs } from "./_health.server";
+import { loadHealthData } from "../health/_health.server";
 import { useDashboardPage } from "./_hooks";
 import { DateRangePicker } from "./components/DateRangePicker";
 import { CancelNeedsActionBanner } from "./components/CancelNeedsActionBanner";
@@ -29,8 +29,7 @@ import { OverviewSection } from "./components/OverviewSection";
 import { PrizeStatsSection } from "./components/PrizeStatsSection";
 import { ChartsSection } from "./components/ChartsSection";
 import { PrizeChartsSection } from "./components/PrizeChartsSection";
-import { AttentionPanel } from "./components/AttentionPanel";
-import { FeatureHealth } from "./components/FeatureHealth";
+import { AttentionSummary } from "./components/AttentionSummary";
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
@@ -38,27 +37,6 @@ export const loader = async ({ request }) => {
     const { session } = await authenticate.admin(request);
     const [dashboard, health] = await Promise.all([loadDashboardData(session.id), loadHealthData(session)]);
     return { ...dashboard, health };
-};
-
-// ─── Action ───────────────────────────────────────────────────────────────────
-
-export const action = async ({ request }) => {
-    const { session } = await authenticate.admin(request);
-    const formData = await request.formData();
-    const submitType = formData.get("submitType");
-
-    if (submitType === "retryFailedOrders") {
-        try {
-            const count = await retryFailedOrderJobs(session);
-            return count > 0
-                ? { status: "success", submitType, count, message: `Retrying ${count} order${count > 1 ? "s" : ""}. This can take a few minutes — this warning goes away if they succeed.` }
-                : { status: "success", submitType, count: 0, message: "There are no failed orders to retry." };
-        } catch {
-            return { status: "error", submitType, message: "Could not retry the orders. Nothing was changed — please try again." };
-        }
-    }
-
-    return { status: "error", submitType, message: "Invalid action." };
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -70,11 +48,9 @@ export default function Dashboard() {
     return (
         <s-page heading="Dashboard">
 
-            <AttentionPanel health={loaderData.health} />
+            <AttentionSummary health={loaderData.health} />
 
             <CancelNeedsActionBanner count={page.cancelNeedsAction} />
-
-            <FeatureHealth health={loaderData.health} />
 
             <DateRangePicker
                 preset={page.preset}           onPresetChange={page.setPreset}
