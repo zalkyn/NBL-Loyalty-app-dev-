@@ -1,31 +1,43 @@
 import { useState, useCallback, useRef } from "react";
 
 const MODAL_ID = "adjust-points-modal";
+const REASON_MAX = 200;
+
+// One-tap amounts and reasons, so the common cases don't need typing.
+const QUICK_AMOUNTS = [100, 500, 1000, 5000];
+const REASONS = {
+    add: ["Goodwill gesture", "Order issue", "Referral reward", "Correction"],
+    remove: ["Correction", "Order refunded", "Duplicate points", "Fraud review"],
+};
 
 /**
  * AdjustPointsModal — merchant-friendly points adjustment.
  *
  * UX:
- *   - Add / Remove toggle — merchant always enters a positive number
- *   - Live preview: "4,610,365 -> 4,610,465 pts"
- *   - Validation: amount must be > 0; Remove blocked if insufficient balance
+ *   - Add / Remove choice — the merchant always enters a positive number
+ *   - One-tap quick amounts and reasons for the common cases
+ *   - Live "before → after" balance card
+ *   - Says plainly what the customer will see
+ *   - Validation: amount must be > 0; Remove blocked if it exceeds the balance
  */
 export function AdjustPointsModal({ customer, isAdjusting, onConfirm }) {
     const modalRef = useRef(null);
 
-    const [mode,   setMode]   = useState("add");   // "add" | "remove"
+    const [mode, setMode] = useState("add");   // "add" | "remove"
     const [amount, setAmount] = useState("");
     const [reason, setReason] = useState("");
 
     const currentPoints = customer?.points ?? 0;
-    const parsedAmount  = Math.max(0, parseInt(amount, 10) || 0);
+    const parsedAmount = Math.max(0, parseInt(amount, 10) || 0);
+    const adding = mode === "add";
 
-    const previewBalance = mode === "add"
+    const previewBalance = adding
         ? currentPoints + parsedAmount
         : Math.max(0, currentPoints - parsedAmount);
 
-    const insufficientBalance = mode === "remove" && parsedAmount > currentPoints;
+    const insufficientBalance = !adding && parsedAmount > currentPoints;
     const isValid = parsedAmount > 0 && !insufficientBalance;
+    const removesEverything = !adding && parsedAmount > 0 && parsedAmount === currentPoints;
 
     const reset = useCallback(() => {
         setMode("add");
@@ -36,49 +48,39 @@ export function AdjustPointsModal({ customer, isAdjusting, onConfirm }) {
     const handleConfirm = useCallback(() => {
         if (!isValid) return;
         modalRef.current?.hideOverlay();
-        onConfirm({ mode, amount: parsedAmount, reason });
+        onConfirm({ mode, amount: parsedAmount, reason: reason.trim() });
         reset();
     }, [isValid, mode, parsedAmount, reason, onConfirm, reset]);
 
-    // ── Toggle button style ───────────────────────────────────────────────────
-    const toggleStyle = (active) => ({
-        flex: 1,
-        padding: "8px 0",
-        borderRadius: "6px",
-        border: active
-            ? `2px solid ${mode === "add" ? "#1D9E75" : "#E24B4A"}`
-            : "2px solid var(--p-color-border, #c9cccf)",
-        background: active
-            ? (mode === "add" ? "#f0faf6" : "#fdf2f2")
-            : "var(--p-color-bg-surface, #fff)",
-        color: active
-            ? (mode === "add" ? "#1D9E75" : "#E24B4A")
-            : "var(--p-color-text-secondary, #6d7175)",
-        fontWeight: active ? 600 : 400,
-        fontSize: "14px",
-        cursor: "pointer",
-        transition: "all 0.15s",
-    });
+    const addQuick = (n) => setAmount(String((parsedAmount || 0) + n));
 
     return (
-        <>
-            {/* Trigger button — rendered by parent via slot */}
-            <s-modal
-                ref={modalRef}
-                id={MODAL_ID}
-                heading="Adjust Points"
-                size="base"
-                onHide={reset}
-            >
-                {/* ── Add / Remove toggle ── */}
-                <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-                    <button style={toggleStyle(mode === "add")}    onClick={() => setMode("add")}>
-                        + Add Points
-                    </button>
-                    <button style={toggleStyle(mode === "remove")} onClick={() => setMode("remove")}>
-                        − Remove Points
-                    </button>
-                </div>
+        <s-modal
+            ref={modalRef}
+            id={MODAL_ID}
+            heading={`Adjust points — ${customer?.name || customer?.email || "customer"}`}
+            size="base"
+            onHide={reset}
+        >
+            <s-stack direction="block" gap="base">
+                {/* ── Add / Remove ── */}
+                <s-grid gridTemplateColumns="1fr 1fr" gap="small">
+                    <s-button
+                        variant={adding ? "primary" : "secondary"}
+                        icon="plus-circle"
+                        onClick={() => setMode("add")}
+                    >
+                        Add points
+                    </s-button>
+                    <s-button
+                        variant={!adding ? "primary" : "secondary"}
+                        tone={!adding ? "critical" : undefined}
+                        icon="minus-circle"
+                        onClick={() => setMode("remove")}
+                    >
+                        Remove points
+                    </s-button>
+                </s-grid>
 
                 {/* ── Amount ── */}
                 <s-number-field
@@ -86,64 +88,96 @@ export function AdjustPointsModal({ customer, isAdjusting, onConfirm }) {
                     placeholder="0"
                     min="1"
                     step="1"
+                    suffix="pts"
                     value={amount}
                     onInput={(e) => setAmount(e.target.value)}
                     error={
                         amount && !isValid
                             ? insufficientBalance
-                                ? `Customer only has ${currentPoints.toLocaleString()} points.`
+                                ? `This customer only has ${currentPoints.toLocaleString()} points.`
                                 : "Points must be greater than 0."
-                            : null
+                            : undefined
                     }
                 />
+                <s-stack direction="inline" gap="small" alignItems="center">
+                    <s-text tone="subdued">Quick add:</s-text>
+                    {QUICK_AMOUNTS.map((n) => (
+                        <s-button key={n} size="small" variant="secondary" onClick={() => addQuick(n)}>
+                            +{n.toLocaleString()}
+                        </s-button>
+                    ))}
+                    {!adding && currentPoints > 0 && (
+                        <s-button size="small" variant="secondary" onClick={() => setAmount(String(currentPoints))}>
+                            All ({currentPoints.toLocaleString()})
+                        </s-button>
+                    )}
+                </s-stack>
 
-                <s-box paddingBlockEnd="base" />
+                {/* ── Before → after ── */}
+                <s-box padding="base" background="subdued" borderRadius="base">
+                    <s-grid gridTemplateColumns="1fr auto 1fr" gap="base" alignItems="center">
+                        <s-stack direction="block" gap="small-500">
+                            <s-text tone="subdued">Now</s-text>
+                            <s-heading>{currentPoints.toLocaleString()} pts</s-heading>
+                        </s-stack>
+                        <s-text tone="subdued">→</s-text>
+                        <s-stack direction="block" gap="small-500">
+                            <s-text tone="subdued">After this change</s-text>
+                            <s-heading>
+                                <span style={{ color: parsedAmount === 0 ? undefined : adding ? "var(--p-color-text-success, #0c5132)" : "var(--p-color-text-critical, #d82c0d)" }}>
+                                    {previewBalance.toLocaleString()} pts
+                                </span>
+                            </s-heading>
+                        </s-stack>
+                    </s-grid>
+                </s-box>
 
-                {/* ── Live preview ── */}
-                {parsedAmount > 0 && (
-                    <div style={{
-                        background: "var(--p-color-bg-surface-secondary)",
-                        borderRadius: "8px",
-                        padding: "12px 16px",
-                        marginBottom: "16px",
-                        fontSize: "13px",
-                        color: "var(--p-color-text-secondary, #6d7175)",
-                    }}>
-                        Preview:{" "}
-                        <strong style={{ color: "var(--p-color-text)" }}>
-                            {currentPoints.toLocaleString()}
-                        </strong>
-                        {" -> "}
-                        <strong style={{ color: mode === "add" ? "#1D9E75" : "#E24B4A" }}>
-                            {previewBalance.toLocaleString()} pts
-                        </strong>
-                    </div>
+                {removesEverything && (
+                    <s-banner tone="warning">
+                        <s-text>This takes the customer&apos;s balance to zero.</s-text>
+                    </s-banner>
                 )}
 
                 {/* ── Reason ── */}
-                <s-text-area
-                    label="Reason (optional)"
-                    placeholder="Manually adjusting points for customer"
-                    value={reason}
-                    onInput={(e) => setReason(e.target.value)}
-                />
-
-                <s-box paddingBlockEnd="base" />
-
-                {/* ── Actions ── */}
-                <s-stack direction="inline" gap="base" justifyContent="end">
-                    <s-button commandFor={MODAL_ID} command="--hide">Cancel</s-button>
-                    <s-button
-                        variant="primary"
-                        icon={mode === "add" ? "plus-circle" : "minus-circle"}
-                        disabled={!isValid || isAdjusting}
-                        loading={isAdjusting}
-                        onClick={handleConfirm}
-                    >
-                        {mode === "add" ? "Add Points" : "Remove Points"}
-                    </s-button>
+                <s-stack direction="block" gap="small">
+                    <s-text-area
+                        label="Reason (optional)"
+                        placeholder="Why are you changing this balance?"
+                        rows={2}
+                        maxLength={REASON_MAX}
+                        value={reason}
+                        onInput={(e) => setReason(e.target.value)}
+                        details={`${reason.length}/${REASON_MAX} — saved with the transaction so you and your team can see why.`}
+                    />
+                    <s-stack direction="inline" gap="small" alignItems="center">
+                        <s-text tone="subdued">Common reasons:</s-text>
+                        {REASONS[mode].map((r) => (
+                            <s-button key={r} size="small" variant="tertiary" onClick={() => setReason(r)}>
+                                {r}
+                            </s-button>
+                        ))}
+                    </s-stack>
                 </s-stack>
-            </s-modal>
-        </>
+
+                <s-text tone="subdued">
+                    The customer will see &quot;Admin {adding ? "added" : "removed"} {parsedAmount > 0 ? parsedAmount.toLocaleString() : "N"} points&quot; in their loyalty widget.
+                </s-text>
+            </s-stack>
+
+            <s-button slot="secondary-actions" commandFor={MODAL_ID} command="--hide" disabled={isAdjusting}>
+                Cancel
+            </s-button>
+            <s-button
+                slot="primary-action"
+                variant="primary"
+                tone={adding ? undefined : "critical"}
+                icon={adding ? "plus-circle" : "minus-circle"}
+                disabled={!isValid || isAdjusting}
+                loading={isAdjusting || undefined}
+                onClick={handleConfirm}
+            >
+                {adding ? "Add points" : "Remove points"}
+            </s-button>
+        </s-modal>
     );
 }
