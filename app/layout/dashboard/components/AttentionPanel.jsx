@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useActionData, useNavigate, useNavigation, useSubmit } from "react-router";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 
 const INTRO_KEY = "nbl_dashboard_intro_dismissed_v1";
@@ -28,6 +29,23 @@ function writeDismissed() {
  */
 export function AttentionPanel({ health }) {
     const navigate = useNavigate();
+    const submit = useSubmit();
+    const navigation = useNavigation();
+    const shopify = useAppBridge();
+    const actionData = useActionData();
+    const retrying = navigation.state === "submitting" && navigation.formData?.get("submitType") === "retryFailedOrders";
+
+    // Every outcome of the retry button gets a toast, so the click never feels ignored.
+    useEffect(() => {
+        if (actionData?.submitType !== "retryFailedOrders") return;
+        shopify.toast.show(actionData.message, { isError: actionData.status === "error" });
+    }, [actionData, shopify]);
+
+    const retryFailedOrders = () => {
+        const fd = new FormData();
+        fd.set("submitType", "retryFailedOrders");
+        submit(fd, { method: "post" });
+    };
     const { code: shopCurrency } = useShopCurrency();
     // Start dismissed so the info banner never flashes in for someone who
     // already closed it; the real value is read after mount.
@@ -56,7 +74,8 @@ export function AttentionPanel({ health }) {
         items.push({
             key: "failed-jobs", tone: "critical",
             heading: "Some orders could not be processed",
-            text: `${jobs.failed.toLocaleString()} order${jobs.failed > 1 ? "s" : ""} could not be processed in the last 30 days, so their points or reversals were not applied. The app already retried automatically. Please contact support so we can fix ${jobs.failed > 1 ? "them" : "it"}${jobs.failedOrders?.length ? ` — quote ${jobs.failedOrders.length > 1 ? "these order IDs" : "this order ID"}: ${jobs.failedOrders.join(", ")}` : ""}.`,
+            text: `${jobs.failed.toLocaleString()} order${jobs.failed > 1 ? "s" : ""} could not be processed in the last 30 days, so ${jobs.failed > 1 ? "their" : "its"} points or reversals were not applied. Try again now — it is safe, nothing is paid twice. If ${jobs.failed > 1 ? "they fail" : "it fails"} again, contact support${jobs.failedOrders?.length ? ` and quote ${jobs.failedOrders.length > 1 ? "these order IDs" : "this order ID"}: ${jobs.failedOrders.join(", ")}` : ""}.`,
+            retry: true,
         });
     }
     if (referral.stuck > 0) {
@@ -95,7 +114,7 @@ export function AttentionPanel({ health }) {
         items.push({
             key: "waiting", tone: "info",
             heading: "Some orders are being retried",
-            text: `${jobs.waiting.toLocaleString()} order${jobs.waiting > 1 ? "s are" : " is"} waiting to be retried automatically — usually because subscription details from Appstle hadn't arrived yet. No action needed.`,
+            text: `${jobs.waiting.toLocaleString()} order${jobs.waiting > 1 ? "s are" : " is"} being retried — usually because subscription details from Appstle hadn't arrived yet, or you just pressed Retry. You don't need to do anything; this notice disappears when they finish.`,
         });
     }
 
@@ -109,6 +128,11 @@ export function AttentionPanel({ health }) {
             {items.map((item) => (
                 <s-banner key={item.key} slot="supplemental-start" tone={item.tone} heading={item.heading}>
                     <s-text>{item.text}</s-text>
+                    {item.retry && (
+                        <s-button slot="secondary-actions" variant="secondary" loading={retrying || undefined} disabled={retrying} onClick={retryFailedOrders}>
+                            Retry failed orders
+                        </s-button>
+                    )}
                     {item.action && (
                         <s-button slot="secondary-actions" variant="secondary" onClick={() => navigate(item.action.href)}>
                             {item.action.label}
