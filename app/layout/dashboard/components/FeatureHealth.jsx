@@ -1,5 +1,3 @@
-import { useNavigate } from "react-router";
-
 const TRIGGER_TEXT = {
     oneTime: "one-time orders only",
     subscription: "subscription orders only",
@@ -7,15 +5,13 @@ const TRIGGER_TEXT = {
 };
 
 function Card({ heading, status, children, linkLabel, href }) {
-    const navigate = useNavigate();
     return (
         <s-section heading={heading}>
             <s-stack gap="small">
                 {status && <s-badge tone={status.tone}>{status.label}</s-badge>}
                 {children}
-                {href && (
-                    <s-button variant="tertiary" onClick={() => navigate(href)}>{linkLabel}</s-button>
-                )}
+                {/* s-link (not a button) so it lines up with the text above it. */}
+                {href && <s-link href={href}>{linkLabel}</s-link>}
             </s-stack>
         </s-section>
     );
@@ -35,7 +31,10 @@ export function FeatureHealth({ health }) {
             : { tone: "warning", label: "Switched off" };
 
     return (
-        <s-grid gridTemplateColumns="repeat(auto-fit, minmax(280px, 1fr))" gap="base">
+        // The wrapper box is what separates this block from the date-range card
+        // below it; a bare grid inside s-page gets no spacing of its own.
+        <s-box paddingBlockEnd="base">
+        <s-grid gridTemplateColumns="repeat(auto-fit, minmax(280px, 1fr))" gap="base" alignItems="stretch">
             <Card heading="Referrals" status={referralStatus} linkLabel="Open referral rule" href="/app/points-rules/referral">
                 <s-text>
                     A customer shares their code; when a friend uses it on their first order, both can earn points
@@ -62,7 +61,11 @@ export function FeatureHealth({ health }) {
                     Customers see a short message in the widget whenever points are added, removed, held, rejected
                     or skipped. You can turn these pop-ups on or off in Widget Customize.
                 </s-text>
+                <s-text tone="subdued">
+                    Held and rejected referral rewards are explained to both customers in neutral wording, so nobody is accused of anything.
+                </s-text>
             </Card>
         </s-grid>
+        </s-box>
     );
 }
