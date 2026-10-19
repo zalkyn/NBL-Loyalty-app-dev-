@@ -21,11 +21,13 @@
 import { report } from "./lib/assert.js";
 import { run as runComputePoints } from "./computePoints.test.js";
 import { run as runNormalizeSegmentMemberGid } from "./normalizeSegmentMemberGid.test.js";
+import { run as runCurrency } from "./currency.test.js";
 
 const unitOnly = process.argv.includes("--unit-only");
 
 await runComputePoints();
 await runNormalizeSegmentMemberGid();
+await runCurrency();
 
 if (!unitOnly) {
     const { run: runBackfillIntegration } = await import("./backfillIntegration.test.js");
