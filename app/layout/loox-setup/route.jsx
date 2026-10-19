@@ -18,6 +18,7 @@
 
 import { useEffect } from "react";
 import { useLoaderData, useFetcher } from "react-router";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "shopify-server";
 
 import ensureLooxFlowToken from "@controller/appSettings/ensureLooxFlowToken.js";
@@ -50,8 +51,13 @@ export const loader = async ({ request }) => {
 
 export const action = async ({ request }) => {
     const { session } = await authenticate.admin(request);
-    const token = await ensureLooxFlowToken(session, /* force */ true);
-    return { webhookUrl: buildWebhookUrl(token), regenerated: true };
+    try {
+        const token = await ensureLooxFlowToken(session, /* force */ true);
+        return { webhookUrl: buildWebhookUrl(token), regenerated: true };
+    } catch (err) {
+        console.error("[NBL] Loox Flow URL regeneration failed", err?.message);
+        return { regenerated: false, error: "Could not generate a new URL. Your current URL still works — please try again." };
+    }
 };
 
 // ─── Page ───────────────────────────────────────────────────────────────────
@@ -59,6 +65,7 @@ export const action = async ({ request }) => {
 export default function LooxSetupPage() {
     const { webhookUrl: initialUrl } = useLoaderData();
     const fetcher = useFetcher();
+    const shopify = useAppBridge();
 
     // Prefer the freshly-regenerated URL once the action responds; fall
     // back to the loader's URL otherwise.
@@ -77,11 +84,13 @@ export default function LooxSetupPage() {
     }
 
     useEffect(() => {
-        if (fetcher.data?.regenerated) {
-            // eslint-disable-next-line no-console
-            console.info("[NBL] Loox Flow URL regenerated");
+        if (!fetcher.data) return;
+        if (fetcher.data.regenerated) {
+            shopify.toast.show("New URL generated — paste it into your Shopify Flow workflow.");
+        } else if (fetcher.data.error) {
+            shopify.toast.show(fetcher.data.error, { isError: true });
         }
-    }, [fetcher.data]);
+    }, [fetcher.data, shopify]);
 
     return (
         <s-page heading="Loox Review Points Setup" inlineSize="base">
