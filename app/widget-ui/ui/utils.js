@@ -55,7 +55,7 @@ export function formatPoints(n) {
 export function formatDiscount(value, type, currencySymbol) {
     return type === 'percentage'
         ? formatNumber(value) + '% off'
-        : (currencySymbol || '$') + formatNumber(value) + ' off';
+        : (currencySymbol || '') + formatNumber(value) + ' off';
 }
 
 export function formatDate(d) {

@@ -334,6 +334,7 @@ function boot() {
         launcherIconName: (savedCssVars['--nbl-launcher-icon'] || '').replace(/^'|'$/g, ''),
         cssVars: savedCssVars,
         appConfig: appConfig,
+        shopCurrency: loyaltyApp.shopCurrency || '',
         customer: customer,
         widgetConfig: widgetConfig,
         referralLink: referralLink,
