@@ -21,10 +21,12 @@
  */
 
 import { useLocation } from "react-router";
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 
 export const GUIDE_MODAL_ID = "points-backfill-guide-modal";
 
 export function GuideModal() {
+    const { symbol } = useShopCurrency();
     // Same reasoning as RuleSelector.jsx — this route.jsx is registered at
     // both /app/dev-config/points-backfill and /app/points-backfill, so
     // the rules link has to match whichever one we're actually on.
@@ -57,7 +59,7 @@ export function GuideModal() {
                         much they've spent.
                     </s-list-item>
                     <s-list-item>
-                        <strong>Per amount spent</strong> — points scale with lifetime spend (e.g. 1 point per $10),
+                        <strong>Per amount spent</strong> — points scale with lifetime spend (e.g. 1 point per {symbol}10),
                         rounded down. An optional max caps how much any single customer can get.
                     </s-list-item>
                 </s-ordered-list>

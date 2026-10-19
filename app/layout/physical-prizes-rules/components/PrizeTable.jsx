@@ -1,3 +1,4 @@
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 /**
  * Prizes table for the list view — image, title/description, value,
  * points cost, active flag, edit/delete actions, plus pagination.
@@ -11,6 +12,7 @@ export function PrizeTable({
     onRequestDelete,
     onPageChange,
 }) {
+    const { symbol } = useShopCurrency();
     return (
         <s-section>
             <s-table>
@@ -63,7 +65,7 @@ export function PrizeTable({
                                     )}
                                 </s-table-cell>
                                 <s-table-cell>
-                                    {p.productValue ? `$${Number(p.productValue).toLocaleString()}` : "—"}
+                                    {p.productValue ? `${symbol}${Number(p.productValue).toLocaleString()}` : "—"}
                                 </s-table-cell>
                                 <s-table-cell>
                                     <strong>{Number(p.pointsCost).toLocaleString()} pts</strong>

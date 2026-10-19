@@ -17,6 +17,7 @@ import { PointsFields } from "./components/PointsFields";
 import { IntervalCard } from "./components/IntervalCard";
 import { GroupCard } from "./components/GroupCard";
 import { SummaryPanel } from "./components/SummaryPanel";
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -124,6 +125,7 @@ export const action = async ({ request }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function ReferralRulePage() {
+    const { symbol } = useShopCurrency();
     const { rule, event, mode } = useLoaderData();
     const actionData = useActionData();
     const navigate = useNavigate();
@@ -196,7 +198,7 @@ export default function ReferralRulePage() {
                             <s-box paddingBlockEnd="base" />
                             <s-number-field
                                 label="Discount Value"
-                                prefix={referral.referred.discountType === "fixed" ? "$" : ""}
+                                prefix={referral.referred.discountType === "fixed" ? symbol : ""}
                                 suffix={referral.referred.discountType === "percentage" ? "%" : ""}
                                 step={1}
                                 min={0}

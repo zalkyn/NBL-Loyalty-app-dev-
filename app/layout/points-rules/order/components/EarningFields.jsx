@@ -1,3 +1,4 @@
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 // ─────────────────────────────────────────────────────────────────────────────
 // EarningFields
 //
@@ -21,6 +22,7 @@ export function EarningFields({
     onChangeRateAmount,
     busy,
 }) {
+    const { symbol } = useShopCurrency();
     if (orderType === "incremental") {
         return (
             <s-grid gridTemplateColumns="1fr auto 1fr" gap="large" alignItems="center">
@@ -38,7 +40,7 @@ export function EarningFields({
                 <s-number-field
                     label="Amount"
                     labelAccessibilityVisibility="exclusive"
-                    prefix="$"
+                    prefix={symbol}
                     suffix="spent"
                     step={1}
                     min={1}
