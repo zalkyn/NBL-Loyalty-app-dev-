@@ -51,7 +51,7 @@ export function FeatureHealth({ health }) {
                 <s-text>
                     Every paid order is processed in the background to award points. If something isn't ready
                     yet (for example subscription details from Appstle), the order is retried automatically
-                    instead of being skipped.
+                    instead of being skipped. If one still can't be processed, you'll see it here.
                 </s-text>
                 <s-text tone="subdued">{jobs.waiting} being retried right now</s-text>
             </Card>
