@@ -8,7 +8,7 @@ import prisma from "db-server";
 import { logger } from "app/utils/logger.js";
 import { getPointRuleByEvent } from "@controller/pointsRule/getPointRuleByEvent.js";
 
-const MODULE = "layout/dashboard/_health.server.js";
+const MODULE = "layout/health/_health.server.js";
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const EMPTY_HEALTH = {
