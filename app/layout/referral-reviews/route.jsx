@@ -64,7 +64,7 @@ export default function ReferralReviewsPage() {
     };
 
     return (
-        <s-page heading="Referral Reviews" inlineSize="large">
+        <s-page heading="Referral Reviews">
             <s-section heading="Waiting for your decision">
                 <s-paragraph tone="subdued">
                     These referral rewards were held because the two accounts look like the same person or
