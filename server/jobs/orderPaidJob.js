@@ -11,6 +11,7 @@ import { syncCustomerConfig } from "../../app/controller/metafieldsSync/syncCust
 import { updateCustomerReward } from "../../app/controller/customerReward/updateCustomerReward.js";
 import { updateReferral } from "../../app/controller/referral/updateReferral.js";
 import { awardReferralEarn, awardFirstReferralReward, markReferralVoucherUsed } from "../../app/controller/referral/awardReferralReward.js";
+import { notifyReferralOutcome } from "../../app/controller/referral/notifyReferralOutcome.js";
 import getReferralAddresses from "../../app/graphql/query/referralAddresses.js";
 import { assessReferral, describeSignals } from "../../app/utils/referralFraud.js";
 import enqueueDiscountDeleteJob from "../../app/controller/jobs/enqueueDiscountDeleteJob.js";
@@ -834,6 +835,31 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop, subscr
  * @param {string}      params.shop
  * @returns {Promise<void>}
  */
+/**
+ * A FIRST-order referral that earns nothing because of the rule's settings.
+ * The discount code was still used on this order, so the referral is closed
+ * (otherwise the widget keeps showing "code ready" forever), the reason is
+ * kept on the referral, and both customers are told.
+ */
+const closeSkippedFirstReferral = async ({ admin, referral, order, subscriptionContract, session, shop, reason, notice }) => {
+    const orderGid = order.admin_graphql_api_id;
+
+    await updateReferral(referral.id, {
+        status: "USED",
+        discountUsed: true,
+        rewardGiven: false,
+        orderId: orderGid,
+        subscriptionContractId: subscriptionContract?.id?.toString() ?? null,
+        metadata: { ...(subscriptionContract ?? {}), skipped: { reason, at: new Date().toISOString(), orderId: orderGid } },
+    });
+    await markReferralVoucherUsed({ referral, orderGid });
+
+    // The referred customer used a discount; only the referrer missed out on points,
+    // so only the referrer needs the explanation.
+    await notifyReferralOutcome({ session, shop, referralId: referral.id, customerId: referral.referrerId, notice, orderGid });
+    await syncCustomerConfig(admin, referral.referrerId);
+};
+
 const handleReferral = async ({ admin, referralContext, order, customer, subscriptionContract, subscriptionInterval, isSubscription, session, shop }) => {
     // getPointRuleByEvent retries transient DB errors internally.
     const rule = await getPointRuleByEvent("REFERRAL", session.id);
@@ -842,6 +868,12 @@ const handleReferral = async ({ admin, referralContext, order, customer, subscri
         logger.warn(MODULE, "REFERRAL rule inactive — referral reward skipped", {
             shop, referralId: referralContext?.referral?.id, orderId: order?.admin_graphql_api_id,
         });
+        if (referralContext?.type === "FIRST" && !referralContext.referral.discountUsed) {
+            await closeSkippedFirstReferral({
+                admin, referral: referralContext.referral, order, subscriptionContract, session, shop,
+                reason: "referral rule inactive", notice: "SKIPPED_PROGRAM_INACTIVE",
+            });
+        }
         return;
     }
 
@@ -867,12 +899,24 @@ const handleReferral = async ({ admin, referralContext, order, customer, subscri
         logger.warn(MODULE, "REFERRAL trigger=oneTime but order is subscription — referral reward skipped", {
             shop, type, referralId: referral?.id, orderId: order.admin_graphql_api_id, isSubscription,
         });
+        if (type === "FIRST" && !referral.discountUsed) {
+            await closeSkippedFirstReferral({
+                admin, referral, order, subscriptionContract, session, shop,
+                reason: "rule is one-time orders only; order was a subscription", notice: "SKIPPED_ONE_TIME_ONLY",
+            });
+        }
         return;
     }
     if (refConditions.trigger === "subscription" && !isSubscription) {
         logger.warn(MODULE, "REFERRAL trigger=subscription but order is one-time — referral reward skipped", {
             shop, type, referralId: referral?.id, orderId: order.admin_graphql_api_id, isSubscription,
         });
+        if (type === "FIRST" && !referral.discountUsed) {
+            await closeSkippedFirstReferral({
+                admin, referral, order, subscriptionContract, session, shop,
+                reason: "rule is subscription orders only; order was one-time", notice: "SKIPPED_SUBSCRIPTION_ONLY",
+            });
+        }
         return;
     }
 
@@ -938,6 +982,9 @@ const handleReferral = async ({ admin, referralContext, order, customer, subscri
                 },
             });
             await markReferralVoucherUsed({ referral, orderGid });
+
+            await notifyReferralOutcome({ session, shop, referralId: referral.id, customerId: referral.referrerId, notice: "HELD_REFERRER", orderGid });
+            await notifyReferralOutcome({ session, shop, referralId: referral.id, customerId: referral.referredId, notice: "HELD_REFERRED", orderGid });
 
             logger.warn(MODULE, "Referral reward HELD for merchant review", {
                 shop, referralId: referral.id, orderId: orderGid, signals: assessment.signals,

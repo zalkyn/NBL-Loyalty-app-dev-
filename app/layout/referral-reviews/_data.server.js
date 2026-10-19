@@ -2,6 +2,7 @@ import prisma from "db-server";
 import { logger } from "app/utils/logger.js";
 import { getPointRuleByEvent } from "@controller/pointsRule/getPointRuleByEvent.js";
 import { awardFirstReferralReward } from "@controller/referral/awardReferralReward.js";
+import { notifyReferralOutcome } from "@controller/referral/notifyReferralOutcome.js";
 import { syncCustomerConfig } from "@controller/metafieldsSync/syncCustomerConfig.js";
 
 const MODULE = "layout/referral-reviews/_data.server.js";
@@ -97,6 +98,7 @@ export async function handleReject({ formData, session, admin }) {
 
     const referral = await getHeldReferral(referralId, session);
     if (!referral) return { message: "This referral is no longer waiting for review.", status: "error", submitType };
+    const hold = referral.metadata?.hold ?? {};
 
     const result = await prisma.referral.updateMany({
         where: { id: referral.id, status: "HELD" },
@@ -106,6 +108,13 @@ export async function handleReject({ formData, session, admin }) {
         },
     });
     if (result.count === 0) return { message: "This referral was just handled by someone else.", status: "error", submitType };
+
+    // Only the referrer was waiting on points; the referred customer is told
+    // only if they had a bonus coming too.
+    await notifyReferralOutcome({ session, shop: session.shop, referralId: referral.id, customerId: referral.referrerId, notice: "REJECTED", orderGid: hold.orderId });
+    if (hold.referredPoints > 0) {
+        await notifyReferralOutcome({ session, shop: session.shop, referralId: referral.id, customerId: referral.referredId, notice: "REJECTED", orderGid: hold.orderId });
+    }
 
     await Promise.all([
         syncCustomerConfig(admin, referral.referrerId),
