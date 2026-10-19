@@ -56,7 +56,8 @@ export async function loadHealthData(session) {
                 take: 200,
             }),
             prisma.job.count({
-                where: { shop: session.shop, status: "PENDING", attempts: { gt: 0 }, type: { in: ["ORDER_PAID", "ORDER_REVERSED"] } },
+                // A fresh job has no lastError; a retried one keeps the error it failed with.
+                where: { shop: session.shop, status: "PENDING", lastError: { not: null }, type: { in: ["ORDER_PAID", "ORDER_REVERSED"] } },
             }),
 
             prisma.shadowRule.findMany({
@@ -86,4 +87,34 @@ export async function loadHealthData(session) {
         logger.error("Failed to load dashboard health data", { module: MODULE, sessionId: session.id, error: err?.message });
         return EMPTY_HEALTH;
     }
+}
+
+/** Most failed orders one click will re-queue, so a click can never flood the queue. */
+const RETRY_BATCH_LIMIT = 20;
+
+/**
+ * Puts the shop's recently failed order jobs back in the queue (same revival
+ * jobAutoRetryJob does). Safe to repeat: awards are idempotent per order and
+ * reversals only take what is left, so a retried job can't double-pay.
+ *
+ * @param {{ shop: string }} session
+ * @returns {Promise<number>} how many jobs were re-queued
+ */
+export async function retryFailedOrderJobs(session) {
+    const since = new Date(Date.now() - THIRTY_DAYS_MS);
+    const failed = await prisma.job.findMany({
+        where: { shop: session.shop, status: "FAILED", type: { in: ["ORDER_PAID", "ORDER_REVERSED"] }, updatedAt: { gte: since } },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true },
+        take: RETRY_BATCH_LIMIT,
+    });
+    if (!failed.length) return 0;
+
+    const result = await prisma.job.updateMany({
+        // status re-checked so a job that changed in between is left alone
+        where: { id: { in: failed.map((j) => j.id) }, status: "FAILED" },
+        data: { status: "PENDING", attempts: 0, lockedAt: null, failedAt: null, runAt: new Date() },
+    });
+    logger.info("Merchant re-queued failed order jobs", { module: MODULE, shop: session.shop, count: result.count });
+    return result.count;
 }
