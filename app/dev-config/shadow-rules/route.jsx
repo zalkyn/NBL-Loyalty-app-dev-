@@ -169,6 +169,19 @@ export const action = async ({ request }) => {
                     pointsPerUnit: data.rateType === "PER_AMOUNT" ? Number(data.pointsPerUnit) : null,
                     maxPoints: data.maxPoints ? Number(data.maxPoints) : null,
                 };
+
+                // Re-derived from live Shopify data on every save while the rule
+                // is still unlocked — the form promises "re-verified on every
+                // save", and without this a rule created before a store currency
+                // change would stay in the old currency forever and every
+                // customer would be skipped as a currency mismatch. Rules that
+                // already have entries stay locked (see above), exactly like the
+                // rate fields.
+                const liveCurrency = await shopCurrency(admin);
+                if (!liveCurrency) {
+                    return { message: "Could not verify your shop's currency — please try again.", status: "error", submitType };
+                }
+                updateData.currencyCode = liveCurrency;
             }
 
             const updated = await prisma.shadowRule.update({
