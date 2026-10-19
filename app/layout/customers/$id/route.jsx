@@ -62,43 +62,31 @@ export default function CustomerDetails() {
 
     if (!page.customer?.id) {
         return (
-            <s-page>
-                <s-section>
-                    <s-banner tone="critical">Customer not found.</s-banner>
-                </s-section>
+            <s-page heading="Customer">
+                <s-banner slot="supplemental-start" tone="critical" heading="Customer not found">
+                    <s-text>This customer may have been removed. Go back to the customer list and try again.</s-text>
+                </s-banner>
             </s-page>
         );
     }
 
     return (
-        <s-page>
+        <s-page heading={page.customerLabel} inlineSize="large">
 
-            {/* ── Header ── */}
-            <s-section>
-                <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
-                    <s-box>
-                        <s-stack direction="inline" gap="small-200" alignItems="center">
-                            <s-button variant="secondary" size="small" onClick={page.handleBack}>
-                                Customers
-                            </s-button>
-                            <s-text tone="subdued">›</s-text>
-                            <s-text>{page.customerLabel}</s-text>
-                        </s-stack>
-                        <s-box paddingBlockEnd="small" />
-                        <s-heading>
-                            <s-badge>Details about: '{page.customerLabel}'</s-badge>
-                        </s-heading>
-                    </s-box>
-                    <s-button
-                        variant="primary"
-                        icon="plus-circle"
-                        command="--show"
-                        commandFor="adjust-points-modal"
-                    >
-                        Adjust Points
-                    </s-button>
-                </s-grid>
-            </s-section>
+            {/* ── Header: title is the page heading; back link and the single
+                primary action live in their page slots ── */}
+            <s-button slot="breadcrumb-actions" onClick={page.handleBack}>
+                Customers
+            </s-button>
+            <s-button
+                slot="primary-action"
+                variant="primary"
+                icon="plus-circle"
+                command="--show"
+                commandFor="adjust-points-modal"
+            >
+                Adjust Points
+            </s-button>
 
             {/* ── Modals ── */}
             <AdjustPointsModal
