@@ -21,6 +21,7 @@ import { useLoaderData } from "react-router";
 import { authenticate } from "shopify-server";
 
 import { loadDashboardData } from "./_loader.server";
+import { loadHealthData } from "./_health.server";
 import { useDashboardPage } from "./_hooks";
 import { DateRangePicker } from "./components/DateRangePicker";
 import { CancelNeedsActionBanner } from "./components/CancelNeedsActionBanner";
@@ -28,12 +29,15 @@ import { OverviewSection } from "./components/OverviewSection";
 import { PrizeStatsSection } from "./components/PrizeStatsSection";
 import { ChartsSection } from "./components/ChartsSection";
 import { PrizeChartsSection } from "./components/PrizeChartsSection";
+import { AttentionPanel } from "./components/AttentionPanel";
+import { FeatureHealth } from "./components/FeatureHealth";
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
 export const loader = async ({ request }) => {
     const { session } = await authenticate.admin(request);
-    return loadDashboardData(session.id);
+    const [dashboard, health] = await Promise.all([loadDashboardData(session.id), loadHealthData(session)]);
+    return { ...dashboard, health };
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -45,7 +49,11 @@ export default function Dashboard() {
     return (
         <s-page>
 
+            <AttentionPanel health={loaderData.health} />
+
             <CancelNeedsActionBanner count={page.cancelNeedsAction} />
+
+            <FeatureHealth health={loaderData.health} />
 
             <DateRangePicker
                 preset={page.preset}           onPresetChange={page.setPreset}

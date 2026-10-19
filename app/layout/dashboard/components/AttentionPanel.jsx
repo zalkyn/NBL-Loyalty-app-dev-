@@ -1,0 +1,142 @@
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
+
+const INTRO_KEY = "nbl_dashboard_intro_dismissed_v1";
+
+function readDismissed() {
+    try {
+        return window.localStorage.getItem(INTRO_KEY) === "1";
+    } catch {
+        return false;
+    }
+}
+
+function writeDismissed() {
+    try {
+        window.localStorage.setItem(INTRO_KEY, "1");
+    } catch { /* storage blocked — the banner just comes back next visit */ }
+}
+
+/**
+ * "Needs your attention" — everything the merchant should look at, one banner
+ * each, with the tone matching how urgent it is:
+ *   critical → money/points are not flowing (failed order jobs, rewards that
+ *              never recorded), warning → a decision or check is waiting,
+ *   success  → all clear, info → a dismissible explanation of the new features.
+ * Renders from numbers the loader already computed; nothing here fetches.
+ */
+export function AttentionPanel({ health }) {
+    const navigate = useNavigate();
+    const { code: shopCurrency } = useShopCurrency();
+    // Start dismissed so the info banner never flashes in for someone who
+    // already closed it; the real value is read after mount.
+    const [introDismissed, setIntroDismissed] = useState(true);
+    useEffect(() => setIntroDismissed(readDismissed()), []);
+
+    // Polaris web components emit a native "dismiss" event; React 18 doesn't wire
+    // custom-element events through props, so attach it directly.
+    const introRef = useRef(null);
+    useEffect(() => {
+        const el = introRef.current;
+        if (!el) return undefined;
+        const onDismiss = () => { writeDismissed(); setIntroDismissed(true); };
+        el.addEventListener("dismiss", onDismiss);
+        return () => el.removeEventListener("dismiss", onDismiss);
+    }, [introDismissed]);
+
+    const { referral, jobs, ruleCurrencies } = health;
+    const mismatchedCurrencies = shopCurrency
+        ? (ruleCurrencies ?? []).filter((c) => c !== shopCurrency)
+        : [];
+
+    const items = [];
+
+    if (jobs.failed > 0) {
+        items.push({
+            key: "failed-jobs", tone: "critical",
+            heading: "Some orders could not be processed",
+            text: `${jobs.failed.toLocaleString()} order${jobs.failed > 1 ? "s" : ""} failed in the last 30 days, so their points or reversals were not applied. These need a developer to look at the Background Jobs page.`,
+        });
+    }
+    if (referral.stuck > 0) {
+        items.push({
+            key: "stuck-referrals", tone: "critical",
+            heading: "Referral rewards that were never recorded",
+            text: `${referral.stuck.toLocaleString()} referred customer${referral.stuck > 1 ? "s" : ""} used the referral discount, but the referrer didn't receive points. You can add the points manually from the customer's page (Adjust points).`,
+            action: { label: "Open Referral Reviews", href: "/app/referral-reviews" },
+        });
+    }
+    if (referral.held > 0) {
+        items.push({
+            key: "held-referrals", tone: "warning",
+            heading: "Referral rewards are waiting for your decision",
+            text: `${referral.held.toLocaleString()} referral reward${referral.held > 1 ? "s were" : " was"} held because the two accounts look like the same person or household. Approve to award the points, or reject.`,
+            action: { label: "Review", href: "/app/referral-reviews" },
+        });
+    }
+    if (mismatchedCurrencies.length) {
+        items.push({
+            key: "currency", tone: "warning",
+            heading: "A points backfill rule is in a different currency",
+            text: `Your store currency is ${shopCurrency}, but a backfill rule is saved in ${mismatchedCurrencies.join(", ")}. Customers whose spend is in ${shopCurrency} would be skipped. Open the rule and save it again to switch it, or create a new one if it has already been used.`,
+            action: { label: "Open backfill rules", href: "/app/points-backfill-rules" },
+        });
+    }
+    if (referral.ruleActive === false) {
+        items.push({
+            key: "rule-off", tone: "warning",
+            heading: "Referral rewards are switched off",
+            text: "The referral rule is inactive, so referred customers' orders earn nobody points. Customers are told when this happens.",
+            action: { label: "Open referral rule", href: "/app/points-rules/referral" },
+        });
+    }
+    if (jobs.waiting > 0) {
+        items.push({
+            key: "waiting", tone: "info",
+            heading: "Some orders are being retried",
+            text: `${jobs.waiting.toLocaleString()} order${jobs.waiting > 1 ? "s are" : " is"} waiting to be retried automatically — usually because subscription details from Appstle hadn't arrived yet. No action needed.`,
+        });
+    }
+
+    const allClear = items.length === 0;
+
+    return (
+        <>
+            {items.map((item) => (
+                <s-section key={item.key}>
+                    <s-banner tone={item.tone} heading={item.heading}>
+                        <s-stack direction="inline" gap="base" alignItems="center">
+                            <s-text>{item.text}</s-text>
+                            {item.action && (
+                                <s-button variant="primary" onClick={() => navigate(item.action.href)}>
+                                    {item.action.label}
+                                </s-button>
+                            )}
+                        </s-stack>
+                    </s-banner>
+                </s-section>
+            ))}
+
+            {allClear && (
+                <s-section>
+                    <s-banner tone="success" heading="Everything looks healthy">
+                        <s-text>Orders are processing, no referral rewards are waiting, and your rules match your store currency.</s-text>
+                    </s-banner>
+                </s-section>
+            )}
+
+            {!introDismissed && (
+                <s-section>
+                    <s-banner ref={introRef} tone="info" heading="New: referral protection and store currency" dismissible>
+                        <s-text>
+                            Referral rewards are now checked before they are paid: accounts that look like the same person are held for your approval
+                            (see Referral Reviews). Customers are told when a reward is held, rejected or skipped. Amounts and symbols now follow your
+                            store currency everywhere.
+                        </s-text>
+                    </s-banner>
+                </s-section>
+            )}
+        </>
+    );
+}
