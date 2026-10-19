@@ -39,7 +39,7 @@ export default function Customers() {
     const page = useCustomersPage(loaderData, actionData);
 
     return (
-        <s-page heading="Customers" inlineSize="large">
+        <s-page heading="Customers" inlineSize="base">
             {/* onClick fetches the counts; commandFor opens the modal. Both
                 are needed: the count has to be in flight by the time the
                 modal paints, and the modal has to open declaratively for

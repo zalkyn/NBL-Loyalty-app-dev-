@@ -71,7 +71,7 @@ export default function CustomerDetails() {
     }
 
     return (
-        <s-page heading={page.customerLabel} inlineSize="large">
+        <s-page heading={page.customerLabel}>
 
             {/* ── Header: title is the page heading; back link and the single
                 primary action live in their page slots ── */}

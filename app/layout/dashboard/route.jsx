@@ -47,7 +47,7 @@ export default function Dashboard() {
     const page = useDashboardPage(loaderData);
 
     return (
-        <s-page heading="Dashboard" inlineSize="large">
+        <s-page heading="Dashboard">
 
             <AttentionPanel health={loaderData.health} />
 
