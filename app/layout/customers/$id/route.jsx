@@ -6,10 +6,10 @@
  *   _action.server.js  -> adjustPoints handler
  *   _hooks.js          -> page state (no jotai)
  *   components/
- *     SummaryCard.jsx        -> left summary panel
- *     StatsGrid.jsx          -> 6 stat boxes
+ *     SummaryCard.jsx        -> profile + referral relationships
+ *     StatsGrid.jsx          -> four headline numbers
  *     AdjustPointsModal.jsx  -> add/remove toggle + live preview
- *     TransactionsTable.jsx  -> paginated transaction history
+ *     TransactionsTable.jsx  -> filterable, paginated transaction history
  *     RewardsTable.jsx       -> paginated rewards history
  *     PhysicalPrizeClaimsTable.jsx        -> read-only prize claim history
  *     SubscriptionCancelEventsTable.jsx   -> read-only subscription cancellation history
@@ -23,7 +23,7 @@ import { handleAdjustPoints, handleCancelReward }  from "./_action.server";
 import { useCustomerDetailsPage } from "./_hooks";
 
 import { SummaryCard }        from "./components/SummaryCard";
-import { StatsGrid }          from "./components/StatsGrid";
+import { StatsGrid, needsCancelReset }          from "./components/StatsGrid";
 import { AdjustPointsModal }  from "./components/AdjustPointsModal";
 import { CancelRewardModal }  from "./components/CancelRewardModal";
 import { TransactionsTable }  from "./components/TransactionsTable";
@@ -102,16 +102,48 @@ export default function CustomerDetails() {
                 onHide={page.closeCancelRewardModal}
             />
 
-            {/* ── Summary + Stats ── */}
-            <s-section>
-                <s-grid gridTemplateColumns="1fr 2fr" gap="base">
-                    <SummaryCard customer={page.customer} />
-                    <StatsGrid   customer={page.customer} />
-                </s-grid>
-            </s-section>
+            {/* ── Things that need attention on this customer ── */}
+            {(page.customer.points ?? 0) < 0 && (
+                <s-banner slot="supplemental-start" tone="critical" heading="This customer owes points">
+                    <s-text>
+                        Their balance is {page.customer.points.toLocaleString()} because points from an order were reversed after they had spent them.
+                        New reward and prize claims are blocked until it is paid back down. Use Adjust Points to correct it.
+                    </s-text>
+                </s-banner>
+            )}
+            {needsCancelReset(page.customer) && (
+                <s-banner slot="supplemental-start" tone="warning" heading="A cancelled subscription still needs its points reset">
+                    <s-text>This customer cancelled a subscription and their points balance hasn&apos;t been reset yet.</s-text>
+                    <s-button slot="secondary-actions" variant="secondary" onClick={() => page.navigate("/app/subscription-cancellations")}>
+                        Open Subscription Cancellations
+                    </s-button>
+                </s-banner>
+            )}
+            {page.heldReferrals > 0 && (
+                <s-banner slot="supplemental-start" tone="warning" heading="A referral reward for this customer is waiting for your decision">
+                    <s-text>It was held because the two accounts look alike. Approve or reject it in Referral Reviews.</s-text>
+                    <s-button slot="secondary-actions" variant="secondary" onClick={() => page.navigate(`/app/referral-reviews?q=${encodeURIComponent(page.customer.email)}`)}>
+                        Open Referral Reviews
+                    </s-button>
+                </s-banner>
+            )}
+
+            {/* ── Headline numbers, then who they are ── */}
+            <s-box paddingBlockEnd="base">
+                <StatsGrid customer={page.customer} />
+            </s-box>
+            <SummaryCard customer={page.customer} />
 
             {/* ── Transaction History ── */}
-            <TransactionsTable pagination={page.txPagination} />
+            <TransactionsTable
+                pagination={page.txPagination}
+                filter={page.txFilter}
+                onFilterChange={page.setTxFilter}
+                counts={page.txCounts}
+                showNotices={page.showNotices}
+                onToggleNotices={() => page.setShowNotices((v) => !v)}
+                noticeCount={page.noticeCount}
+            />
 
             {/* ── Rewards History ── */}
             <RewardsTable pagination={page.rwPagination} onCancelReward={page.openCancelReward} />

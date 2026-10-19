@@ -39,8 +39,10 @@ export async function loadCustomerDetails(admin, sessionId, customerId) {
                     restoredAmount: true, transaction: { select: { points: true } },
                 },
             },
-            referralsSent: true,
-            referralsUsed: true,
+            // Who this customer referred, and who referred them — with the other
+            // person's name so the page can say it in words and link to them.
+            referralsSent: { include: { referred: { select: { id: true, name: true, firstName: true, lastName: true, email: true } } }, orderBy: { createdAt: "desc" } },
+            referralsUsed: { include: { referrer: { select: { id: true, name: true, firstName: true, lastName: true, email: true } } } },
         },
     });
 
