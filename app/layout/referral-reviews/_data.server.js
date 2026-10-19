@@ -1,33 +1,103 @@
+import { Prisma } from "@prisma/client";
 import prisma from "db-server";
 import { logger } from "app/utils/logger.js";
 import { getPointRuleByEvent } from "@controller/pointsRule/getPointRuleByEvent.js";
 import { awardFirstReferralReward } from "@controller/referral/awardReferralReward.js";
 import { notifyReferralOutcome } from "@controller/referral/notifyReferralOutcome.js";
 import { syncCustomerConfig } from "@controller/metafieldsSync/syncCustomerConfig.js";
+import { TABS, DEFAULT_TAB, DEFAULT_PER_PAGE, MAX_PER_PAGE, BULK_LIMIT } from "./_data";
 
 const MODULE = "layout/referral-reviews/_data.server.js";
 
 const PERSON = { select: { id: true, shopifyId: true, name: true, firstName: true, lastName: true, email: true } };
 
-/** Referrals held for review + recently rewarded ones that carry a flag. */
-export async function loadReviews(session) {
-    const [held, recent] = await Promise.all([
-        prisma.referral.findMany({
-            where: { status: "HELD", referrer: { sessionId: session.id } },
-            orderBy: { updatedAt: "desc" },
-            include: { referrer: PERSON, referred: PERSON },
-        }),
-        prisma.referral.findMany({
-            where: { status: "USED", referrer: { sessionId: session.id } },
-            orderBy: { updatedAt: "desc" },
-            take: 200,
-            include: { referrer: PERSON, referred: PERSON },
-        }),
+// ─────────────────────────────────────────────────────────────────────────────
+// LOAD — one tab at a time, searched and paginated in the database
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Where clause for each tab. Flagged/approved live in referral.metadata (see orderPaidJob.js). */
+const tabWhere = (tab, sessionId) => {
+    const scope = { referrer: { sessionId } };
+    switch (tab) {
+        case "flagged":
+            return {
+                ...scope,
+                status: "USED",
+                OR: [
+                    { metadata: { path: ["reviewFlag"], not: Prisma.DbNull } },
+                    { metadata: { path: ["approval"], not: Prisma.DbNull } },
+                ],
+            };
+        case "rejected":
+            return { ...scope, status: "REJECTED" };
+        case "waiting":
+        default:
+            return { ...scope, status: "HELD" };
+    }
+};
+
+const searchWhere = (q) => {
+    if (!q) return {};
+    const like = { contains: q, mode: "insensitive" };
+    return {
+        AND: [{
+            OR: [
+                { referrer: { email: like } },
+                { referrer: { name: like } },
+                { referred: { email: like } },
+                { referred: { name: like } },
+                { discountCode: like },
+                { metadata: { path: ["hold", "orderLabel"], string_contains: q } },
+            ],
+        }],
+    };
+};
+
+const int = (value, fallback, min, max) => {
+    const n = parseInt(value, 10);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+};
+
+/**
+ * @param {{ id: string }} session
+ * @param {URLSearchParams} params - tab, q, page, perPage
+ */
+export async function loadReviews(session, params) {
+    const tab = TABS.some((t) => t.key === params.get("tab")) ? params.get("tab") : DEFAULT_TAB;
+    const q = (params.get("q") ?? "").trim().slice(0, 100);
+    const perPage = int(params.get("perPage"), DEFAULT_PER_PAGE, 1, MAX_PER_PAGE);
+
+    const where = { ...tabWhere(tab, session.id), ...searchWhere(q) };
+
+    // Tab badges are unfiltered counts, so they stay true while searching.
+    const [waiting, flagged, rejected, total] = await Promise.all([
+        prisma.referral.count({ where: tabWhere("waiting", session.id) }),
+        prisma.referral.count({ where: tabWhere("flagged", session.id) }),
+        prisma.referral.count({ where: tabWhere("rejected", session.id) }),
+        prisma.referral.count({ where }),
     ]);
 
-    const flagged = recent.filter((r) => r.metadata?.reviewFlag || r.metadata?.approval).slice(0, 50);
-    return { held, flagged };
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+    const page = int(params.get("page"), 1, 1, totalPages);
+
+    const rows = await prisma.referral.findMany({
+        where,
+        orderBy: { updatedAt: "desc" },
+        skip: (page - 1) * perPage,
+        take: perPage,
+        include: { referrer: PERSON, referred: PERSON },
+    });
+
+    return {
+        tab, q, page, perPage, total, totalPages, rows,
+        counts: { waiting, flagged, rejected },
+        shop: session.shop,
+    };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DECIDE — one referral at a time; bulk just loops over the same code
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function getHeldReferral(referralId, session) {
     return prisma.referral.findFirst({
@@ -35,25 +105,18 @@ async function getHeldReferral(referralId, session) {
     });
 }
 
-export async function handleApprove({ formData, session, admin }) {
-    const submitType = "approveReferral";
-    const referralId = Number(formData.get("referralId"));
-    if (!referralId) return { message: "Referral is required.", status: "error", submitType };
-
+/** @returns {Promise<{ ok: boolean, reason?: string }>} */
+async function approveOne(referralId, session, admin) {
     const referral = await getHeldReferral(referralId, session);
     const hold = referral?.metadata?.hold;
-    if (!referral || !hold) {
-        return { message: "This referral is no longer waiting for review.", status: "error", submitType };
-    }
+    if (!referral || !hold) return { ok: false, reason: "no longer waiting" };
 
     // Claim it so two clicks (or two admins) can't both approve.
     const claim = await prisma.referral.updateMany({
         where: { id: referral.id, status: "HELD" },
         data: { status: "APPROVING" },
     });
-    if (claim.count === 0) {
-        return { message: "This referral was just handled by someone else.", status: "error", submitType };
-    }
+    if (claim.count === 0) return { ok: false, reason: "handled by someone else" };
 
     try {
         const rule = await getPointRuleByEvent("REFERRAL", session.id);
@@ -82,22 +145,19 @@ export async function handleApprove({ formData, session, admin }) {
         ]);
 
         logger.info(MODULE, "Held referral approved", { shop: session.shop, referralId: referral.id });
-        return { message: "Referral approved — points awarded.", status: "success", submitType };
+        return { ok: true };
     } catch (err) {
         // Put it back so it can be tried again; awards are idempotent per order.
         await prisma.referral.updateMany({ where: { id: referral.id, status: "APPROVING" }, data: { status: "HELD" } });
         logger.error(MODULE, "Approving held referral failed", { shop: session.shop, referralId: referral.id, error: err?.message });
-        return { message: "Could not award the points. Nothing was changed — please try again.", status: "error", submitType };
+        return { ok: false, reason: "points could not be recorded" };
     }
 }
 
-export async function handleReject({ formData, session, admin }) {
-    const submitType = "rejectReferral";
-    const referralId = Number(formData.get("referralId"));
-    if (!referralId) return { message: "Referral is required.", status: "error", submitType };
-
+/** @returns {Promise<{ ok: boolean, reason?: string }>} */
+async function rejectOne(referralId, session, admin) {
     const referral = await getHeldReferral(referralId, session);
-    if (!referral) return { message: "This referral is no longer waiting for review.", status: "error", submitType };
+    if (!referral) return { ok: false, reason: "no longer waiting" };
     const hold = referral.metadata?.hold ?? {};
 
     const result = await prisma.referral.updateMany({
@@ -107,7 +167,7 @@ export async function handleReject({ formData, session, admin }) {
             metadata: { ...(referral.metadata ?? {}), rejection: { rejectedAt: new Date().toISOString() } },
         },
     });
-    if (result.count === 0) return { message: "This referral was just handled by someone else.", status: "error", submitType };
+    if (result.count === 0) return { ok: false, reason: "handled by someone else" };
 
     // Only the referrer was waiting on points; the referred customer is told
     // only if they had a bonus coming too.
@@ -122,5 +182,46 @@ export async function handleReject({ formData, session, admin }) {
     ]);
 
     logger.info(MODULE, "Held referral rejected", { shop: session.shop, referralId: referral.id });
-    return { message: "Referral rejected — no points were awarded.", status: "success", submitType };
+    return { ok: true };
+}
+
+const parseIds = (formData) => [...new Set(
+    String(formData.get("referralIds") ?? "").split(",").map((v) => Number(v)).filter((n) => Number.isInteger(n) && n > 0)
+)];
+
+/**
+ * Approve or reject one or several held referrals. One at a time, so a failure
+ * on one never affects the others, and the message says exactly what happened.
+ */
+export async function handleDecide({ formData, session, admin }, decision) {
+    const submitType = decision === "approve" ? "approveReferrals" : "rejectReferrals";
+    const ids = parseIds(formData);
+    if (!ids.length) return { message: "Choose at least one referral.", status: "error", submitType };
+    if (ids.length > BULK_LIMIT) return { message: `Please choose ${BULK_LIMIT} or fewer at a time.`, status: "error", submitType };
+
+    const decide = decision === "approve" ? approveOne : rejectOne;
+    let done = 0;
+    const failures = [];
+    for (const id of ids) {
+        const res = await decide(id, session, admin);
+        if (res.ok) done++;
+        else failures.push(res.reason);
+    }
+
+    const verb = decision === "approve" ? "approved — points awarded" : "rejected — no points awarded";
+    if (done === ids.length) {
+        return { message: ids.length === 1 ? `Referral ${verb}.` : `${done} referrals ${verb}.`, status: "success", submitType };
+    }
+    if (done === 0) {
+        return {
+            message: ids.length === 1
+                ? `Nothing was changed (${failures[0]}). Refresh the page and try again.`
+                : "Nothing was changed. Refresh the page and try again.",
+            status: "error", submitType,
+        };
+    }
+    return {
+        message: `${done} of ${ids.length} referrals ${verb}. ${ids.length - done} could not be changed (${[...new Set(failures)].join(", ")}) and are still waiting.`,
+        status: "error", submitType,
+    };
 }
