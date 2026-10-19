@@ -5,7 +5,7 @@ import { getPointRuleByEvent } from "@controller/pointsRule/getPointRuleByEvent.
 import { awardFirstReferralReward } from "@controller/referral/awardReferralReward.js";
 import { notifyReferralOutcome } from "@controller/referral/notifyReferralOutcome.js";
 import { syncCustomerConfig } from "@controller/metafieldsSync/syncCustomerConfig.js";
-import { TABS, DEFAULT_TAB, DEFAULT_PER_PAGE, MAX_PER_PAGE, BULK_LIMIT } from "./_data";
+import { TABS, DEFAULT_TAB, DEFAULT_PER_PAGE, MAX_PER_PAGE, BULK_LIMIT } from "./_data.js";
 
 const MODULE = "layout/referral-reviews/_data.server.js";
 

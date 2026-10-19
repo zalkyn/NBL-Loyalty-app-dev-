@@ -1,4 +1,4 @@
-import { totalPoints } from "../_data";
+import { totalPoints } from "../_data.js";
 
 export const DECISION_MODAL_ID = "referral-decision-modal";
 
