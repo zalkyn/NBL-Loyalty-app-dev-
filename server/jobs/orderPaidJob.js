@@ -210,7 +210,7 @@ async function processJob(job) {
 
         if (!session) throw new Error(`No active session for shop: ${shop}`);
 
-        await mainHandler({ admin, session, shop, orderId, customerId });
+        await mainHandler({ admin, session, shop, orderId, customerId, isLastAttempt: attempts + 1 >= maxAttempts });
 
         // ── 3a. Success ───────────────────────────────────────────────────────
         await dbRetry(
@@ -308,6 +308,7 @@ async function fetchFullOrder(admin, orderId) {
                                 shopMoney { amount }
                             }
                             product { id }
+                            sellingPlan { sellingPlanId }
                         }
                     }
                 }
@@ -352,6 +353,10 @@ async function fetchFullOrder(admin, orderId) {
         // (webhook order isn't guaranteed: ORDER_REVERSED could be enqueued
         // and even attempt to run before ORDER_PAID is processed).
         cancelled_at: raw.cancelledAt ?? null,
+        // Shopify itself marks subscription line items at checkout (sellingPlan),
+        // independent of Appstle. Used to tell "one-time order" apart from
+        // "subscription order whose Appstle metafield isn't attached yet".
+        has_selling_plan: (raw.lineItems?.edges ?? []).some(({ node }) => Boolean(node?.sellingPlan)),
     };
 
     // Raw Appstle metafield value — passed directly to getAppstleMetafield
@@ -380,7 +385,7 @@ async function fetchFullOrder(admin, orderId) {
  * @param {string} params.customerId - Shopify customer GID
  * @returns {Promise<void>}
  */
-async function mainHandler({ admin, session, shop, orderId, customerId }) {
+async function mainHandler({ admin, session, shop, orderId, customerId, isLastAttempt = false }) {
     if (!customerId) {
         logger.warn(MODULE, "No customer GID in job payload — skipping", { shop, orderId });
         return;
@@ -443,6 +448,26 @@ async function mainHandler({ admin, session, shop, orderId, customerId }) {
             shop, orderId, cancelledAt: orderFields.cancelled_at,
         });
         return;
+    }
+
+    // ── Appstle metafield not attached yet ───────────────────────────────────
+    // Appstle writes its "details" metafield onto the order a little AFTER the
+    // orders/paid webhook fires, and this job can run within seconds. Without
+    // it the order used to be classified as one-time, so a subscription-only
+    // rule skipped it — silently, with the job marked complete and never
+    // re-checked. Shopify marks subscription line items (sellingPlan) at
+    // checkout, so a selling-plan order with no metafield is "not ready yet",
+    // not "one-time": fail the job so it retries with backoff. Done BEFORE the
+    // order-count increment below so a retry can't count the order twice.
+    // On the last attempt fall through to the old behaviour (the order may be
+    // from a subscription app other than Appstle) but say so loudly.
+    if (orderFields.has_selling_plan && !appstleData) {
+        if (!isLastAttempt) {
+            throw new Error("APPSTLE_METAFIELD_PENDING: order has a selling plan but Appstle details are not attached yet");
+        }
+        logger.warn(MODULE, "Subscription order still has no Appstle details after all retries — treating as one-time", {
+            shop, orderId,
+        });
     }
 
     // ── Cached order-count maintenance ──────────────────────────────────────
