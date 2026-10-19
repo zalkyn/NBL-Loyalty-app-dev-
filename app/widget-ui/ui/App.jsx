@@ -39,6 +39,7 @@ import { ActivitiesTab } from './tabs/ActivitiesTab.jsx';
 import { ActiveRewardsTab } from './tabs/ActiveRewardsTab.jsx';
 import { MyPrizesTab } from './tabs/MyPrizesTab.jsx';
 import { requestRewardVoucher, requestClaimPrize, requestConfigResync } from './api.js';
+import { currencySymbol as symbolForCurrency } from '../../utils/currency.js';
 
 const FULLSCREEN_PREF_KEY = 'NBL_Fullscreen';
 
@@ -245,7 +246,9 @@ export function App({ initialData, bridgeRef, hostEl }) {
     // applies in full screen) — shown regardless of the shop's expand
     // setting. Never set on the storefront: bridgeRef only exists in preview.
     const fullscreenActive = (isFullscreen && showFullscreenToggle) || previewFullscreen;
-    const currencySymbol = (appConfig.shop && appConfig.shop.currencySymbol) || '$';
+    // Store currency comes from Liquid (shop.currency) via main.preact.jsx. Empty
+    // when unknown — render no symbol rather than a guessed '$'.
+    const currencySymbol = symbolForCurrency(initialData.shopCurrency);
     const [referralLink, setReferralLink] = useState(initialData.referralLink || '');
     const shopUrl = initialData.shopUrl || '';
     const loginUrl = initialData.loginUrl || '/account/login';
@@ -558,7 +561,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
                 setIsOpen(false);
                 setPreviewToasts([
                     { id: 'preview-1', type: 'EARN', activity: 'You earned 150 points' },
-                    { id: 'preview-2', type: 'REDEEM', activity: 'Reward unlocked: $10 off' },
+                    { id: 'preview-2', type: 'REDEEM', activity: 'Reward unlocked: ' + currencySymbol + '10 off' },
                     { id: 'preview-3', type: 'REFERRAL', activity: 'Your friend joined — +200 points' },
                 ]);
                 return;
@@ -1239,6 +1242,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
                                     lbl={lbl}
                                     onOpenInfo={openInfo}
                                     onOpenVoucher={openReward}
+                                    currencySymbol={currencySymbol}
                                 />
                             </TabPanel>
                             <TabPanel tabKey="prizes" activeTab={activeTab}>

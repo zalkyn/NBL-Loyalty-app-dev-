@@ -800,3 +800,5 @@ window.NBL_v1.liquidData = {
 };
 window.NBL_v1.routes = { login_url: "#", register_url: "#" };
 window.NBL_v1.__isPreview = true;
+// Demo fixtures above are written in dollars, so the preview shows "$".
+window.NBL_v1.shopCurrency = "USD";

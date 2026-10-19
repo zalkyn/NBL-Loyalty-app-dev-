@@ -44,7 +44,7 @@ export function ReferralTab({ pointRules, referralLink, currencySymbol, onOpenIn
     const referred = refCond.referred || {};
     const trigger = refCond.trigger || 'oneTime';
     const isSubscription = trigger === 'subscription' || trigger === 'both';
-    const currency = currencySymbol || '$';
+    const currency = currencySymbol || '';
 
     // ── Dynamic reward rows ───────────────────────────────────────────────────
     const rewardRows = [];

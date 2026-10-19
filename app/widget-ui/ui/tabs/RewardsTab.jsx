@@ -15,9 +15,9 @@ import { ItemList } from '../components/ItemList.jsx';
 import { Pagination } from '../components/Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 
-function RewardRuleItem({ reward, customerPoints, onOpenInfo }) {
+function RewardRuleItem({ reward, customerPoints, onOpenInfo, currencySymbol }) {
     const isFixed = reward.discountType === 'fixed';
-    const title = 'Voucher ' + (isFixed ? '$' : '') + reward.rewardValue + (isFixed ? '' : '%');
+    const title = 'Voucher ' + (isFixed ? (currencySymbol || '') : '') + reward.rewardValue + (isFixed ? '' : '%');
     const cost = Number(reward.pointsCost) || 0;
     const canRedeem = cost > 0 && customerPoints >= cost;
 
@@ -76,7 +76,7 @@ function ActiveRewardRow({ reward, onOpenVoucher }) {
     );
 }
 
-export function RewardsTab({ rewardRules, points, customerRewards, perPage, paginationMode, lbl, onOpenInfo, onOpenVoucher }) {
+export function RewardsTab({ rewardRules, points, customerRewards, perPage, paginationMode, lbl, onOpenInfo, onOpenVoucher, currencySymbol }) {
     const rules = rewardRules || [];
     const activeRewards = (customerRewards || []).filter((r) => r.discountUsed === false && r.status === 'ACTIVE');
     const pagination = usePagination(activeRewards, perPage || 5, paginationMode || 'pagination');
@@ -93,7 +93,7 @@ export function RewardsTab({ rewardRules, points, customerRewards, perPage, pagi
                         items={rules}
                         emptyText="No rewards available"
                         renderItem={(reward) => (
-                            <RewardRuleItem reward={reward} customerPoints={points} onOpenInfo={onOpenInfo} />
+                            <RewardRuleItem reward={reward} customerPoints={points} onOpenInfo={onOpenInfo} currencySymbol={currencySymbol} />
                         )}
                     />
                 </div>
