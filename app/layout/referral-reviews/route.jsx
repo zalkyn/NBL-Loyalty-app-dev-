@@ -2,21 +2,29 @@
  * @file referral-reviews/route.jsx
  * @description Referral Reviews — referral rewards the app held back because
  * the two accounts look like the same person or household (see
- * utils/referralFraud.js), plus recently rewarded referrals that carry a
- * weaker flag. The merchant approves (points are awarded) or rejects (no
- * points) each held one.
+ * utils/referralFraud.js), plus a record of flagged and rejected ones.
+ *
+ *   _data.js          -> tabs, limits, pure helpers
+ *   _data.server.js   -> tab/search/pagination queries; approve & reject (single or bulk)
+ *   components/       -> ReviewTable, ConfirmDecisionModal
+ *
+ * URL params drive everything: ?tab=waiting|flagged|rejected&q=&page=&perPage=
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLoaderData, useActionData, useSubmit, useNavigation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "shopify-server";
+import Pagination from "@components/pagination/Pagination";
 
-import { loadReviews, handleApprove, handleReject } from "./_data.server";
+import { loadReviews, handleDecide } from "./_data.server";
+import { TABS, PER_PAGE_OPTIONS, BULK_LIMIT } from "./_data";
+import { ReviewTable } from "./components/ReviewTable";
+import { ConfirmDecisionModal } from "./components/ConfirmDecisionModal";
 
 export const loader = async ({ request }) => {
     const { session } = await authenticate.admin(request);
-    return { ...(await loadReviews(session)), shop: session.shop };
+    return loadReviews(session, new URL(request.url).searchParams);
 };
 
 export const action = async ({ request }) => {
@@ -26,149 +34,164 @@ export const action = async ({ request }) => {
     const ctx = { formData, session, admin };
 
     switch (submitType) {
-        case "approveReferral": return handleApprove(ctx);
-        case "rejectReferral": return handleReject(ctx);
+        case "approveReferrals": return handleDecide(ctx, "approve");
+        case "rejectReferrals": return handleDecide(ctx, "reject");
         default: return { message: "Invalid action.", status: "error", submitType };
     }
 };
 
-const personName = (p) => [p.firstName, p.lastName].filter(Boolean).join(" ") || p.name || "—";
-
-// Stacked (block) so name, email and the points lines never run together.
-function Person({ person }) {
-    return (
-        <s-stack direction="block" gap="small-500">
-            <s-text>{personName(person)}</s-text>
-            <s-text tone="subdued">{person.email}</s-text>
-        </s-stack>
-    );
-}
-
-// The order's page in the Shopify admin, opened in a new tab so the review
-// list isn't lost. Falls back to plain text when the id isn't a real Shopify
-// order (e.g. test data).
-function OrderLink({ shop, orderGid, label }) {
-    const id = String(orderGid ?? "").match(/\/(\d+)$/)?.[1];
-    if (!id || !shop) return <s-text>{label ?? "—"}</s-text>;
-    return (
-        <s-link href={`https://${shop}/admin/orders/${id}`} target="_blank">
-            {label ?? `Order ${id}`}
-        </s-link>
-    );
-}
-
-const sentence = (text) => (text ? text.charAt(0).toUpperCase() + text.slice(1) + "." : "—");
-
 export default function ReferralReviewsPage() {
-    const { held, flagged, shop } = useLoaderData();
+    const { tab, q, page, perPage, total, totalPages, rows, counts, shop } = useLoaderData();
     const actionData = useActionData();
     const submit = useSubmit();
     const navigation = useNavigation();
     const shopify = useAppBridge();
+
     const busy = navigation.state === "submitting";
+    const loading = navigation.state === "loading" && navigation.formMethod !== "POST";
+
+    const [search, setSearch] = useState(q);
+    useEffect(() => setSearch(q), [q]);
+
+    const [selected, setSelected] = useState(() => new Set());
+    const [pending, setPending] = useState({ decision: "approve", rows: [] });
+
+    // Selection belongs to the rows on screen — drop it when the list changes.
+    useEffect(() => setSelected(new Set()), [tab, q, page, perPage, rows.length]);
 
     useEffect(() => {
         if (!actionData) return;
         shopify.toast.show(actionData.message, { isError: actionData.status === "error" });
+        setSelected(new Set());
     }, [actionData, shopify]);
 
-    const decide = (submitType, referralId) => {
+    // ── URL ───────────────────────────────────────────────────────────────────
+    const go = (next) => {
+        const params = new URLSearchParams({
+            tab: next.tab ?? tab,
+            q: next.q ?? q,
+            page: String(next.page ?? 1),
+            perPage: String(next.perPage ?? perPage),
+        });
+        submit(params, { method: "GET", replace: true });
+    };
+    const resolve = (valueOrFn, current) => (typeof valueOrFn === "function" ? valueOrFn(current) : valueOrFn);
+
+    // ── Selection ─────────────────────────────────────────────────────────────
+    const toggle = (id) => setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+    });
+    const togglePage = () => setSelected((prev) =>
+        rows.every((r) => prev.has(r.id)) ? new Set() : new Set(rows.map((r) => r.id)));
+    const selectedRows = rows.filter((r) => selected.has(r.id));
+
+    // ── Decisions ─────────────────────────────────────────────────────────────
+    const askDecision = (decision, list) => setPending({ decision, rows: list });
+    const confirmDecision = () => {
         const fd = new FormData();
-        fd.set("submitType", submitType);
-        fd.set("referralId", String(referralId));
+        fd.set("submitType", pending.decision === "approve" ? "approveReferrals" : "rejectReferrals");
+        fd.set("referralIds", pending.rows.map((r) => r.id).join(","));
         submit(fd, { method: "post" });
     };
 
     return (
         <s-page heading="Referral Reviews">
-            <s-section heading="Waiting for your decision">
-                <s-paragraph tone="subdued">
-                    These referral rewards were held because the two accounts look like the same person or
-                    household. The referred customer's discount was already applied by Shopify. Approve to
-                    award the points, or reject to award nothing.
-                </s-paragraph>
-                <s-table>
-                    <s-table-header-row>
-                        <s-table-header>Referrer</s-table-header>
-                        <s-table-header>Referred customer</s-table-header>
-                        <s-table-header>Order</s-table-header>
-                        <s-table-header>Why it was held</s-table-header>
-                        <s-table-header>Points</s-table-header>
-                        <s-table-header>Decision</s-table-header>
-                    </s-table-header-row>
-                    <s-table-body>
-                        {held.length === 0 ? (
-                            <s-table-row>
-                                <s-table-cell colSpan="6" style={{ textAlign: "center", padding: "2rem" }}>
-                                    Nothing is waiting for review.
-                                </s-table-cell>
-                            </s-table-row>
-                        ) : held.map((r) => {
-                            const hold = r.metadata?.hold ?? {};
-                            return (
-                                <s-table-row key={r.id}>
-                                    <s-table-cell><Person person={r.referrer} /></s-table-cell>
-                                    <s-table-cell><Person person={r.referred} /></s-table-cell>
-                                    <s-table-cell><OrderLink shop={shop} orderGid={hold.orderId} label={hold.orderLabel} /></s-table-cell>
-                                    <s-table-cell>{sentence(hold.reason)}</s-table-cell>
-                                    <s-table-cell>
-                                        <s-stack direction="block" gap="small-500">
-                                            <s-text>Referrer: {(hold.referrerPoints ?? 0).toLocaleString()}</s-text>
-                                            <s-text tone="subdued">Friend: {(hold.referredPoints ?? 0).toLocaleString()}</s-text>
-                                        </s-stack>
-                                    </s-table-cell>
-                                    <s-table-cell>
-                                        <s-stack direction="inline" gap="small">
-                                            <s-button variant="primary" size="small" disabled={busy}
-                                                onClick={() => decide("approveReferral", r.id)}>
-                                                Approve
-                                            </s-button>
-                                            <s-button tone="critical" size="small" disabled={busy}
-                                                onClick={() => decide("rejectReferral", r.id)}>
-                                                Reject
-                                            </s-button>
-                                        </s-stack>
-                                    </s-table-cell>
-                                </s-table-row>
-                            );
-                        })}
-                    </s-table-body>
-                </s-table>
-            </s-section>
+            {counts.waiting > 0 && tab !== "waiting" && (
+                <s-banner slot="supplemental-start" tone="warning" heading={`${counts.waiting} referral${counts.waiting === 1 ? " is" : "s are"} waiting for your decision`}>
+                    <s-text>Customers are waiting on these rewards.</s-text>
+                    <s-button slot="secondary-actions" variant="secondary" onClick={() => go({ tab: "waiting", page: 1 })}>Show them</s-button>
+                </s-banner>
+            )}
 
-            <s-section heading="Rewarded, but worth a look">
+            <ConfirmDecisionModal decision={pending.decision} rows={pending.rows} busy={busy} onConfirm={confirmDecision} />
+
+            <s-section>
+                {/* ── Tabs with live counts ── */}
+                <s-stack direction="inline" gap="small" alignItems="center">
+                    {TABS.map((t) => (
+                        <s-button
+                            key={t.key}
+                            variant={t.key === tab ? "primary" : "secondary"}
+                            disabled={busy}
+                            onClick={() => go({ tab: t.key, page: 1 })}
+                        >
+                            {t.label} ({counts[t.key].toLocaleString()})
+                        </s-button>
+                    ))}
+                </s-stack>
+
+                <s-box paddingBlockStart="base" />
                 <s-paragraph tone="subdued">
-                    These were rewarded normally, but one weaker signal was noticed (same name, or a similar
-                    address), or you approved them after a hold.
+                    {tab === "waiting" && "These rewards were held because the two accounts look like the same person or household. The referred customer's discount was already applied by Shopify. Approve to award the points, or reject to award nothing."}
+                    {tab === "flagged" && "These were rewarded normally, but one weaker signal was noticed (same name, or a similar address), or you approved them after a hold."}
+                    {tab === "rejected" && "Rewards you rejected. No points were awarded for these."}
                 </s-paragraph>
-                <s-table>
-                    <s-table-header-row>
-                        <s-table-header>Referrer</s-table-header>
-                        <s-table-header>Referred customer</s-table-header>
-                        <s-table-header>Order</s-table-header>
-                        <s-table-header>Note</s-table-header>
-                    </s-table-header-row>
-                    <s-table-body>
-                        {flagged.length === 0 ? (
-                            <s-table-row>
-                                <s-table-cell colSpan="4" style={{ textAlign: "center", padding: "2rem" }}>
-                                    Nothing flagged.
-                                </s-table-cell>
-                            </s-table-row>
-                        ) : flagged.map((r) => (
-                            <s-table-row key={r.id}>
-                                <s-table-cell><Person person={r.referrer} /></s-table-cell>
-                                <s-table-cell><Person person={r.referred} /></s-table-cell>
-                                <s-table-cell><OrderLink shop={shop} orderGid={r.orderId} /></s-table-cell>
-                                <s-table-cell>
-                                    {r.metadata?.approval
-                                        ? `Approved by you — ${r.metadata.approval.heldReason ?? ""}`
-                                        : r.metadata?.reviewFlag?.reason ?? ""}
-                                </s-table-cell>
-                            </s-table-row>
-                        ))}
-                    </s-table-body>
-                </s-table>
+
+                {/* ── Search ── */}
+                <s-box paddingBlockStart="base" />
+                <s-grid gridTemplateColumns="1fr auto auto" gap="small" alignItems="stretch">
+                    <s-search-field
+                        label="Search referrals"
+                        labelAccessibilityVisibility="exclusive"
+                        placeholder="Search by name, email, order number or code"
+                        value={search}
+                        onInput={(e) => setSearch(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") go({ q: search, page: 1 }); }}
+                        disabled={busy}
+                    />
+                    <s-button variant="secondary" disabled={busy} onClick={() => go({ q: search, page: 1 })}>Search</s-button>
+                    {q && <s-button variant="tertiary" disabled={busy} onClick={() => go({ q: "", page: 1 })}>Clear</s-button>}
+                </s-grid>
+
+                {/* ── Bulk bar (waiting tab, once something is ticked) ── */}
+                {tab === "waiting" && selected.size > 0 && (
+                    <>
+                        <s-box paddingBlockStart="base" />
+                        <s-banner tone="info" heading={`${selected.size} selected`}>
+                            {selected.size > BULK_LIMIT ? (
+                                <s-text>Choose {BULK_LIMIT} or fewer at a time.</s-text>
+                            ) : (
+                                <s-text>Approve or reject all of them in one go. You&apos;ll be asked to confirm first.</s-text>
+                            )}
+                            <s-button slot="secondary-actions" variant="secondary" disabled={busy || selected.size > BULK_LIMIT}
+                                commandFor="referral-decision-modal" command="--show" onClick={() => askDecision("approve", selectedRows)}>
+                                Approve selected
+                            </s-button>
+                            <s-button slot="secondary-actions" tone="critical" disabled={busy || selected.size > BULK_LIMIT}
+                                commandFor="referral-decision-modal" command="--show" onClick={() => askDecision("reject", selectedRows)}>
+                                Reject selected
+                            </s-button>
+                        </s-banner>
+                    </>
+                )}
+
+                <s-box paddingBlockStart="base" />
+                {loading ? (
+                    <s-box padding="base" style={{ textAlign: "center", minHeight: "160px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <s-spinner />
+                    </s-box>
+                ) : (
+                    <ReviewTable
+                        tab={tab} rows={rows} shop={shop} q={q} busy={busy}
+                        selected={selected} onToggle={toggle} onTogglePage={togglePage} onDecide={askDecision}
+                    />
+                )}
+
+                {total > 0 && (
+                    <Pagination
+                        currentPage={page}
+                        totalPages={totalPages}
+                        totalItems={total}
+                        perPage={perPage}
+                        startIndex={(page - 1) * perPage}
+                        setCurrentPage={(v) => go({ page: resolve(v, page) })}
+                        setPerPage={(v) => go({ perPage: resolve(v, perPage), page: 1 })}
+                        label="referrals"
+                        perPageOptions={PER_PAGE_OPTIONS}
+                    />
+                )}
             </s-section>
         </s-page>
     );
