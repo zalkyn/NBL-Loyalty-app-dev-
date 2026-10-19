@@ -32,6 +32,9 @@ export default [
         // trail + manual reset, see server/jobs/subscriptionCancelledJob.js
         route("app/subscription-cancellations", "./layout/subscription-cancellations/route.jsx"),
 
+        // referral reviews — held / flagged referral rewards for merchant approval
+        route("app/referral-reviews", "./layout/referral-reviews/route.jsx"),
+
         // point events
         route("app/points-events", "./layout/points-events/route.jsx"),
 
