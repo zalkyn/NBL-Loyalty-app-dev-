@@ -67,6 +67,7 @@ export function AdjustPointsModal({ customer, isAdjusting, onConfirm }) {
                 <s-grid gridTemplateColumns="1fr 1fr" gap="small">
                     <s-button
                         variant={adding ? "primary" : "secondary"}
+                        inlineSize="fill"
                         icon="plus-circle"
                         onClick={() => setMode("add")}
                     >
@@ -75,6 +76,7 @@ export function AdjustPointsModal({ customer, isAdjusting, onConfirm }) {
                     <s-button
                         variant={!adding ? "primary" : "secondary"}
                         tone={!adding ? "critical" : undefined}
+                        inlineSize="fill"
                         icon="minus-circle"
                         onClick={() => setMode("remove")}
                     >
