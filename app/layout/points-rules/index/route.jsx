@@ -70,7 +70,7 @@ export default function PointsRulesIndexPage() {
     const page = usePointsRulesIndexPage(loaderData, actionData);
 
     return (
-        <s-page inlineSize="base">
+        <s-page heading="Points Earning Rules" inlineSize="base">
 
             <PageHeader />
 

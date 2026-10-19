@@ -6,7 +6,7 @@ import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppCo
 import { useRuleForm } from "@shared-utils/rule-utils/useRuleForm";
 import { useSubmitBusy } from "@shared-utils/rule-utils/useSubmitBusy";
 import { useToastRedirect } from "@shared-utils/rule-utils/useToastRedirect";
-import { PageHeader } from "@shared-utils/rule-components/PageHeader";
+import { PageHeader, ruleHeading } from "@shared-utils/rule-components/PageHeader";
 import { DescriptionField } from "@shared-utils/rule-components/DescriptionField";
 import { SaveBar } from "@app/components/saveBar/SaveBar";
 
@@ -149,13 +149,8 @@ export default function ReferralRulePage() {
 
     return (
         <>
-            <s-page inlineSize="base">
-                <PageHeader
-                    title="Referral Rule"
-                    mode={mode}
-                    isActive={formState.form.isActive}
-                    busy={isBusy}
-                />
+            <s-page heading={ruleHeading(mode, "Referral Rule")} inlineSize="base">
+                <PageHeader busy={isBusy} />
 
                 <s-grid gridTemplateColumns="2fr 1fr" gap="base">
                     <s-box>

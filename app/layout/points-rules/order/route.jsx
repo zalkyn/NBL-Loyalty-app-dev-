@@ -6,7 +6,7 @@ import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppCo
 import { useRuleForm } from "@shared-utils/rule-utils/useRuleForm";
 import { useSubmitBusy } from "@shared-utils/rule-utils/useSubmitBusy";
 import { useToastRedirect } from "@shared-utils/rule-utils/useToastRedirect";
-import { PageHeader } from "@shared-utils/rule-components/PageHeader";
+import { PageHeader, ruleHeading } from "@shared-utils/rule-components/PageHeader";
 import { ProductList } from "@shared-utils/rule-components/ProductList";
 import { DescriptionField } from "@shared-utils/rule-components/DescriptionField";
 import { SaveBar } from "@app/components/saveBar/SaveBar";
@@ -147,13 +147,8 @@ export default function OrderRulePage() {
 
     return (
         <>
-            <s-page inlineSize="base">
-                <PageHeader
-                    title="Order Rule"
-                    mode={mode}
-                    isActive={formState.form.isActive}
-                    busy={isBusy}
-                />
+            <s-page heading={ruleHeading(mode, "Order Rule")} inlineSize="base">
+                <PageHeader busy={isBusy} />
 
                 <s-grid gridTemplateColumns="2fr 1fr" gap="base">
                     <s-box>
