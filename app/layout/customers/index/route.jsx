@@ -7,6 +7,7 @@ import { useCustomersPage } from "./_hooks";
 import { CustomerTable } from "./components/CustomerTable";
 import { ConfirmSyncModal, SYNC_MODAL_ID } from "./components/ConfirmSyncModal";
 import { SyncProgressSection } from "./components/SyncProgressSection";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ export default function Customers() {
 
     return (
         <s-page heading="Customers" inlineSize="base">
+            <GuideButton topic="customers" />
             {/* onClick fetches the counts; commandFor opens the modal. Both
                 are needed: the count has to be in flight by the time the
                 modal paints, and the modal has to open declaratively for

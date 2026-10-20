@@ -24,6 +24,7 @@ import { authenticate } from "shopify-server";
 import ensureLooxFlowToken from "@controller/appSettings/ensureLooxFlowToken.js";
 import { SetupSteps } from "./components/SetupSteps.jsx";
 import { RegenerateUrlCard } from "./components/RegenerateUrlCard.jsx";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -94,6 +95,7 @@ export default function LooxSetupPage() {
 
     return (
         <s-page heading="Loox Review Points Setup" inlineSize="base">
+            <GuideButton topic="reviews" />
             <SetupSteps webhookUrl={webhookUrl} />
             <RegenerateUrlCard busy={busy} onRegenerate={handleRegenerate} />
         </s-page>

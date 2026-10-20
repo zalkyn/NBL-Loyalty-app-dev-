@@ -15,6 +15,7 @@ import { parseRulePayload, validateRulePayload } from "../shared-utils/rule-util
 import { ReviewTypeCard } from "./components/ReviewTypeCard";
 import { RewardModeSelector } from "./components/RewardModeSelector";
 import { SummaryPanel } from "./components/SummaryPanel";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -136,6 +137,7 @@ export default function ReviewRulePage() {
     return (
         <>
             <s-page heading={ruleHeading(mode, "Review Rule")} inlineSize="base">
+                <GuideButton topic="reviews" />
                 <PageHeader busy={busy} />
 
                 <s-grid gridTemplateColumns="2fr 1fr" gap="base">

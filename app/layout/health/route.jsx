@@ -16,6 +16,7 @@ import { authenticate } from "shopify-server";
 import { loadHealthData, retryFailedOrderJobs } from "./_health.server";
 import { AttentionPanel } from "./components/AttentionPanel";
 import { FeatureHealth } from "./components/FeatureHealth";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 export const loader = async ({ request }) => {
     const { session } = await authenticate.admin(request);
@@ -46,6 +47,7 @@ export default function ProgramHealthPage() {
 
     return (
         <s-page heading="Program Health">
+            <GuideButton topic="health" />
             <AttentionPanel health={health} />
             <FeatureHealth health={health} />
         </s-page>

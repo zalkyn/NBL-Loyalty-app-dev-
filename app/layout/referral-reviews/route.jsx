@@ -21,6 +21,7 @@ import { loadReviews, handleDecide } from "./_data.server";
 import { TABS, PER_PAGE_OPTIONS, BULK_LIMIT } from "./_data.js";
 import { ReviewTable } from "./components/ReviewTable";
 import { ConfirmDecisionModal } from "./components/ConfirmDecisionModal";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 export const loader = async ({ request }) => {
     const { session } = await authenticate.admin(request);
@@ -98,6 +99,7 @@ export default function ReferralReviewsPage() {
 
     return (
         <s-page heading="Referral Reviews">
+            <GuideButton topic="referrals" />
             {counts.waiting > 0 && tab !== "waiting" && (
                 <s-banner slot="supplemental-start" tone="warning" heading={`${counts.waiting} referral${counts.waiting === 1 ? " is" : "s are"} waiting for your decision`}>
                     <s-text>Customers are waiting on these rewards.</s-text>

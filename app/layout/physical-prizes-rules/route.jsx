@@ -24,6 +24,7 @@ import { PageHeading, pageTitle } from "./components/PageHeading";
 import { PrizeTable } from "./components/PrizeTable";
 import { PrizeForm } from "./components/PrizeForm";
 import { DeleteConfirmModal } from "./components/DeleteConfirmModal";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -155,6 +156,7 @@ export default function PhysicalPrizesPage() {
 
     return (
         <s-page heading={pageTitle(page.view)} inlineSize="base">
+            <GuideButton topic="prizes" />
             <PageHeading
                 view={page.view}
                 isAnyBusy={page.isAnyBusy}

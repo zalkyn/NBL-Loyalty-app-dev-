@@ -18,6 +18,7 @@ import { EarningFields } from "./components/EarningFields";
 import { IntervalCard } from "./components/IntervalCard";
 import { GroupCard } from "./components/GroupCard";
 import { SummaryPanel } from "./components/SummaryPanel";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -148,6 +149,7 @@ export default function OrderRulePage() {
     return (
         <>
             <s-page heading={ruleHeading(mode, "Order Rule")} inlineSize="base">
+                <GuideButton topic="earning" />
                 <PageHeader busy={isBusy} />
 
                 <s-grid gridTemplateColumns="2fr 1fr" gap="base">
