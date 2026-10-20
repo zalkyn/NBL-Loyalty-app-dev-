@@ -1,3 +1,4 @@
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 import Pagination from "@app/components/pagination/Pagination";
 import { STATUS_CONFIG, formatDate } from "../_data";
 
@@ -27,6 +28,7 @@ export function ClaimsTable({
     setCurrentPage,
     setPerPage,
 }) {
+    const { symbol } = useShopCurrency();
     return (
         <s-section padding="none">
             <s-table>
@@ -94,7 +96,7 @@ export function ClaimsTable({
                                                 <s-text variant="headingSm">{prize?.title ?? "—"}</s-text>
                                                 {prize?.productValue && (
                                                     <s-text tone="subdued" variant="bodySm">
-                                                        Value: ${Number(prize.productValue).toLocaleString()}
+                                                        Value: {symbol}{Number(prize.productValue).toLocaleString()}
                                                     </s-text>
                                                 )}
                                             </s-stack>

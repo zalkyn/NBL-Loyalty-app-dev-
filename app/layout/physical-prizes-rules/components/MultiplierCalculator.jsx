@@ -44,9 +44,9 @@ export function MultiplierCalculator({
                     <s-text tone="subdued" variant="bodySm">
                         {symbol}{Number(productValue).toLocaleString()} × {multiplier}x × {pointsPerDollar} pts/{symbol}1
                         {" = "}<strong>{suggestedPoints.toLocaleString()} pts</strong>
-                        {" · "}Spend equivalent: <strong>${(suggestedPoints / pointsPerDollar).toLocaleString()}</strong>
+                        {" · "}Spend equivalent: <strong>{symbol}{(suggestedPoints / pointsPerDollar).toLocaleString()}</strong>
                         {" · "}Effective return: <strong>{((Number(productValue) / (suggestedPoints / pointsPerDollar)) * 100).toFixed(1)}%</strong>
-                        {" · "}Value per point: <strong>${(Number(productValue) / suggestedPoints).toFixed(4)}</strong>
+                        {" · "}Value per point: <strong>{symbol}{(Number(productValue) / suggestedPoints).toFixed(4)}</strong>
                     </s-text>
                 </s-box>
             )}
