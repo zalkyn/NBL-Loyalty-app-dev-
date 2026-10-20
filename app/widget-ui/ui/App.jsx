@@ -962,7 +962,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
 
         const detailRows = [];
         if (claim.productValue || (prize && prize.productValue)) {
-            detailRows.push({ key: 'Prize value', val: `$${Number(claim.productValue || (prize && prize.productValue)).toLocaleString()}` });
+            detailRows.push({ key: 'Prize value', val: `${currencySymbol}${Number(claim.productValue || (prize && prize.productValue)).toLocaleString()}` });
         }
         if (claim.pointsCost) detailRows.push({ key: 'Points spent', val: `${formatNumber(claim.pointsCost)} pts` });
         if (prizeConfig.showRequestDate && claim.createdAt) detailRows.push({ key: 'Requested on', val: fmtDate(claim.createdAt) });
@@ -1256,6 +1256,7 @@ export function App({ initialData, bridgeRef, hostEl }) {
                                     onOpenInfo={openInfo}
                                     onOpenClaim={openPrizeClaim}
                                     onViewImage={openImagePreview}
+                                    currencySymbol={currencySymbol}
                                 />
                             </TabPanel>
                             <TabPanel tabKey="referral" activeTab={activeTab}>
