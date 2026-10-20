@@ -407,7 +407,7 @@ export const EXTRA_TOPICS = [
             "Settings are grouped: Earning points, Spending points, Subscriptions, What customers see, Store.",
             "Each row has a badge: green means on, yellow means off or not set up, grey is information such as a count.",
             "Press the button on a row to open the page where that setting is changed.",
-            "Your store currency is not a setting here: it is read from Shopify.",
+            "\"Your store\" at the top shows details read from Shopify (name, address, currency, other selling currencies, time zone). They are for reference; change them in Shopify.",
         ],
         example: {
             title: "Checking before a sale",

@@ -7,6 +7,7 @@
 import prisma from "db-server";
 import { logger } from "app/utils/logger.js";
 import { getPointRuleByEvent } from "@controller/pointsRule/getPointRuleByEvent.js";
+import shopDetails from "app/graphql/query/shop/shopDetails.js";
 import { getSubscriptionCancelResetSettings } from "@controller/appSettings/subscriptionCancelResetSettings.js";
 
 const MODULE = "layout/settings/_settings.server.js";
@@ -18,9 +19,10 @@ const safe = async (promise, fallback) => {
     }
 };
 
-/** @param {{ id: string, shop: string }} session */
-export async function loadSettingsOverview(session) {
-    const [orderRule, referralRule, reviewRule, cancel, rewardCount, prizeCount, backfillCount, style, appSettings] = await Promise.all([
+/** @param {{ id: string, shop: string }} session
+ *  @param {object} admin - Shopify Admin GraphQL client (store details) */
+export async function loadSettingsOverview(session, admin) {
+    const [orderRule, referralRule, reviewRule, cancel, rewardCount, prizeCount, backfillCount, style, appSettings, store] = await Promise.all([
         safe(getPointRuleByEvent("ORDER", session.id), null),
         safe(getPointRuleByEvent("REFERRAL", session.id), null),
         safe(getPointRuleByEvent("REVIEW", session.id), null),
@@ -30,6 +32,7 @@ export async function loadSettingsOverview(session) {
         safe(prisma.shadowRule.count({ where: { sessionId: session.id } }), null),
         safe(prisma.style.findUnique({ where: { shop: session.shop }, select: { widgetConfig: true } }), null),
         safe(prisma.appSettings.findUnique({ where: { shop: session.shop }, select: { looxFlowToken: true } }), null),
+        safe(shopDetails(admin), null),
     ]);
 
     return {
@@ -37,6 +40,7 @@ export async function loadSettingsOverview(session) {
         referralActive: !!referralRule,
         referralTrigger: referralRule?.conditions?.referral?.trigger ?? null,
         reviewActive: !!reviewRule,
+        store,
         cancel,
         rewardCount,
         prizeCount,
