@@ -30,6 +30,7 @@ import { TransactionsTable }  from "./components/TransactionsTable";
 import { RewardsTable }       from "./components/RewardsTable";
 import { PhysicalPrizeClaimsTable } from "./components/PhysicalPrizeClaimsTable";
 import { SubscriptionCancelEventsTable } from "./components/SubscriptionCancelEventsTable";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ export default function CustomerDetails() {
 
     return (
         <s-page heading={page.customerLabel}>
+            <GuideButton topic="customers" />
 
             {/* ── Header: title is the page heading; back link and the single
                 primary action live in their page slots ── */}

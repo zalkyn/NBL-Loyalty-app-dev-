@@ -26,6 +26,7 @@ import { PageHeading, pageTitle } from "./components/PageHeading";
 import { ShadowRuleTable } from "./components/ShadowRuleTable";
 import { ShadowRuleForm } from "./components/ShadowRuleForm";
 import { DeleteConfirmModal } from "./components/DeleteConfirmModal";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared server-side rate validation — mirrors _data.js's validate() for
@@ -249,6 +250,7 @@ export default function ShadowRulesPage() {
 
     return (
         <s-page heading={pageTitle(page.view)}>
+            <GuideButton topic="backfill" />
             <DevConfigNav active="points-backfill-rules" />
 
             <PageHeading

@@ -32,6 +32,7 @@ import { FilterBar } from "./components/FilterBar";
 import { CancelEventsTable } from "./components/CancelEventsTable";
 import { ConfirmModal } from "./components/ConfirmModal";
 import { HowItWorksModal, HOW_IT_WORKS_MODAL_ID } from "./components/HowItWorksModal";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -180,6 +181,7 @@ export default function SubscriptionCancellationsPage() {
 
     return (
         <s-page heading="Subscription Cancellations" inlineSize="large">
+            <GuideButton topic="subscriptions" />
 
             <s-banner slot="supplemental-start" tone="info" heading="Subscription cancellations" dismissible>
                 <s-text>

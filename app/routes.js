@@ -32,6 +32,9 @@ export default [
         // trail + manual reset, see server/jobs/subscriptionCancelledJob.js
         route("app/subscription-cancellations", "./layout/subscription-cancellations/route.jsx"),
 
+        // feature guide — every feature explained with examples (?topic=…)
+        route("app/guide", "./layout/guide/route.jsx"),
+
         // program health — attention items + how each feature is doing
         route("app/health", "./layout/health/route.jsx"),
 

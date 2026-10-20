@@ -19,6 +19,7 @@ export default function AppNav() {
         <s-link href="/app/dashboard">Dashboard</s-link>
         <s-link href="/app/health">Program Health</s-link>
         <s-link href="/app/setup-guide">Setup Guide</s-link>
+        <s-link href="/app/guide">Feature Guide</s-link>
         <s-link href="/app/customers">Customers</s-link>
         <s-link href="/app/points-rules">Points Earning Rules</s-link>
         <s-link href="/app/rewards-rules">Reward Rules</s-link>

@@ -33,6 +33,7 @@ import { RulesTable } from "./components/RulesTable";
 import { RewardRuleForm } from "./components/RewardRuleForm";
 import { DeleteRuleModal } from "./components/DeleteRuleModal";
 import { SaveBar } from "@app/components/saveBar/SaveBar";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -78,6 +79,7 @@ export default function RewardRulesPage() {
 
     return (
         <s-page heading={pageTitle(page.view)} inlineSize="base">
+            <GuideButton topic="rewards" />
             <PageHeading
                 view={page.view}
                 fs={page.fs}
