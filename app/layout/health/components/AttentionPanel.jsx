@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useActionData, useNavigate, useNavigation, useSubmit } from "react-router";
-import { useAppBridge } from "@shopify/app-bridge-react";
+import { useNavigate } from "react-router";
 import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 import { buildAttentionItems } from "../_attention.js";
 
@@ -28,25 +27,8 @@ function writeDismissed() {
  *   success  → all clear, info → a dismissible explanation of the new features.
  * Renders from numbers the loader already computed; nothing here fetches.
  */
-export function AttentionPanel({ health }) {
+export function AttentionPanel({ health, retrying, onRetry }) {
     const navigate = useNavigate();
-    const submit = useSubmit();
-    const navigation = useNavigation();
-    const shopify = useAppBridge();
-    const actionData = useActionData();
-    const retrying = navigation.state === "submitting" && navigation.formData?.get("submitType") === "retryFailedOrders";
-
-    // Every outcome of the retry button gets a toast, so the click never feels ignored.
-    useEffect(() => {
-        if (actionData?.submitType !== "retryFailedOrders") return;
-        shopify.toast.show(actionData.message, { isError: actionData.status === "error" });
-    }, [actionData, shopify]);
-
-    const retryFailedOrders = () => {
-        const fd = new FormData();
-        fd.set("submitType", "retryFailedOrders");
-        submit(fd, { method: "post" });
-    };
     const { code: shopCurrency } = useShopCurrency();
     // Start dismissed so the info banner never flashes in for someone who
     // already closed it; the real value is read after mount.
@@ -77,7 +59,7 @@ export function AttentionPanel({ health }) {
                 <s-banner key={item.key} slot="supplemental-start" tone={item.tone} heading={item.heading}>
                     <s-text>{item.text}</s-text>
                     {item.retry && (
-                        <s-button slot="secondary-actions" variant="secondary" loading={retrying || undefined} disabled={retrying} onClick={retryFailedOrders}>
+                        <s-button slot="secondary-actions" variant="secondary" loading={retrying || undefined} disabled={retrying} onClick={onRetry}>
                             Retry failed orders
                         </s-button>
                     )}
