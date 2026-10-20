@@ -1,3 +1,4 @@
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 import { STATUS_CONFIG, formatDate } from "../_data";
 
 /**
@@ -17,6 +18,7 @@ export function ViewClaimModal({
     onOpenNote,
     onOpenConfirm,
 }) {
+    const { symbol } = useShopCurrency();
     const hideThenRun = (fn) => () => { modalRef.current?.hideOverlay(); fn(); };
 
     return (
@@ -46,7 +48,7 @@ export function ViewClaimModal({
                                 <s-text variant="headingMd">{prize?.title ?? "—"}</s-text>
                                 {prize?.productValue && (
                                     <s-text tone="subdued" variant="bodySm">
-                                        Product Value: ${Number(prize.productValue).toLocaleString()}
+                                        Product Value: {symbol}{Number(prize.productValue).toLocaleString()}
                                     </s-text>
                                 )}
                             </s-stack>
