@@ -827,6 +827,9 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop, subscr
             metadata: {
                 orderId: order.admin_graphql_api_id,
                 orderTotal: order.total_price,
+                // Lets the subscription-cancel job tell that a customer who
+                // cancelled has since paid for a subscription again.
+                ...(isSubscription ? { subscription: true } : {}),
             },
         },
         session
