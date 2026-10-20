@@ -11,11 +11,14 @@
 //   where: { label, href }      – the page to go to
 //   steps: string[]             – "How it works", in order
 //   example: { title, lines[] } – a worked example with real numbers
+//   (customerSees, more examples, moreSteps, more faq live in _details.js)
 //   notes: { tone, text }[]     – things to watch for (info / warning)
 //   faq: { q, a }[]             – the questions admins actually ask
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const GUIDE_TOPICS = [
+import { TOPIC_DETAILS, EXTRA_TOPICS } from "./_details.js";
+
+const BASE_TOPICS = [
     // ── 0. Start here ─────────────────────────────────────────────────────────
     {
         key: "start",
@@ -393,6 +396,24 @@ export const GUIDE_TOPICS = [
         ],
     },
 ];
+
+// Topics read in this order. Each base topic gets its extra detail from
+// _details.js (what customers see, more examples, more steps and questions).
+const ORDER = ["start", "widget", "setup", "earning", "rewards", "referrals", "reviews", "prizes", "subscriptions", "backfill", "customers", "events", "health", "messages", "currency"];
+
+const byKey = Object.fromEntries([...BASE_TOPICS, ...EXTRA_TOPICS].map((t) => [t.key, t]));
+
+export const GUIDE_TOPICS = ORDER.map((key) => {
+    const topic = byKey[key];
+    const extra = TOPIC_DETAILS[key] ?? {};
+    return {
+        ...topic,
+        customerSees: extra.customerSees ?? topic.customerSees ?? [],
+        examples: [topic.example, ...(extra.examples ?? [])].filter(Boolean),
+        moreSteps: extra.moreSteps ?? [],
+        faq: [...(topic.faq ?? []), ...(extra.moreFaq ?? [])],
+    };
+});
 
 export const DEFAULT_TOPIC = "start";
 

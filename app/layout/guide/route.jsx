@@ -64,14 +64,32 @@ export default function GuidePage() {
                 <Steps steps={topic.steps} />
             </s-section>
 
-            {topic.example && (
-                <s-section heading="Example">
-                    <s-box padding="base" background="subdued" borderRadius="base">
-                        <s-stack direction="block" gap="small">
-                            <s-text type="strong">{topic.example.title}</s-text>
-                            {topic.example.lines.map((line) => <s-text key={line}>{line}</s-text>)}
-                        </s-stack>
-                    </s-box>
+            {topic.moreSteps.length > 0 && (
+                <s-section heading="More detail">
+                    <Steps steps={topic.moreSteps} />
+                </s-section>
+            )}
+
+            {topic.customerSees.length > 0 && (
+                <s-section heading="What your customers see">
+                    <s-unordered-list>
+                        {topic.customerSees.map((line) => <s-list-item key={line}>{line}</s-list-item>)}
+                    </s-unordered-list>
+                </s-section>
+            )}
+
+            {topic.examples.length > 0 && (
+                <s-section heading={topic.examples.length > 1 ? "Examples" : "Example"}>
+                    <s-stack direction="block" gap="base">
+                        {topic.examples.map((example) => (
+                            <s-box key={example.title} padding="base" background="subdued" borderRadius="base">
+                                <s-stack direction="block" gap="small">
+                                    <s-text type="strong">{example.title}</s-text>
+                                    {example.lines.map((line) => <s-text key={line}>{line}</s-text>)}
+                                </s-stack>
+                            </s-box>
+                        ))}
+                    </s-stack>
                 </s-section>
             )}
 
