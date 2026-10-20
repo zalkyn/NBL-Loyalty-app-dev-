@@ -41,3 +41,43 @@ export function cancelResetDeduction(balance, addedAfter, mode) {
     const kept = Math.max(0, Number(addedAfter) || 0);
     return Math.max(0, bal - kept);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WHEN the automatic reset happens
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * immediate   - reset the moment Appstle reports the cancellation (the
+ *               original behaviour, and the default)
+ * period_end  - keep the points until the date the customer has paid up to,
+ *               then reset. A yearly member who cancels after one month keeps
+ *               their points for the remaining eleven.
+ */
+export const RESET_TIMINGS = ["immediate", "period_end"];
+export const DEFAULT_RESET_TIMING = "immediate";
+
+/**
+ * Decides, for one cancellation, whether to reset now or wait.
+ *
+ * "Paid up to" is the contract's nextBillingDate on the cancellation event —
+ * the date the next payment would have been taken. Appstle sent it on every
+ * real cancellation we have seen (about a month ahead for monthly plans, a
+ * year ahead for a 12-month plan). If it is missing or already past, waiting
+ * has no meaning, so the reset happens now — the same as before this option
+ * existed — rather than leaving a balance unreset by accident.
+ *
+ * @param {Object} args
+ * @param {string} args.timing           - One of RESET_TIMINGS.
+ * @param {string|Date|null} [args.nextBillingDate]
+ * @param {Date} [args.now]
+ * @returns {{ action: "reset_now" } | { action: "defer", dueAt: Date }}
+ */
+export function planCancelReset({ timing, nextBillingDate, now = new Date() }) {
+    if (timing !== "period_end") return { action: "reset_now" };
+
+    const dueAt = nextBillingDate ? new Date(nextBillingDate) : null;
+    if (!dueAt || Number.isNaN(dueAt.getTime())) return { action: "reset_now" };
+    if (dueAt.getTime() <= now.getTime()) return { action: "reset_now" };
+
+    return { action: "defer", dueAt };
+}
