@@ -16,8 +16,8 @@ import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 export const loader = async ({ request }) => {
-    const { session } = await authenticate.admin(request);
-    return loadSettingsOverview(session);
+    const { session, admin } = await authenticate.admin(request);
+    return loadSettingsOverview(session, admin);
 };
 
 const TRIGGERS = { oneTime: "one-time orders only", subscription: "subscription orders only", both: "all orders" };
@@ -26,7 +26,7 @@ const on = (text) => ({ tone: "success", text });
 const off = (text) => ({ tone: "warning", text });
 const info = (text) => ({ tone: "neutral", text });
 
-function buildGroups(d, currencyCode) {
+function buildGroups(d) {
     return [
         {
             title: "Earning points",
@@ -71,19 +71,65 @@ function buildGroups(d, currencyCode) {
             ],
         },
         {
-            title: "Store",
+            title: "Other",
             rows: [
-                { name: "Currency", what: "Taken from your Shopify store automatically. There is nothing to set here.", status: info(currencyCode || "—"), href: "/app/guide?topic=currency", cta: "Read more" },
                 { name: "Points Events", what: "The kinds of action that can earn points. Usually left as they are.", status: info("Standard"), href: "/app/points-events", cta: "Open Points Events" },
             ],
         },
     ];
 }
 
+const SELLING_SHOWN = 8;
+
+function StoreSection({ store }) {
+    const { symbol } = useShopCurrency();
+    if (!store) {
+        return (
+            <s-section heading="Your store">
+                <s-banner tone="info">
+                    <s-text>We couldn't read your store details from Shopify just now. Refresh the page to try again.</s-text>
+                </s-banner>
+            </s-section>
+        );
+    }
+    const others = store.sellingCurrencies.filter((c) => c !== store.currencyCode);
+    const rows = [
+        { label: "Store", value: store.name, note: store.domain },
+        store.primaryDomain && { label: "Web address", value: store.primaryDomain.replace(/^https?:\/\//, ""), note: "The address customers see." },
+        {
+            label: "Currency",
+            value: store.currencyCode ? `${store.currencyCode}${symbol ? ` (${symbol})` : ""}` : "—",
+            note: "Read from Shopify. Reward amounts, \"points per amount spent\" and the referral discount all use it. There is nothing to set in this app; change it in Shopify and the app follows.",
+        },
+        others.length > 0 && {
+            label: "Also sold in",
+            value: others.slice(0, SELLING_SHOWN).join(", ") + (others.length > SELLING_SHOWN ? ` and ${others.length - SELLING_SHOWN} more` : ""),
+            note: "Customers may pay in these. Points are still worked out in your store currency.",
+        },
+        store.timezone && { label: "Time zone", value: store.timezone, note: "For reference. It's the time zone set in your Shopify store." },
+    ].filter(Boolean);
+
+    return (
+        <s-section heading="Your store">
+            <s-stack direction="block" gap="base">
+                {rows.map((row) => (
+                    <s-stack key={row.label} direction="block" gap="small-500">
+                        <s-stack direction="inline" gap="small" alignItems="center">
+                            <s-text type="strong">{row.label}</s-text>
+                            <s-badge>{row.value}</s-badge>
+                        </s-stack>
+                        {row.note && <s-text tone="neutral">{row.note}</s-text>}
+                    </s-stack>
+                ))}
+                <s-text tone="neutral">These come from Shopify and are shown for reference. To change them, use your Shopify admin → Settings.</s-text>
+            </s-stack>
+        </s-section>
+    );
+}
+
 export default function SettingsPage() {
     const data = useLoaderData();
-    const { code } = useShopCurrency();
-    const groups = buildGroups(data, code);
+    const groups = buildGroups(data);
 
     return (
         <s-page heading="Settings" inlineSize="base">
@@ -95,6 +141,8 @@ export default function SettingsPage() {
                     open it. Each setting lives beside the feature it belongs to, with its explanation next to it.
                 </s-paragraph>
             </s-section>
+
+            <StoreSection store={data.store} />
 
             {groups.map((group) => (
                 <s-section key={group.title} heading={group.title}>
