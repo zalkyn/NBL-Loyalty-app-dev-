@@ -45,6 +45,31 @@ export function HowItWorksModal() {
                 <s-divider />
 
                 <s-stack direction="block" gap="small-300">
+                    <s-heading>When the automatic reset happens</s-heading>
+                    <s-unordered-list>
+                        <s-list-item>
+                            <s-text type="strong">Immediately</s-text> (default): the balance resets as soon as the
+                            cancellation is reported, even if the customer has paid for more time.
+                        </s-list-item>
+                        <s-list-item>
+                            <s-text type="strong">When the paid period ends</s-text>: the customer keeps their points
+                            until the date they have paid up to (their next billing date, which Appstle sends with the
+                            cancellation), then the balance resets. The customer is told their points stay until that date.
+                        </s-list-item>
+                        <s-list-item>
+                            If they pay for a subscription again before that date, nothing is reset. This is detected
+                            from a subscription order that earned points, so a subscription order that earned no points
+                            can&apos;t be seen; use Restore Points if that ever happens.
+                        </s-list-item>
+                        <s-list-item>
+                            If the date is missing or already past, the reset happens straight away.
+                        </s-list-item>
+                    </s-unordered-list>
+                </s-stack>
+
+                <s-divider />
+
+                <s-stack direction="block" gap="small-300">
                     <s-heading>What each status means</s-heading>
                     <s-unordered-list>
                         <s-list-item>
@@ -54,6 +79,14 @@ export function HowItWorksModal() {
                         <s-list-item>
                             <s-badge tone="warning">No</s-badge> <s-text type="strong">Auto-reset was off</s-text>:
                             not reset because the toggle was off at the time. Use &quot;Reset Now&quot; to apply it.
+                        </s-list-item>
+                        <s-list-item>
+                            <s-badge tone="info">Scheduled</s-badge> Points are kept until the paid period ends; the
+                            reset runs by itself on the date shown. Nothing to do.
+                        </s-list-item>
+                        <s-list-item>
+                            <s-badge tone="neutral">Kept</s-badge> The customer paid for a subscription again before the
+                            reset date, so their points were not reset.
                         </s-list-item>
                         <s-list-item>
                             <s-badge tone="warning">No</s-badge> <s-text type="strong">Not enrolled in loyalty

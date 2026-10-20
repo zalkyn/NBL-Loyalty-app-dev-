@@ -1,4 +1,4 @@
-import { restorableTotal, restoreRemaining as getRestoreRemaining, MANUAL_RESET_MODE_OPTIONS } from "../_data";
+import { restorableTotal, restoreRemaining as getRestoreRemaining, MANUAL_RESET_MODE_OPTIONS, RESET_TIMING_OPTIONS } from "../_data";
 
 /**
  * One shared modal for every consequential action on this page — toggling
@@ -20,6 +20,8 @@ export function ConfirmModal({
     const isResetBulk = type === "resetBulk";
     const isRestore = type === "restore";
     const isMode = type === "mode";
+    const isTiming = type === "timing";
+    const nextTimingOption = RESET_TIMING_OPTIONS.find((o) => o.value === confirmTarget?.nextTiming);
     const keepEarnedAfter = manualResetMode === "KEEP_EARNED_AFTER";
     const nextModeOption = MANUAL_RESET_MODE_OPTIONS.find((o) => o.value === confirmTarget?.nextMode);
 
@@ -53,6 +55,8 @@ export function ConfirmModal({
                 ? "Reset Selected Customers"
                 : isRestore
                     ? "Restore Points"
+                    : isTiming
+                        ? "Change When Points Reset"
                     : isMode
                         ? "Change Manual Reset"
                         : keepEarnedAfter ? "Reset Points" : "Reset Points to 0";
@@ -83,6 +87,15 @@ export function ConfirmModal({
                             reset to 0 automatically. Lifetime points are never affected.
                         </s-banner>
                         <s-text>Turn on automatic points reset on cancellation?</s-text>
+                    </>
+                )}
+                {isTiming && nextTimingOption && (
+                    <>
+                        <s-banner tone="info" heading={nextTimingOption.label}>
+                            {nextTimingOption.details} This applies to new cancellations from now on. Cancellations already
+                            recorded keep what happened to them.
+                        </s-banner>
+                        <s-text>Change when points reset?</s-text>
                     </>
                 )}
                 {isMode && nextModeOption && (
@@ -166,7 +179,7 @@ export function ConfirmModal({
             >
                 {isToggleOff ? "Turn Off"
                     : isToggleOn ? "Turn On"
-                        : isMode ? "Change"
+                        : (isMode || isTiming) ? "Change"
                             : isResetBulk ? (keepEarnedAfter ? `Reset ${selectedCount}` : `Reset ${selectedCount} to 0`)
                                 : isRestore ? `Restore ${restoreAmountInput || 0} pts`
                                     : keepEarnedAfter ? `Remove ${toRemove} pts` : "Reset to 0"}
