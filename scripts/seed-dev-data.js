@@ -64,7 +64,8 @@ async function clean() {
     const ids = customers.map((c) => c.id);
     // Referrals/transactions/rewards cascade from Customer; jobs and the rule are separate.
     await prisma.customer.deleteMany({ where: { id: { in: ids } } });
-    await prisma.job.deleteMany({ where: { idempotencyKey: { startsWith: `${TAG}:` } } });
+    await prisma.job.deleteMany({ where: { OR: [{ idempotencyKey: { startsWith: `${TAG}:` } }, { idempotencyKey: { startsWith: `SUBSCRIPTION_RESET_DUE:${TAG}:` } }] } });
+    await prisma.subscriptionCancelEvent.deleteMany({ where: { svixId: { startsWith: `${TAG}:` } } });
     await prisma.shadowRule.deleteMany({ where: { name: { startsWith: `${TAG} ` } } });
     console.log(`Removed ${ids.length} seeded customers (and their transactions, rewards, referrals) plus seeded jobs/rules.`);
 }
@@ -278,6 +279,31 @@ async function main() {
             runAt: new Date(now + 4 * 60 * 1000),
         },
     });
+
+    // ── Subscription cancellations (waiting for the paid period to end) ──────
+    // One scheduled reset (yearly plan, due in ~11 months) and one that was kept
+    // because the customer subscribed again — for the Subscription Cancellations page.
+    for (const [n, state] of [[4, "WAITING_PERIOD_END"], [5, "RESUBSCRIBED"]]) {
+        const c = customers[n];
+        const svixId = `${TAG}:svix:${state}:${n}`;
+        await prisma.subscriptionCancelEvent.create({
+            data: {
+                shop: session.shop, sessionId: session.id, customerId: c.id, customerShopifyId: c.shopifyId,
+                customerEmail: c.email, customerName: c.name ?? `${c.firstName} ${c.lastName}`,
+                subscriptionContractId: `gid://shopify/SubscriptionContract/seed${n}`, previousBalance: c.balance,
+                resetApplied: false, skipReason: state, svixId, cancelledAt: daysAgo(n),
+            },
+        });
+        if (state === "WAITING_PERIOD_END") {
+            await prisma.job.create({
+                data: {
+                    type: "SUBSCRIPTION_CANCELLED", status: "PENDING", shop: session.shop,
+                    idempotencyKey: `SUBSCRIPTION_RESET_DUE:${svixId}`, runAt: new Date(now + 335 * DAY),
+                    payload: { deferredFor: svixId, dueAt: new Date(now + 335 * DAY).toISOString() },
+                },
+            });
+        }
+    }
 
     // ── Backfill rule in a different currency ─────────────────────────────────
     await prisma.shadowRule.create({

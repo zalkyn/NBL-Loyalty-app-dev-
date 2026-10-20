@@ -32,6 +32,9 @@ export const SKIP_REASON_LABEL = {
     // Manual reset in KEEP_EARNED_AFTER mode found nothing left from before
     // the cancellation — every point the customer has came after it.
     NOTHING_BEFORE_CANCEL: "Nothing to remove — all points were earned after cancelling",
+    // "Reset when the paid period ends" — see RESET_TIMING_OPTIONS below.
+    WAITING_PERIOD_END: "Points kept until the paid period ends",
+    RESUBSCRIBED: "Paid for a subscription again — not reset",
 };
 
 /**
@@ -43,7 +46,26 @@ export const SKIP_REASON_LABEL = {
  * customer-profile stat card, row selection for bulk actions) — duplicating
  * the check risked one of them drifting out of sync with the others.
  */
-export const NON_ACTIONABLE_SKIP_REASONS = ["ALREADY_ZERO", "NEGATIVE_BALANCE", "NOTHING_BEFORE_CANCEL"];
+export const NON_ACTIONABLE_SKIP_REASONS = [
+    "ALREADY_ZERO", "NEGATIVE_BALANCE", "NOTHING_BEFORE_CANCEL",
+    // Nothing for an admin to do: the reset is scheduled and will run by itself,
+    // or the customer came back and keeps their points.
+    "WAITING_PERIOD_END", "RESUBSCRIBED",
+];
+
+/** Admin-facing names for WHEN the automatic reset happens (utils/subscriptionCancelReset.js). */
+export const RESET_TIMING_OPTIONS = [
+    {
+        value: "immediate",
+        label: "Immediately when the subscription is cancelled",
+        details: "The balance goes to 0 as soon as Appstle reports the cancellation, even if the customer has paid for more time.",
+    },
+    {
+        value: "period_end",
+        label: "When the paid period ends",
+        details: "The customer keeps their points until the date they have paid up to (the next billing date), then the balance resets. A yearly member who cancels after one month keeps their points for the remaining months. If they subscribe again before then, nothing is reset.",
+    },
+];
 
 /** Admin-facing names for the manual reset modes (utils/subscriptionCancelReset.js). */
 export const MANUAL_RESET_MODE_OPTIONS = [

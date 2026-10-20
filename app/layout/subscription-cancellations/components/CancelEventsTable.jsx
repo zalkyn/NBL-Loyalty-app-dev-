@@ -108,13 +108,22 @@ export function CancelEventsTable({
                                     {/* Reset Applied */}
                                     <s-table-cell>
                                         <s-stack direction="block" gap="small-300">
-                                            <s-badge tone={event.resetApplied ? "success" : "warning"}>
-                                                {event.resetApplied ? "Yes" : "No"}
-                                            </s-badge>
+                                            {event.skipReason === "WAITING_PERIOD_END" ? (
+                                                <s-badge tone="info">Scheduled</s-badge>
+                                            ) : event.skipReason === "RESUBSCRIBED" ? (
+                                                <s-badge tone="neutral">Kept</s-badge>
+                                            ) : (
+                                                <s-badge tone={event.resetApplied ? "success" : "warning"}>
+                                                    {event.resetApplied ? "Yes" : "No"}
+                                                </s-badge>
+                                            )}
                                             {event.skipReason && (
                                                 <s-text tone="subdued" variant="bodySm">
                                                     {SKIP_REASON_LABEL[event.skipReason] ?? event.skipReason}
                                                 </s-text>
+                                            )}
+                                            {event.skipReason === "WAITING_PERIOD_END" && event.resetDueAt && (
+                                                <s-text variant="bodySm">Resets on {formatDate(event.resetDueAt)}</s-text>
                                             )}
                                             {event.resolvedManually && (
                                                 <s-badge tone="info">Manually reset</s-badge>
