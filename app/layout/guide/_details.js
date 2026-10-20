@@ -398,6 +398,33 @@ export const EXTRA_TOPICS = [
         ],
     },
     {
+        key: "settings",
+        title: "Settings overview",
+        summary:
+            "One page that lists every setting of the programme, what it controls and what it is set to now. It only shows and links: each setting is changed on the page of its own feature.",
+        where: { label: "Open Settings", href: "/app/settings" },
+        steps: [
+            "Settings are grouped: Earning points, Spending points, Subscriptions, What customers see, Store.",
+            "Each row has a badge: green means on, yellow means off or not set up, grey is information such as a count.",
+            "Press the button on a row to open the page where that setting is changed.",
+            "Your store currency is not a setting here: it is read from Shopify.",
+        ],
+        example: {
+            title: "Checking before a sale",
+            lines: [
+                "Open Settings. Orders: On. Referrals: On — all orders. Cancellations: On — immediately.",
+                "You decide yearly members should keep points until their paid period ends, so you press Open cancellations and change the timing there.",
+                "Back on Settings, the row now reads \"On — when the paid period ends\".",
+            ],
+        },
+        notes: [
+            { tone: "info", text: "A yellow badge isn't an error. It means the feature is switched off or not set up yet, which may be exactly what you want." },
+        ],
+        faq: [
+            { q: "Why can't I change settings on this page?", a: "Each setting sits beside the feature it affects, with its explanation, so you can see what a change does. This page is the map." },
+        ],
+    },
+    {
         key: "events",
         title: "Points Events",
         summary:

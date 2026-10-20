@@ -399,7 +399,7 @@ const BASE_TOPICS = [
 
 // Topics read in this order. Each base topic gets its extra detail from
 // _details.js (what customers see, more examples, more steps and questions).
-const ORDER = ["start", "widget", "setup", "earning", "rewards", "referrals", "reviews", "prizes", "subscriptions", "backfill", "customers", "events", "health", "messages", "currency"];
+const ORDER = ["start", "widget", "setup", "settings", "earning", "rewards", "referrals", "reviews", "prizes", "subscriptions", "backfill", "customers", "events", "health", "messages", "currency"];
 
 const byKey = Object.fromEntries([...BASE_TOPICS, ...EXTRA_TOPICS].map((t) => [t.key, t]));
 
