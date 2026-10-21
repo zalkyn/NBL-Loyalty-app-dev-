@@ -101,7 +101,7 @@ export function RewardRuleForm({ fs, busy, titlePreview }) {
                         {/* Live preview when placeholder is present */}
                         {form.title?.includes("{{currency_value}}") && (
                             <s-box paddingBlockStart="small">
-                                <s-text tone="subdued">Preview: {titlePreview}</s-text>
+                                <s-text color="subdued">Preview: {titlePreview}</s-text>
                             </s-box>
                         )}
                     </s-section>
@@ -139,7 +139,7 @@ export function RewardRuleForm({ fs, busy, titlePreview }) {
                             <s-text><strong>Status:</strong> <s-badge tone={form.isActive ? "success" : "critical"}>{form.isActive ? "Active" : "Inactive"}</s-badge></s-text>
                         </>
                     ) : (
-                        <s-text tone="subdued">Select a reward type to see a summary.</s-text>
+                        <s-text color="subdued">Select a reward type to see a summary.</s-text>
                     )}
                 </s-section>
 

@@ -125,7 +125,7 @@ export default function ReferralReviewsPage() {
                 </s-stack>
 
                 <s-box paddingBlockStart="base" />
-                <s-paragraph tone="subdued">
+                <s-paragraph color="subdued">
                     {tab === "waiting" && "These rewards were held because the two accounts look like the same person or household. The referred customer's discount was already applied by Shopify. Approve to award the points, or reject to award nothing."}
                     {tab === "flagged" && "These were rewarded normally, but one weaker signal was noticed (same name, or a similar address), or you approved them after a hold."}
                     {tab === "rejected" && "Rewards you rejected. No points were awarded for these."}

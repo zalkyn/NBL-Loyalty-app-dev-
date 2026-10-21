@@ -47,7 +47,7 @@ export function ViewClaimModal({
                             <s-stack direction="block" gap="small">
                                 <s-text variant="headingMd">{prize?.title ?? "—"}</s-text>
                                 {prize?.productValue && (
-                                    <s-text tone="subdued" variant="bodySm">
+                                    <s-text color="subdued" variant="bodySm">
                                         Product Value: {symbol}{Number(prize.productValue).toLocaleString()}
                                     </s-text>
                                 )}
@@ -66,8 +66,8 @@ export function ViewClaimModal({
                                     </s-button>
                                 )}
                             </s-stack>
-                            <s-text tone="subdued" variant="bodySm">{customer?.email ?? "—"}</s-text>
-                            <s-text tone="subdued" variant="bodySm">
+                            <s-text color="subdued" variant="bodySm">{customer?.email ?? "—"}</s-text>
+                            <s-text color="subdued" variant="bodySm">
                                 Current Balance: {Number(customer?.points ?? 0).toLocaleString()} pts
                             </s-text>
                         </s-stack>
@@ -76,27 +76,27 @@ export function ViewClaimModal({
 
                         <s-grid gridTemplateColumns="1fr 1fr" gap="base">
                             <s-stack direction="block" gap="small-200">
-                                <s-text tone="subdued" variant="bodySm">Points Spent</s-text>
+                                <s-text color="subdued" variant="bodySm">Points Spent</s-text>
                                 <s-text variant="headingSm">{Number(vc.pointsCost).toLocaleString()} pts</s-text>
                             </s-stack>
                             <s-stack direction="block" gap="small-200">
-                                <s-text tone="subdued" variant="bodySm">Status</s-text>
+                                <s-text color="subdued" variant="bodySm">Status</s-text>
                                 <s-badge tone={sc.tone}>{sc.label}</s-badge>
                             </s-stack>
                             <s-stack direction="block" gap="small-200">
-                                <s-text tone="subdued" variant="bodySm">Claimed On</s-text>
+                                <s-text color="subdued" variant="bodySm">Claimed On</s-text>
                                 <s-text variant="bodySm">{formatDate(vc.createdAt)}</s-text>
                             </s-stack>
                             <s-stack direction="block" gap="small-200">
-                                <s-text tone="subdued" variant="bodySm">Fulfilled On</s-text>
+                                <s-text color="subdued" variant="bodySm">Fulfilled On</s-text>
                                 <s-text variant="bodySm">{formatDate(vc.fulfilledAt)}</s-text>
                             </s-stack>
                             <s-stack direction="block" gap="small-200">
-                                <s-text tone="subdued" variant="bodySm">Completed On</s-text>
+                                <s-text color="subdued" variant="bodySm">Completed On</s-text>
                                 <s-text variant="bodySm">{formatDate(vc.completedAt)}</s-text>
                             </s-stack>
                             <s-stack direction="block" gap="small-200">
-                                <s-text tone="subdued" variant="bodySm">First Reviewed</s-text>
+                                <s-text color="subdued" variant="bodySm">First Reviewed</s-text>
                                 <s-text variant="bodySm">
                                     {vc.viewedByAdmin ? formatDate(vc.viewedAt) : <s-badge tone="warning">Not yet reviewed</s-badge>}
                                 </s-text>
@@ -118,7 +118,7 @@ export function ViewClaimModal({
                                 <s-divider />
                                 <s-stack direction="block" gap="small-200">
                                     <s-text variant="headingSm">Admin Note</s-text>
-                                    <s-text variant="bodySm" tone="subdued">{vc.adminNote}</s-text>
+                                    <s-text variant="bodySm" color="subdued">{vc.adminNote}</s-text>
                                 </s-stack>
                             </>
                         )}

@@ -6,7 +6,7 @@ function Person({ person }) {
     return (
         <s-stack direction="block" gap="small-500">
             <s-link href={`/app/customers/${person.id}`}>{personName(person)}</s-link>
-            <s-text tone="subdued">{person.email}</s-text>
+            <s-text color="subdued">{person.email}</s-text>
         </s-stack>
     );
 }
@@ -89,7 +89,7 @@ export function ReviewTable({ tab, rows, shop, q, busy, selected, onToggle, onTo
                                 <s-table-cell>
                                     <s-stack direction="block" gap="small-500">
                                         <s-text>Referrer: {(hold.referrerPoints ?? 0).toLocaleString()}</s-text>
-                                        <s-text tone="subdued">Friend: {(hold.referredPoints ?? 0).toLocaleString()}</s-text>
+                                        <s-text color="subdued">Friend: {(hold.referredPoints ?? 0).toLocaleString()}</s-text>
                                     </s-stack>
                                 </s-table-cell>
                             )}

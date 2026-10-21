@@ -35,7 +35,7 @@ export function StatusHero({ items, checkedAt }) {
                         <s-badge tone={status.tone}>{status.label}</s-badge>
                     </s-stack>
                     <s-text>{status.line}</s-text>
-                    <s-text tone="neutral">
+                    <s-text color="subdued">
                         {critical + warning === 0
                             ? "Nothing needs you right now."
                             : `${critical ? `${critical} urgent` : ""}${critical && warning ? " · " : ""}${warning ? `${warning} to decide` : ""}`}

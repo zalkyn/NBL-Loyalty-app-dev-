@@ -54,7 +54,7 @@ export function CancelEventsTable({
                     {events.length === 0 ? (
                         <s-table-row>
                             <s-table-cell colSpan="6">
-                                <s-text tone="subdued">No cancellations found.</s-text>
+                                <s-text color="subdued">No cancellations found.</s-text>
                             </s-table-cell>
                         </s-table-row>
                     ) : (
@@ -91,13 +91,13 @@ export function CancelEventsTable({
                                                     </s-button>
                                                 )}
                                             </s-stack>
-                                            <s-text tone="subdued" variant="bodySm">{event.customerEmail ?? "—"}</s-text>
+                                            <s-text color="subdued" variant="bodySm">{event.customerEmail ?? "—"}</s-text>
                                         </s-stack>
                                     </s-table-cell>
 
                                     {/* Cancelled At */}
                                     <s-table-cell>
-                                        <s-text tone="subdued" variant="bodySm">{formatDate(event.cancelledAt)}</s-text>
+                                        <s-text color="subdued" variant="bodySm">{formatDate(event.cancelledAt)}</s-text>
                                     </s-table-cell>
 
                                     {/* Points at cancellation */}
@@ -118,7 +118,7 @@ export function CancelEventsTable({
                                                 </s-badge>
                                             )}
                                             {event.skipReason && (
-                                                <s-text tone="subdued" variant="bodySm">
+                                                <s-text color="subdued" variant="bodySm">
                                                     {SKIP_REASON_LABEL[event.skipReason] ?? event.skipReason}
                                                 </s-text>
                                             )}
@@ -129,7 +129,7 @@ export function CancelEventsTable({
                                                 <s-badge tone="info">Manually reset</s-badge>
                                             )}
                                             {event.restoredAmount > 0 && (
-                                                <s-text tone="subdued" variant="bodySm">
+                                                <s-text color="subdued" variant="bodySm">
                                                     {event.restoredAmount.toLocaleString()} pts restored
                                                     {restoreRemaining > 0 ? ` (${restoreRemaining.toLocaleString()} left)` : " (in full)"}
                                                 </s-text>
@@ -157,13 +157,13 @@ export function CancelEventsTable({
                                                 // Capped width — unbounded, this sentence stretched the
                                                 // Actions column across the table.
                                                 <s-box maxInlineSize="280px">
-                                                    <s-text tone="subdued" variant="bodySm">
+                                                    <s-text color="subdued" variant="bodySm">
                                                         {nothingToRestoreNote(event.resetBySibling)}
                                                     </s-text>
                                                 </s-box>
                                             )}
                                             {!isSelectable && !canRestore && event.skipReason !== "ALREADY_ZERO" && (
-                                                <s-text tone="subdued">—</s-text>
+                                                <s-text color="subdued">—</s-text>
                                             )}
                                         </s-stack>
                                     </s-table-cell>

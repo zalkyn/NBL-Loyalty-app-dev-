@@ -1113,11 +1113,13 @@ const handleReferral = async ({ admin, referralContext, order, customer, subscri
             });
         }
 
-        // Keep a review flag recorded on the first order; only the contract part is refreshed.
+        // Keep what was recorded on the first order (a review flag, or the
+        // merchant's approval); only the contract part is refreshed.
         await updateReferral(referral.id, {
             metadata: {
                 ...(subscriptionContract ?? {}),
                 ...(referral.metadata?.reviewFlag ? { reviewFlag: referral.metadata.reviewFlag } : {}),
+                ...(referral.metadata?.approval ? { approval: referral.metadata.approval } : {}),
             },
         });
 

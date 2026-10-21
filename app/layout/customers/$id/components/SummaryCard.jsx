@@ -21,7 +21,7 @@ export function referralState(referral) {
 function Row({ label, children }) {
     return (
         <s-grid gridTemplateColumns="140px 1fr" gap="base" alignItems="center">
-            <s-text tone="subdued">{label}</s-text>
+            <s-text color="subdued">{label}</s-text>
             <s-box>{children}</s-box>
         </s-grid>
     );
@@ -67,10 +67,10 @@ export function SummaryCard({ customer }) {
                             <s-link href={`/app/customers/${used.referrer.id}`}>{personName(used.referrer)}</s-link>
                             <s-badge tone={referralState(used).tone}>{referralState(used).label}</s-badge>
                         </s-stack>
-                    ) : <s-text tone="subdued">Nobody</s-text>}
+                    ) : <s-text color="subdued">Nobody</s-text>}
                 </Row>
                 <Row label="Has referred">
-                    {sent.length === 0 ? <s-text tone="subdued">Nobody yet</s-text> : (
+                    {sent.length === 0 ? <s-text color="subdued">Nobody yet</s-text> : (
                         <s-stack direction="block" gap="small-300">
                             {sent.map((r) => (
                                 <s-stack key={r.id} direction="inline" gap="small" alignItems="center">

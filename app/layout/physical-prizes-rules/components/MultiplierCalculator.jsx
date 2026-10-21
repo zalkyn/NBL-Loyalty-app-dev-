@@ -16,7 +16,7 @@ export function MultiplierCalculator({
     return (
         <s-section>
             <s-text variant="headingSm">Multiplier Calculator</s-text>
-            <s-text tone="subdued" variant="bodySm">
+            <s-text color="subdued" variant="bodySm">
                 Points cost = Product value × Multiplier × Points per {symbol}1.
                 Lower multiplier = easier to claim (10x). Higher = harder (20x).
             </s-text>
@@ -41,7 +41,7 @@ export function MultiplierCalculator({
             {/* Calculated breakdown */}
             {productValue && suggestedPoints && (
                 <s-box paddingBlockStart="small">
-                    <s-text tone="subdued" variant="bodySm">
+                    <s-text color="subdued" variant="bodySm">
                         {symbol}{Number(productValue).toLocaleString()} × {multiplier}x × {pointsPerDollar} pts/{symbol}1
                         {" = "}<strong>{suggestedPoints.toLocaleString()} pts</strong>
                         {" · "}Spend equivalent: <strong>{symbol}{(suggestedPoints / pointsPerDollar).toLocaleString()}</strong>

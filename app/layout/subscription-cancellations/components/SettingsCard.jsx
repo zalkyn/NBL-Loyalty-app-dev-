@@ -38,7 +38,7 @@ export function SettingsCard({ enabled, manualResetMode, resetTiming, isSubmitti
             <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
                 <s-stack direction="block" gap="none">
                     <s-heading>Auto-reset points on cancellation</s-heading>
-                    <s-text tone="subdued" variant="bodySm">
+                    <s-text color="subdued" variant="bodySm">
                         When ON, a customer&apos;s points balance resets to 0 automatically after their subscription is
                         cancelled — at the moment of cancelling, or when their paid period ends (choose below).
                         Lifetime points are never affected either way.
@@ -61,7 +61,7 @@ export function SettingsCard({ enabled, manualResetMode, resetTiming, isSubmitti
             <s-box paddingBlockStart="base">
                 <s-stack direction="block" gap="small-300">
                     <s-heading>When the automatic reset happens</s-heading>
-                    <s-text tone="subdued" variant="bodySm">
+                    <s-text color="subdued" variant="bodySm">
                         Only used while auto-reset is ON. Pick &quot;when the paid period ends&quot; if customers keep
                         their membership after cancelling (for example a yearly plan cancelled after one month).
                     </s-text>
@@ -89,7 +89,7 @@ export function SettingsCard({ enabled, manualResetMode, resetTiming, isSubmitti
             <s-box paddingBlockStart="base">
                 <s-stack direction="block" gap="small-300">
                     <s-heading>When you reset manually</s-heading>
-                    <s-text tone="subdued" variant="bodySm">
+                    <s-text color="subdued" variant="bodySm">
                         Applies to Reset Now and bulk reset. A manual reset can happen days after the cancellation,
                         when the customer may have earned more points. The automatic reset runs on its own schedule
                         (above), so this setting doesn&apos;t change it.

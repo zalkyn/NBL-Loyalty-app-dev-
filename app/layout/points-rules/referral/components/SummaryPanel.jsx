@@ -61,7 +61,7 @@ export function SummaryPanel({ event, referral, isSubscription, isActive, onActi
                     <s-text><strong>Default Rewards</strong></s-text>
                     <s-badge tone="info">Global</s-badge>
                 </s-grid>
-                <s-text tone="subdued">
+                <s-text color="subdued">
                     Applies to every product, unless a product-group or subscription-renewal override matches.
                 </s-text>
                 <s-box paddingBlockEnd="small" />
@@ -78,7 +78,7 @@ export function SummaryPanel({ event, referral, isSubscription, isActive, onActi
                             <s-heading>Subscription Renewal</s-heading>
                             <s-badge tone="warning">Global · Subscription only</s-badge>
                         </s-grid>
-                        <s-text tone="subdued">
+                        <s-text color="subdued">
                             Replaces default rewards for products not in any group, based on renewal interval.
                         </s-text>
                         <s-box paddingBlockEnd="small" />
@@ -99,7 +99,7 @@ export function SummaryPanel({ event, referral, isSubscription, isActive, onActi
                         <s-divider />
                         <s-box paddingBlockEnd="base" />
                         <s-heading>Product Groups:</s-heading>
-                        <s-text tone="subdued">
+                        <s-text color="subdued">
                             Replaces everything above for products placed in a group.
                         </s-text>
                         {referral.groups.map((group, gi) => (
@@ -108,7 +108,7 @@ export function SummaryPanel({ event, referral, isSubscription, isActive, onActi
                                     <s-text><strong>{group.name || `Group ${gi + 1}`}</strong></s-text>
                                     <s-badge tone="success">Group</s-badge>
                                 </s-grid>
-                                <s-text tone="subdued">
+                                <s-text color="subdued">
                                     {(group.products ?? []).length} product{(group.products ?? []).length !== 1 ? "s" : ""}
                                 </s-text>
                                 <s-text>
@@ -122,7 +122,7 @@ export function SummaryPanel({ event, referral, isSubscription, isActive, onActi
                                     <>
                                         <s-box paddingBlockEnd="small" />
                                         <s-grid gridTemplateColumns="1fr auto" gap="small" alignItems="center">
-                                            <s-text tone="subdued">Renewal overrides for this group</s-text>
+                                            <s-text color="subdued">Renewal overrides for this group</s-text>
                                             <s-badge tone="warning">Group · Subscription only</s-badge>
                                         </s-grid>
                                         {group.intervals.map((iv, ii) => (

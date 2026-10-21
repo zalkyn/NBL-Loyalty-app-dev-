@@ -146,7 +146,7 @@ export default function ReviewRulePage() {
                         {/* Review types */}
                         <s-section>
                             <s-heading>Review Types & Points</s-heading>
-                            <s-text tone="subdued">
+                            <s-text color="subdued">
                                 Enable or disable each type and set how many points it earns.
                             </s-text>
                             <s-box paddingBlockEnd="base" />

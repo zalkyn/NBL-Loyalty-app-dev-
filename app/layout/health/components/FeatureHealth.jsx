@@ -10,7 +10,7 @@ const TRIGGER_TEXT = {
 function Stat({ label, value, tone }) {
     return (
         <s-stack direction="block" gap="small-500">
-            <s-text tone="neutral">{label}</s-text>
+            <s-text color="subdued">{label}</s-text>
             <s-text type="strong" tone={tone}>{value}</s-text>
         </s-stack>
     );
@@ -27,7 +27,7 @@ function Card({ heading, status, text, stats, hint, linkLabel, href }) {
                         {stats.map((s) => <Stat key={s.label} {...s} />)}
                     </s-grid>
                 )}
-                {hint && <s-text tone="neutral">{hint}</s-text>}
+                {hint && <s-text color="subdued">{hint}</s-text>}
                 {href && <s-link href={href}>{linkLabel}</s-link>}
             </s-stack>
         </s-section>

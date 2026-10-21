@@ -102,7 +102,7 @@ export function AdjustPointsModal({ customer, isAdjusting, onConfirm }) {
                     }
                 />
                 <s-stack direction="inline" gap="small" alignItems="center">
-                    <s-text tone="subdued">Quick add:</s-text>
+                    <s-text color="subdued">Quick add:</s-text>
                     {QUICK_AMOUNTS.map((n) => (
                         <s-button key={n} size="small" variant="secondary" onClick={() => addQuick(n)}>
                             +{n.toLocaleString()}
@@ -119,12 +119,12 @@ export function AdjustPointsModal({ customer, isAdjusting, onConfirm }) {
                 <s-box padding="base" background="subdued" borderRadius="base">
                     <s-grid gridTemplateColumns="1fr auto 1fr" gap="base" alignItems="center">
                         <s-stack direction="block" gap="small-500">
-                            <s-text tone="subdued">Now</s-text>
+                            <s-text color="subdued">Now</s-text>
                             <s-heading>{currentPoints.toLocaleString()} pts</s-heading>
                         </s-stack>
-                        <s-text tone="subdued">→</s-text>
+                        <s-text color="subdued">→</s-text>
                         <s-stack direction="block" gap="small-500">
-                            <s-text tone="subdued">After this change</s-text>
+                            <s-text color="subdued">After this change</s-text>
                             <s-heading>
                                 <span style={{ color: parsedAmount === 0 ? undefined : adding ? "var(--p-color-text-success, #0c5132)" : "var(--p-color-text-critical, #d82c0d)" }}>
                                     {previewBalance.toLocaleString()} pts
@@ -152,7 +152,7 @@ export function AdjustPointsModal({ customer, isAdjusting, onConfirm }) {
                         details={`${reason.length}/${REASON_MAX} — saved with the transaction so you and your team can see why.`}
                     />
                     <s-stack direction="inline" gap="small" alignItems="center">
-                        <s-text tone="subdued">Common reasons:</s-text>
+                        <s-text color="subdued">Common reasons:</s-text>
                         {REASONS[mode].map((r) => (
                             <s-button key={r} size="small" variant="tertiary" onClick={() => setReason(r)}>
                                 {r}
@@ -161,7 +161,7 @@ export function AdjustPointsModal({ customer, isAdjusting, onConfirm }) {
                     </s-stack>
                 </s-stack>
 
-                <s-text tone="subdued">
+                <s-text color="subdued">
                     The customer will see &quot;Admin {adding ? "added" : "removed"} {parsedAmount > 0 ? parsedAmount.toLocaleString() : "N"} points&quot; in their loyalty widget.
                 </s-text>
             </s-stack>
