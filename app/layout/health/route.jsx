@@ -9,7 +9,7 @@
  *   _details.server.js -> extra numbers only this page shows (failed-order list, checklist, vouchers, prizes…)
  *   _useRetry.js       -> the retry button's submit + toast, shared by the banner and the table
  *   _attention.js     -> pure list of attention items (shared with the dashboard summary)
- *   components/        -> AttentionPanel (banners), StatusHero, FailedOrdersTable, SetupChecklist, FeatureHealth (cards)
+ *   components/        -> AttentionPanel (banners), StatusHero, StuckReferrals, FailedOrdersTable, SetupChecklist, FeatureHealth (cards)
  */
 
 import { useLoaderData } from "react-router";
@@ -25,6 +25,7 @@ import { FeatureHealth } from "./components/FeatureHealth";
 import { StatusHero } from "./components/StatusHero";
 import { SetupChecklist } from "./components/SetupChecklist";
 import { FailedOrdersTable } from "./components/FailedOrdersTable";
+import { StuckReferrals } from "./components/StuckReferrals";
 import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 export const loader = async ({ request }) => {
@@ -63,8 +64,9 @@ export default function ProgramHealthPage() {
             <GuideButton topic="health" />
             <AttentionPanel health={health} retrying={retrying} onRetry={retry} />
 
-            <StatusHero items={items} checkedAt={checkedAt} />
-            {details && <FailedOrdersTable failed={details.failed} shop={details.shop} retrying={retrying} onRetry={retry} />}
+            <StatusHero items={items} checkedAt={checkedAt} details={details} unavailable={Boolean(health.unavailable)} />
+            {details && <StuckReferrals stuck={details.stuck} total={health.referral.stuck} />}
+            {details && <FailedOrdersTable failed={details.failed} total={details.failedTotal} shop={details.shop} retrying={retrying} onRetry={retry} />}
             {details && <SetupChecklist checklist={details.checklist} />}
             <s-section heading="How each feature is doing">
                 <s-text color="subdued">What each part of the program does, in plain words, with live numbers.</s-text>

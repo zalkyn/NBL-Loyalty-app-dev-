@@ -6,16 +6,32 @@
 
 import prisma from "db-server";
 import { logger } from "app/utils/logger.js";
-import { getPointRuleByEvent } from "@controller/pointsRule/getPointRuleByEvent.js";
 
 const MODULE = "layout/health/_health.server.js";
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
+// `unavailable` tells the page the numbers could not be read, so it says so
+// instead of showing a false "all healthy".
 export const EMPTY_HEALTH = {
+    unavailable: true,
     referral: { ruleActive: null, trigger: null, held: 0, skipped30d: 0, flagged30d: 0, stuck: 0 },
     jobs: { failed: 0, failedOrders: [], waiting: 0 },
     ruleCurrencies: [],
 };
+
+/**
+ * Whether a rule exists and is switched on. getPointRuleByEvent only returns
+ * active rules, so it cannot tell "switched off" from "never set up".
+ * @returns {Promise<{ isActive: boolean, conditions: object|null }|null>} null = no rule
+ */
+export async function getRuleState(event, sessionId) {
+    const rule = await prisma.pointsRule.findFirst({
+        where: { sessionId, event: { sessionId, type: { equals: event, mode: "insensitive" } } },
+        orderBy: { isActive: "desc" },
+        include: { event: { select: { isActive: true } } },
+    });
+    return rule ? { isActive: Boolean(rule.isActive && rule.event?.isActive), conditions: rule.conditions ?? null } : null;
+}
 
 /**
  * @param {{ id: string, shop: string }} session
@@ -25,7 +41,7 @@ export async function loadHealthData(session) {
 
     try {
         const [referralRule, held, recentUsed, stuckRows, failedJobs, waitingJobs, shadowRules] = await Promise.all([
-            getPointRuleByEvent("REFERRAL", session.id).catch(() => null),
+            getRuleState("REFERRAL", session.id),
 
             prisma.referral.count({ where: { status: "HELD", referrer: { sessionId: session.id } } }),
 
@@ -69,8 +85,8 @@ export async function loadHealthData(session) {
 
         return {
             referral: {
-                ruleActive: referralRule ? Boolean(referralRule.isActive) : null,
-                trigger: referralRule?.conditions?.referral?.trigger ?? null,
+                ruleActive: referralRule ? referralRule.isActive : null,
+                trigger: referralRule?.isActive ? (referralRule.conditions?.referral?.trigger ?? null) : null,
                 held,
                 skipped30d: recentUsed.filter((r) => r.metadata?.skipped).length,
                 flagged30d: recentUsed.filter((r) => r.metadata?.reviewFlag).length,

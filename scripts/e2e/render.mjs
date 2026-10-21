@@ -85,6 +85,14 @@ await suite("Program Health page", async () => {
     // empty state when there is nothing wrong and details failed
     const html2 = await render(Page, { health: { referral: { ruleActive: true, trigger: "both", held: 0, skipped30d: 0, flagged30d: 0, stuck: 0 }, jobs: { failed: 0, failedOrders: [], waiting: 0 }, ruleCurrencies: [] }, details: null, checkedAt: new Date().toISOString() });
     sane("health (details unavailable)", html2); has("health (details unavailable)", html2, "Healthy");
+    // numbers unreadable → must NOT claim healthy
+    const html3 = await render(Page, { health: { unavailable: true, referral: { ruleActive: null, trigger: null, held: 0, skipped30d: 0, flagged30d: 0, stuck: 0 }, jobs: { failed: 0, failedOrders: [], waiting: 0 }, ruleCurrencies: [] }, details: null, checkedAt: new Date().toISOString() });
+    sane("health (unreadable)", html3); has("health (unreadable)", html3, "Could not check");
+    check("health (unreadable): does not claim Healthy", () => !html3.includes("Healthy"));
+    // a stuck referral shows who to fix
+    const withStuck = { ...details, stuck: [{ id: 1, code: "ABC", at: new Date().toISOString(), referrerId: 7, referrer: "Ann Lee", friend: "Bo Kay" }], failedTotal: details.failed.length };
+    const html4 = await render(Page, { health: { ...health, referral: { ...health.referral, stuck: 1 } }, details: withStuck, checkedAt: new Date().toISOString() });
+    sane("health (stuck)", html4); has("health (stuck)", html4, "Ann Lee"); has("health (stuck)", html4, "Open referrer");
 });
 
 // ── Feature Guide: every topic ────────────────────────────────────────────

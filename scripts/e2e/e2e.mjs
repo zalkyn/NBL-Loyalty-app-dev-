@@ -406,6 +406,24 @@ await suite("Program Health, retry and Settings overview", async () => {
     checkEqual("job completed", (await prisma.job.findUnique({ where: { id: failed.id } })).status, "COMPLETED");
     checkEqual("nothing left to retry", await retryFailedOrderJobs(session), 0);
 
+    // A referral whose friend used the code but whose referrer was never paid
+    const sRef = await newCustomer("Stuck", "Referrer");
+    const sFriend = await newCustomer("Stuck", "Friend");
+    await prisma.referral.create({ data: { referrerId: sRef.id, referredId: sFriend.id, discountCode: "STUCK-CODE", status: "ACTIVE", discountUsed: false } });
+    await prisma.reward.create({ data: { customerId: sFriend.id, event: "REFERRAL", type: "FIRST", title: "Referral discount", code: "STUCK-CODE", status: "USED", rewardKey: `stuck${Date.now()}` } });
+    const d2 = await loadHealthDetails(session);
+    checkEqual("stuck referral listed with both people", [d2.stuck[0]?.referrer, d2.stuck[0]?.friend], ["Stuck Referrer", "Stuck Friend"]);
+    checkEqual("stuck list matches the banner count", d2.stuck.length, (await loadHealthData(session)).referral.stuck);
+    checkEqual("failed total present", typeof d2.failedTotal, "number");
+
+    // A referral rule that is switched off must read "off", not "missing"
+    await prisma.pointsRule.update({ where: { id: refRule.id }, data: { isActive: false } });
+    checkEqual("switched-off referral rule is reported as off", (await loadHealthData(session)).referral.ruleActive, false);
+    checkEqual("checklist says off", (await loadHealthDetails(session)).checklist.referralRule, "off");
+    await prisma.pointsRule.update({ where: { id: refRule.id }, data: { isActive: true } });
+    checkEqual("and on again", (await loadHealthData(session)).referral.ruleActive, true);
+    await prisma.referral.deleteMany({ where: { discountCode: "STUCK-CODE" } });
+
     const settings = await loadSettingsOverview(session, globalThis.__fakeAdmin);
     checkEqual("order rule on", settings.orderActive, true);
     checkEqual("referral rule on", settings.referralActive, true);

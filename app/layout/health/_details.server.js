@@ -7,7 +7,7 @@
 
 import prisma from "db-server";
 import { logger } from "app/utils/logger.js";
-import { getPointRuleByEvent } from "@controller/pointsRule/getPointRuleByEvent.js";
+import { getRuleState } from "./_health.server.js";
 import { NON_ACTIONABLE_SKIP_REASONS } from "../subscription-cancellations/_data.js";
 
 const MODULE = "layout/health/_details.server.js";
@@ -25,6 +25,8 @@ export function explainJobError(error) {
     if (e.includes("timeout") || e.includes("econn") || e.includes("network") || e.includes("fetch failed")) return "A network problem interrupted it.";
     return "An unexpected problem stopped it.";
 }
+
+const ruleLabel = (rule) => (rule ? (rule.isActive ? "on" : "off") : "none");
 
 const orderNumber = (gid) => String(gid ?? "").split("/").pop() || null;
 
@@ -44,11 +46,11 @@ export async function loadHealthDetails(session) {
             vouchersCreated, vouchersUsed,
             prizePending, prizeNew,
             cancelGroups, cancelScheduled, cancelReset30d,
-            heldReferrals,
+            heldReferrals, failedTotal, stuckRows,
         ] = await Promise.all([
-            getPointRuleByEvent("ORDER", session.id).catch(() => null),
-            getPointRuleByEvent("REFERRAL", session.id).catch(() => null),
-            getPointRuleByEvent("REVIEW", session.id).catch(() => null),
+            getRuleState("ORDER", session.id).catch(() => null),
+            getRuleState("REFERRAL", session.id).catch(() => null),
+            getRuleState("REVIEW", session.id).catch(() => null),
             prisma.rewardRule.count({ where: { ...sessionScope, isActive: true } }),
             prisma.physicalPrize.count({ where: { ...sessionScope, isActive: true } }),
             prisma.appSettings.findUnique({ where: { shop: session.shop }, select: { looxFlowToken: true } }),
@@ -81,6 +83,21 @@ export async function loadHealthDetails(session) {
             prisma.subscriptionCancelEvent.count({ where: { shop: session.shop, sessionId: session.id, resetApplied: true, cancelledAt: { gte: since } } }),
 
             prisma.referral.count({ where: { status: "HELD", referrer: sessionScope } }),
+            prisma.job.count({ where: { shop: session.shop, status: "FAILED", type: { in: ["ORDER_PAID", "ORDER_REVERSED"] }, updatedAt: { gte: since } } }),
+
+            // Same test as loadHealthData's "stuck" count, but with the people, so the merchant can fix each one.
+            prisma.$queryRaw`
+                SELECT r.id, r."discountCode" AS code, r."updatedAt" AS at,
+                       c.id AS "referrerId", c.name AS "referrerName", c.email AS "referrerEmail",
+                       f.name AS "friendName", f.email AS "friendEmail"
+                FROM "Referral" r
+                JOIN "Customer" c ON c.id = r."referrerId"
+                JOIN "Customer" f ON f.id = r."referredId"
+                JOIN "Reward" rw ON UPPER(rw.code) = UPPER(r."discountCode") AND rw."customerId" = r."referredId"
+                WHERE c."sessionId" = ${session.id}
+                  AND r.status = 'ACTIVE' AND r."discountUsed" = false AND rw.status = 'USED'
+                ORDER BY r."updatedAt" DESC
+                LIMIT 10`,
         ]);
 
         const cancelNeedsAction = cancelGroups.reduce(
@@ -90,10 +107,11 @@ export async function loadHealthDetails(session) {
 
         return {
             checklist: {
-                orderRule: Boolean(orderRule),
+                // "on" | "off" | "none" — so a switched-off rule isn't shown as missing or done
+                orderRule: ruleLabel(orderRule),
                 rewardRules,
-                referralRule: Boolean(referralRule),
-                reviewRule: Boolean(reviewRule),
+                referralRule: ruleLabel(referralRule),
+                reviewRule: ruleLabel(reviewRule),
                 looxLink: Boolean(appSettings?.looxFlowToken),
                 prizes,
             },
@@ -101,6 +119,12 @@ export async function loadHealthDetails(session) {
                 processed30d,
                 lastProcessedAt: lastProcessed?.completedAt?.toISOString() ?? null,
             },
+            failedTotal,
+            stuck: stuckRows.map((r) => ({
+                id: r.id, code: r.code, at: new Date(r.at).toISOString(),
+                referrerId: r.referrerId, referrer: r.referrerName || r.referrerEmail || "Customer",
+                friend: r.friendName || r.friendEmail || "Customer",
+            })),
             failed: failedRows.map((j) => ({
                 id: j.id,
                 kind: j.type === "ORDER_REVERSED" ? "Points taken back" : "Points for an order",

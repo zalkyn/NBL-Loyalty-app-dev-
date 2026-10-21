@@ -35,7 +35,7 @@ function Card({ heading, status, text, stats, hint, linkLabel, href }) {
 }
 
 const bad = (value) => (value > 0 ? "critical" : undefined);
-const watch = (value) => (value > 0 ? "caution" : undefined);
+const watch = (value) => (value > 0 ? "info" : undefined);
 
 /**
  * "How each feature works, and how it is doing". The explanations are static;
@@ -100,7 +100,7 @@ export function FeatureHealth({ health, details }) {
                 {d && (
                     <Card
                         heading="Physical prizes"
-                        status={d.prizes.pending > 0 ? { tone: "warning", label: `${d.prizes.pending} to handle` } : d.checklist.prizes > 0 ? { tone: "success", label: "Up to date" } : { tone: "neutral", label: "Not used" }}
+                        status={d.prizes.pending > 0 ? { tone: "info", label: `${d.prizes.pending} to handle` } : d.checklist.prizes > 0 ? { tone: "success", label: "Up to date" } : { tone: "neutral", label: "Not used" }}
                         text="Customers claim real products with points. Each claim is a request for you to fulfil and deliver, moving it from Pending to Fulfilled to Completed."
                         stats={[
                             { label: "Pending requests", value: count(d.prizes.pending), tone: watch(d.prizes.pending) },
@@ -129,7 +129,7 @@ export function FeatureHealth({ health, details }) {
                 {d && (
                     <Card
                         heading="Customer balances"
-                        status={d.customers.negativeBalances > 0 ? { tone: "warning", label: `${d.customers.negativeBalances} below zero` } : { tone: "success", label: "All fine" }}
+                        status={d.customers.negativeBalances > 0 ? { tone: "info", label: `${d.customers.negativeBalances} below zero` } : { tone: "success", label: "All fine" }}
                         text="A balance goes below zero when points from an order are taken back after the customer already spent them. They can't claim new rewards or prizes until it's back to zero or above."
                         stats={[{ label: "Customers below zero", value: count(d.customers.negativeBalances), tone: watch(d.customers.negativeBalances) }]}
                         hint="Open the customer and use Adjust Points to correct it, or leave it: future orders earn it back."
