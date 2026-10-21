@@ -64,7 +64,7 @@ export function ShadowRuleForm({
                         <s-text variant="headingSm">Rate</s-text>
                         {rateLocked && (
                             <s-box paddingBlockStart="small" paddingBlockEnd="small">
-                                <s-paragraph tone="subdued">
+                                <s-paragraph color="subdued">
                                     This rule has already awarded points to {entryCount?.toLocaleString() ?? "some"} customer(s) —
                                     the rate and currency are locked so a completed run always stays explainable from its own
                                     records. Deactivate this rule and create a new one if you need a different rate.
@@ -193,7 +193,7 @@ export function ShadowRuleForm({
                         onChange={(e) => fs.set("isActive", e.target.checked)}
                     />
                     <s-box paddingBlockStart="small">
-                        <s-paragraph tone="subdued">
+                        <s-paragraph color="subdued">
                             Must be active before a backfill run can use this rule — see the Points Backfill page.
                         </s-paragraph>
                     </s-box>
@@ -204,7 +204,7 @@ export function ShadowRuleForm({
             <s-box padding="base" background="base" border-width="base" border-color="base" border-radius="base">
                 <s-heading>Preview</s-heading>
                 <s-box paddingBlockStart="small">
-                    <s-paragraph tone="subdued">
+                    <s-paragraph color="subdued">
                         {fs.form.rateType === "FIXED"
                             ? `Every matched customer gets ${Number(fs.form.fixedPoints || 0).toLocaleString()} pts, regardless of spend.`
                             : `Every ${Number(fs.form.perAmount || 0).toLocaleString()} ${shopCurrencyCode ?? ""} spent earns ${Number(fs.form.pointsPerUnit || 0).toLocaleString()} pt(s), rounded down.`}

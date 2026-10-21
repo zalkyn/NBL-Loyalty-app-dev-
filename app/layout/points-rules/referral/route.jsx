@@ -160,7 +160,7 @@ export default function ReferralRulePage() {
                         {/* Trigger */}
                         <s-section>
                             <s-heading>When should rewards be given?</s-heading>
-                            <s-text tone="subdued">
+                            <s-text color="subdued">
                                 Choose which types of orders trigger the referral reward.
                             </s-text>
                             <s-box paddingBlockEnd="small" />
@@ -180,7 +180,7 @@ export default function ReferralRulePage() {
                         {/* New customer discount — always global, never overridden */}
                         <s-section>
                             <s-heading>New Customer Discount</s-heading>
-                            <s-text tone="subdued">
+                            <s-text color="subdued">
                                 The referred customer gets this discount on their first order. Never overridden.
                             </s-text>
                             <s-box paddingBlockEnd="base" />
@@ -213,7 +213,7 @@ export default function ReferralRulePage() {
                         {/* P1 — global points fallback */}
                         <s-section>
                             <s-heading>Points to Award</s-heading>
-                            <s-text tone="subdued">Default amounts — overridden by groups or intervals below.</s-text>
+                            <s-text color="subdued">Default amounts — overridden by groups or intervals below.</s-text>
                             <s-box paddingBlockEnd="base" />
                             <PointsFields
                                 referrerVal={referral.referrer}
@@ -242,7 +242,7 @@ export default function ReferralRulePage() {
                                     <div>
                                         <s-heading>Reward by Subscription Frequency</s-heading>
                                         <s-box paddingBlockEnd="small" />
-                                        <s-text tone="subdued">
+                                        <s-text color="subdued">
                                             Custom points per billing frequency — applies to products not in any group.
                                         </s-text>
                                     </div>
@@ -276,7 +276,7 @@ export default function ReferralRulePage() {
                                     <div>
                                         <s-heading>Product Groups</s-heading>
                                         <s-box paddingBlockEnd="small" />
-                                        <s-text tone="subdued">
+                                        <s-text color="subdued">
                                             Custom points for specific products — overrides defaults above.
                                         </s-text>
                                     </div>

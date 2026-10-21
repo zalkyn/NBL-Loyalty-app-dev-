@@ -67,7 +67,7 @@ export default function ProgramHealthPage() {
             {details && <FailedOrdersTable failed={details.failed} shop={details.shop} retrying={retrying} onRetry={retry} />}
             {details && <SetupChecklist checklist={details.checklist} />}
             <s-section heading="How each feature is doing">
-                <s-text tone="neutral">What each part of the program does, in plain words, with live numbers.</s-text>
+                <s-text color="subdued">What each part of the program does, in plain words, with live numbers.</s-text>
             </s-section>
             <FeatureHealth health={health} details={details} />
         </s-page>

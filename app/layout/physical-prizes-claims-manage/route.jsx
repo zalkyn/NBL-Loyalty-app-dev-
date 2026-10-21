@@ -267,7 +267,7 @@ export default function PrizeClaimsPage() {
             />
 
             <s-section>
-                <s-text tone="subdued" variant="bodySm">
+                <s-text color="subdued" variant="bodySm">
                     Manage customer prize requests — fulfill when sent, complete when delivered, or cancel to refund points.
                 </s-text>
             </s-section>

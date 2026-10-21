@@ -19,7 +19,7 @@ export function FailedOrdersTable({ failed, shop, retrying, onRetry }) {
         <s-section heading="Orders that could not be processed">
             <s-stack direction="block" gap="base">
                 <s-stack direction="inline" gap="base" justifyContent="space-between" alignItems="center">
-                    <s-text tone="neutral">Last 30 days, newest first (up to 10). Trying again is safe: nothing is paid twice.</s-text>
+                    <s-text color="subdued">Last 30 days, newest first (up to 10). Trying again is safe: nothing is paid twice.</s-text>
                     <s-button variant="primary" loading={retrying || undefined} disabled={retrying} onClick={onRetry}>Retry failed orders</s-button>
                 </s-stack>
                 <s-table>
@@ -38,7 +38,7 @@ export function FailedOrdersTable({ failed, shop, retrying, onRetry }) {
                                 <s-table-cell>
                                     <s-stack direction="block" gap="small-500">
                                         <s-text>{row.reason}</s-text>
-                                        {row.technical && <s-text tone="neutral">{row.technical}</s-text>}
+                                        {row.technical && <s-text color="subdued">{row.technical}</s-text>}
                                     </s-stack>
                                 </s-table-cell>
                                 <s-table-cell>{row.attempts}</s-table-cell>

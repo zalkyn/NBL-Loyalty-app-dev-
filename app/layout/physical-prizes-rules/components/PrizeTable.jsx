@@ -59,7 +59,7 @@ export function PrizeTable({
                                 <s-table-cell>
                                     <s-text variant="headingSm">{p.title}</s-text>
                                     {p.description && (
-                                        <s-text tone="subdued" variant="bodySm">
+                                        <s-text color="subdued" variant="bodySm">
                                             {p.description.length > 60 ? p.description.slice(0, 60) + "…" : p.description}
                                         </s-text>
                                     )}

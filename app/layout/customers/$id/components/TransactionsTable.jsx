@@ -35,7 +35,7 @@ const when = (value) => {
     return (
         <s-stack direction="block" gap="small-500">
             <s-text>{d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</s-text>
-            <s-text tone="subdued">{d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</s-text>
+            <s-text color="subdued">{d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</s-text>
         </s-stack>
     );
 };
@@ -79,14 +79,14 @@ export function TransactionsTable({ pagination, filter, onFilterChange, counts, 
                             <s-table-cell><TypeBadge tx={tx} /></s-table-cell>
                             <s-table-cell>
                                 {isNotice(tx)
-                                    ? <s-text tone="subdued">—</s-text>
+                                    ? <s-text color="subdued">—</s-text>
                                     : <s-text tone={tx.points >= 0 ? "success" : "critical"}>{tx.points >= 0 ? "+" : ""}{tx.points.toLocaleString()}</s-text>}
                             </s-table-cell>
-                            <s-table-cell>{isNotice(tx) ? <s-text tone="subdued">—</s-text> : tx.balanceAfter.toLocaleString()}</s-table-cell>
+                            <s-table-cell>{isNotice(tx) ? <s-text color="subdued">—</s-text> : tx.balanceAfter.toLocaleString()}</s-table-cell>
                             <s-table-cell>
                                 <s-stack direction="block" gap="small-500">
                                     <s-text>{tx.reason ?? "—"}</s-text>
-                                    {tx.event?.name && <s-text tone="subdued">{tx.event.name}</s-text>}
+                                    {tx.event?.name && <s-text color="subdued">{tx.event.name}</s-text>}
                                 </s-stack>
                             </s-table-cell>
                         </s-table-row>

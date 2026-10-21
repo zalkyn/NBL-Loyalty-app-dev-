@@ -280,7 +280,7 @@ export function ErrorBoundary() {
                     </s-paragraph>
                     {error?.message && (
                         <s-box paddingBlockStart="small">
-                            <s-paragraph tone="subdued">{error.message}</s-paragraph>
+                            <s-paragraph color="subdued">{error.message}</s-paragraph>
                         </s-box>
                     )}
                 </s-banner>

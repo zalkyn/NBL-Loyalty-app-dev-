@@ -43,7 +43,7 @@ export function RulesTable({
                                     <s-text>{getPointsSummary(r, symbol)}</s-text>
                                 </s-table-cell>
                                 <s-table-cell>
-                                    <s-text tone="subdued">{getAppliestoSummary(r)}</s-text>
+                                    <s-text color="subdued">{getAppliestoSummary(r)}</s-text>
                                 </s-table-cell>
                                 <s-table-cell>
                                     <s-badge tone={r.isActive ? "success" : "critical"}>{r.isActive ? "Yes" : "No"}</s-badge>

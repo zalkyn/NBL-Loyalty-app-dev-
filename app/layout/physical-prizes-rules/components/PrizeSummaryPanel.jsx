@@ -43,7 +43,7 @@ export function PrizeSummaryPanel({ fs, imageFile, busy }) {
 
             <s-section>
                 <s-text variant="headingSm">Active Status</s-text>
-                <s-text tone="subdued" variant="bodySm">
+                <s-text color="subdued" variant="bodySm">
                     Inactive prizes will not be shown to customers in the widget.
                 </s-text>
                 <s-box paddingBlockEnd="small" />

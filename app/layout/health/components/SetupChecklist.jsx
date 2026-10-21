@@ -21,7 +21,7 @@ export function SetupChecklist({ checklist }) {
     return (
         <s-section heading="Setup checklist">
             <s-stack direction="block" gap="base">
-                <s-text tone="neutral">
+                <s-text color="subdued">
                     {todo === 0 ? "The basics are in place." : `${todo} basic step${todo === 1 ? " is" : "s are"} still to do.`}
                     {" "}Optional items only matter if you want that feature.
                 </s-text>
@@ -34,7 +34,7 @@ export function SetupChecklist({ checklist }) {
                                     {row.done ? "Done" : row.required ? "To do" : "Optional"}
                                 </s-badge>
                             </s-stack>
-                            <s-text tone="neutral">{row.text}</s-text>
+                            <s-text color="subdued">{row.text}</s-text>
                         </s-stack>
                         <s-button href={row.href}>{row.cta}</s-button>
                     </s-stack>

@@ -9,11 +9,11 @@ function Kpi({ label, value, hint, tone }) {
     return (
         <s-section>
             <s-stack direction="block" gap="small-500">
-                <s-text tone="subdued">{label}</s-text>
+                <s-text color="subdued">{label}</s-text>
                 <s-heading>
                     <span style={tone === "critical" ? { color: "var(--p-color-text-critical, #d82c0d)" } : undefined}>{value}</span>
                 </s-heading>
-                {hint && <s-text tone="subdued">{hint}</s-text>}
+                {hint && <s-text color="subdued">{hint}</s-text>}
             </s-stack>
         </s-section>
     );

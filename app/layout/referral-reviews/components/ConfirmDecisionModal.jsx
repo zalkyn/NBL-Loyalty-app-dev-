@@ -20,12 +20,12 @@ export function ConfirmDecisionModal({ decision, rows, busy, onConfirm }) {
                             This awards <strong>{pts.referrer.toLocaleString()}</strong> points to the referrer{count === 1 ? "" : "s"} and{" "}
                             <strong>{pts.friend.toLocaleString()}</strong> points to the referred customer{count === 1 ? "" : "s"}.
                         </s-text>
-                        <s-text tone="subdued">Both customers see the points in their widget straight away.</s-text>
+                        <s-text color="subdued">Both customers see the points in their widget straight away.</s-text>
                     </>
                 ) : (
                     <>
                         <s-text>No points will be awarded for {count === 1 ? "this referral" : "these referrals"}. The referred customer keeps the discount they already used.</s-text>
-                        <s-text tone="subdued">The referrer is told the reward wasn&apos;t approved. You can&apos;t undo a rejection.</s-text>
+                        <s-text color="subdued">The referrer is told the reward wasn&apos;t approved. You can&apos;t undo a rejection.</s-text>
                     </>
                 )}
             </s-stack>

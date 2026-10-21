@@ -118,10 +118,10 @@ function StoreSection({ store }) {
                             <s-text type="strong">{row.label}</s-text>
                             <s-badge>{row.value}</s-badge>
                         </s-stack>
-                        {row.note && <s-text tone="neutral">{row.note}</s-text>}
+                        {row.note && <s-text color="subdued">{row.note}</s-text>}
                     </s-stack>
                 ))}
-                <s-text tone="neutral">These come from Shopify and are shown for reference. To change them, use your Shopify admin → Settings.</s-text>
+                <s-text color="subdued">These come from Shopify and are shown for reference. To change them, use your Shopify admin → Settings.</s-text>
             </s-stack>
         </s-section>
     );
@@ -154,7 +154,7 @@ export default function SettingsPage() {
                                         <s-text type="strong">{row.name}</s-text>
                                         <s-badge tone={row.status.tone}>{row.status.text}</s-badge>
                                     </s-stack>
-                                    <s-text tone="neutral">{row.what}</s-text>
+                                    <s-text color="subdued">{row.what}</s-text>
                                 </s-stack>
                                 <s-button href={row.href}>{row.cta}</s-button>
                             </s-stack>

@@ -8,7 +8,7 @@ export function PricingFields({ fs, busy, suggestedPoints }) {
     return (
         <s-section>
             <s-text variant="headingSm">Pricing</s-text>
-            <s-text tone="subdued" variant="bodySm">
+            <s-text color="subdued" variant="bodySm">
                 Set the product value and use the multiplier calculator below to work out the right points cost.
             </s-text>
             <s-box paddingBlockEnd="small" />
@@ -40,7 +40,7 @@ export function PricingFields({ fs, busy, suggestedPoints }) {
             {suggestedPoints !== null && (
                 <s-box paddingBlockStart="small">
                     <s-stack direction="inline" gap="small" alignItems="center">
-                        <s-text tone="subdued" variant="bodySm">
+                        <s-text color="subdued" variant="bodySm">
                             Suggested: <strong>{suggestedPoints.toLocaleString()} pts</strong>
                         </s-text>
                         <s-button
