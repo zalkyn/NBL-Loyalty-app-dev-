@@ -132,8 +132,9 @@ export const TOPIC_DETAILS = {
             {
                 title: "A flagged referral",
                 lines: [
-                    "Referrer \"Jo Park\", friend \"Lee Park\" at a different address.",
-                    "Same surname alone is a single weak signal: both are paid as normal and the referral is listed under Rewarded, flagged. You can look at it, but nothing is waiting for you.",
+                    "Referrer \"Jo Park\", friend \"Jo Park\", at clearly different addresses (a common name can simply be a coincidence).",
+                    "The same full name alone is a single weak signal: both are paid as normal and the referral is listed under Rewarded, flagged. You can look at it, but nothing is waiting for you.",
+                    "A shared surname alone (\"Jo Park\" and \"Lee Park\") is not flagged at all. Only a surname together with a similar address holds the reward.",
                 ],
             },
             {
@@ -390,6 +391,10 @@ export const EXTRA_TOPICS = [
                 "Widget Customize → Display & Placement: Expand button opens = Loyalty page, Loyalty page URL = /pages/loyalty-rewards.",
             ],
         },
+        customerSees: [
+            "Once step 1 is saved, the floating loyalty button appears on every page of your store.",
+            "If you added the Loyalty & Rewards page, customers see the full widget inside that page instead of a pop-up panel when they press expand.",
+        ],
         notes: [
             { tone: "warning", text: "Theme editor links open in a new tab. Check the change there and press Save, or nothing changes on your store." },
         ],
@@ -417,6 +422,9 @@ export const EXTRA_TOPICS = [
                 "Back on Settings, the row now reads \"On — when the paid period ends\".",
             ],
         },
+        customerSees: [
+            "Nothing directly. These settings decide what customers earn, what they can redeem and which messages they get. The Settings page itself is for you.",
+        ],
         notes: [
             { tone: "info", text: "A yellow badge isn't an error. It means the feature is switched off or not set up yet, which may be exactly what you want." },
         ],
@@ -443,6 +451,9 @@ export const EXTRA_TOPICS = [
                 "Earning amounts are set on Points Earning Rules, so this changes only how the event is labelled.",
             ],
         },
+        customerSees: [
+            "Nothing directly. Customers see the earning lines on the Earn tab, which are built from your earning rules.",
+        ],
         notes: [
             { tone: "info", text: "To change how many points an action earns, use Points Earning Rules, not this page." },
         ],
