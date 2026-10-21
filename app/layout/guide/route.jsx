@@ -60,6 +60,21 @@ export default function GuidePage() {
                 </s-stack>
             </s-section>
 
+            {topic.howTo.length > 0 && (
+                <s-section heading="How to use it, step by step">
+                    <s-stack direction="block" gap="base">
+                        {topic.howTo.map((task) => (
+                            <s-box key={task.title} padding="base" background="subdued" borderRadius="base">
+                                <s-stack direction="block" gap="small">
+                                    <s-text type="strong">{task.title}</s-text>
+                                    <Steps steps={task.steps} />
+                                </s-stack>
+                            </s-box>
+                        ))}
+                    </s-stack>
+                </s-section>
+            )}
+
             <s-section heading="How it works">
                 <Steps steps={topic.steps} />
             </s-section>
