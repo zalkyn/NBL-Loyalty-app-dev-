@@ -11,12 +11,14 @@
 //   where: { label, href }      – the page to go to
 //   steps: string[]             – "How it works", in order
 //   example: { title, lines[] } – a worked example with real numbers
-//   (customerSees, more examples, moreSteps, more faq live in _details.js)
+//   (customerSees, more examples, moreSteps, more faq live in _details.js;
+//    the click-by-click "how to use it" tasks live in _howto.js)
 //   notes: { tone, text }[]     – things to watch for (info / warning)
 //   faq: { q, a }[]             – the questions admins actually ask
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { TOPIC_DETAILS, EXTRA_TOPICS } from "./_details.js";
+import { HOW_TO } from "./_howto.js";
 
 const BASE_TOPICS = [
     // ── 0. Start here ─────────────────────────────────────────────────────────
@@ -410,6 +412,7 @@ export const GUIDE_TOPICS = ORDER.map((key) => {
         ...topic,
         customerSees: extra.customerSees ?? topic.customerSees ?? [],
         examples: [topic.example, ...(extra.examples ?? [])].filter(Boolean),
+        howTo: HOW_TO[key] ?? [],
         moreSteps: extra.moreSteps ?? [],
         faq: [...(topic.faq ?? []), ...(extra.moreFaq ?? [])],
     };

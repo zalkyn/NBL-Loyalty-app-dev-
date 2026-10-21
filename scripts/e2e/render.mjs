@@ -105,6 +105,12 @@ await suite("Feature Guide", async () => {
         check(`guide/${t.key}: has How it works, an example and What your customers see`, () => html.includes("How it works") && /Example/.test(html) && html.includes("What your customers see"));
         check(`guide/${t.key}: every step and example line rendered`, () => [...t.steps, ...t.examples.flatMap((e) => e.lines)].every((s) => html.includes(s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;").replace(/</g, "&lt;").replace(/>/g, "&gt;"))));
     }
+    for (const t of GUIDE_TOPICS) {
+        const html = await render(Page, { topic: t.key }, "/guide");
+        const esc = (x) => x.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        check(`guide/${t.key}: has a step-by-step "how to use it" with at least one task`, () => t.howTo.length > 0 && html.includes("How to use it, step by step"));
+        check(`guide/${t.key}: every how-to task and step rendered`, () => t.howTo.every((task) => html.includes(esc(task.title)) && task.steps.every((st) => html.includes(esc(st)))));
+    }
     check("guide: 16 topics", () => GUIDE_TOPICS.length === 16);
 });
 
