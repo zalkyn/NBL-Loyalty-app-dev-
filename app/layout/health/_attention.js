@@ -24,9 +24,8 @@ export function buildAttentionItems(health, shopCurrency) {
     if (referral.stuck > 0) {
         items.push({
             key: "stuck-referrals", tone: "critical",
-            heading: "Referral rewards that were never recorded",
-            text: `${referral.stuck.toLocaleString()} referred customer${referral.stuck > 1 ? "s" : ""} used the referral discount, but the referrer didn't receive points. You can add the points manually from the customer's page (Adjust points).`,
-            action: { label: "Open Referral Reviews", href: "/app/referral-reviews" },
+            heading: "Some referral rewards were not paid",
+            text: `${referral.stuck.toLocaleString()} referred customer${referral.stuck > 1 ? "s" : ""} used the referral discount, but the referrer didn't receive points. Open the referrer on the Program Health page and add the points with Adjust Points.`,
         });
     }
     if (referral.held > 0) {

@@ -24,7 +24,7 @@ function writeDismissed() {
  * each, with the tone matching how urgent it is:
  *   critical → money/points are not flowing (failed order jobs, rewards that
  *              never recorded), warning → a decision or check is waiting,
- *   success  → all clear, info → a dismissible explanation of the new features.
+ *   info     → a dismissible explanation of the new features. (All clear is shown by StatusHero.)
  * Renders from numbers the loader already computed; nothing here fetches.
  */
 export function AttentionPanel({ health, retrying, onRetry }) {
@@ -48,8 +48,6 @@ export function AttentionPanel({ health, retrying, onRetry }) {
 
     const items = buildAttentionItems(health, shopCurrency);
 
-    const allClear = items.length === 0;
-
     // Page-wide banners: direct children of <s-page> in its supplemental-start
     // slot (outside any section), next steps as secondary-actions, one message
     // per banner. Only banners the merchant doesn't have to act on can be closed.
@@ -70,12 +68,6 @@ export function AttentionPanel({ health, retrying, onRetry }) {
                     )}
                 </s-banner>
             ))}
-
-            {allClear && (
-                <s-banner slot="supplemental-start" tone="success" heading="Everything looks healthy" dismissible>
-                    <s-text>Orders are processing, no referral rewards are waiting, and your rules match your store currency.</s-text>
-                </s-banner>
-            )}
 
             {!introDismissed && (
                 <s-banner
