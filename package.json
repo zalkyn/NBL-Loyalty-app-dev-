@@ -26,6 +26,7 @@
     "db:deploy:both": "node scripts/prisma.js both migrate deploy",
     "test": "node scripts/test/run.js",
     "test:unit": "node scripts/test/run.js --unit-only",
+    "test:e2e": "node scripts/e2e/run.mjs",
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
