@@ -1,6 +1,6 @@
 import prisma from "../../db.server.js";
 import { logger } from "../../utils/logger.js";
-import { MANUAL_RESET_MODES, DEFAULT_MANUAL_RESET_MODE } from "../../utils/subscriptionCancelReset.js";
+import { MANUAL_RESET_MODES, DEFAULT_MANUAL_RESET_MODE, RESET_TIMINGS, DEFAULT_RESET_TIMING } from "../../utils/subscriptionCancelReset.js";
 
 const MODULE = "controller/appSettings/subscriptionCancelResetSettings.js";
 
@@ -17,6 +17,10 @@ export const DEFAULT_SUBSCRIPTION_CANCEL_RESET_SETTINGS = {
     // cancellation — see MANUAL_RESET_MODES in utils/subscriptionCancelReset.js.
     // Default keeps the original behaviour: reset the whole balance.
     manualResetMode: DEFAULT_MANUAL_RESET_MODE,
+    // WHEN the automatic reset happens — see RESET_TIMINGS in
+    // utils/subscriptionCancelReset.js. Default keeps the original behaviour
+    // (reset the moment the cancellation is reported).
+    resetTiming: DEFAULT_RESET_TIMING,
 };
 
 /**
@@ -37,6 +41,7 @@ export async function getSubscriptionCancelResetSettings(shop) {
 
     const merged = { ...DEFAULT_SUBSCRIPTION_CANCEL_RESET_SETTINGS, ...(row?.settings?.subscriptionCancelReset || {}) };
     if (!MANUAL_RESET_MODES.includes(merged.manualResetMode)) merged.manualResetMode = DEFAULT_MANUAL_RESET_MODE;
+    if (!RESET_TIMINGS.includes(merged.resetTiming)) merged.resetTiming = DEFAULT_RESET_TIMING;
     return merged;
 }
 
@@ -50,11 +55,16 @@ export async function getSubscriptionCancelResetSettings(shop) {
  * @param {string} params.sessionId - Needed for the create branch of the upsert (AppSettings.sessionId is required).
  * @param {boolean} [params.enabled]         - Left as-is when omitted.
  * @param {string}  [params.manualResetMode] - Left as-is when omitted; must be one of MANUAL_RESET_MODES.
+ * @param {string}  [params.resetTiming]     - Left as-is when omitted; must be one of RESET_TIMINGS.
  * @returns {Promise<typeof DEFAULT_SUBSCRIPTION_CANCEL_RESET_SETTINGS>}
  */
-export async function updateSubscriptionCancelResetSettings({ shop, sessionId, enabled, manualResetMode }) {
+export async function updateSubscriptionCancelResetSettings({ shop, sessionId, enabled, manualResetMode, resetTiming }) {
     if (manualResetMode !== undefined && !MANUAL_RESET_MODES.includes(manualResetMode)) {
         throw new Error(`Invalid manual reset mode: ${manualResetMode}`);
+    }
+
+    if (resetTiming !== undefined && !RESET_TIMINGS.includes(resetTiming)) {
+        throw new Error(`Invalid reset timing: ${resetTiming}`);
     }
 
     const existing = await prisma.appSettings.findUnique({
@@ -71,6 +81,7 @@ export async function updateSubscriptionCancelResetSettings({ shop, sessionId, e
             ...current,
             ...(enabled !== undefined ? { enabled: !!enabled } : {}),
             ...(manualResetMode !== undefined ? { manualResetMode } : {}),
+            ...(resetTiming !== undefined ? { resetTiming } : {}),
         },
     };
 

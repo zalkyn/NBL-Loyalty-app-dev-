@@ -1,4 +1,5 @@
 import { getPointsSummary, getAppliestoSummary } from "../_data";
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 
 export function RulesTable({
     paginatedRules,
@@ -10,6 +11,7 @@ export function RulesTable({
     onEdit,
     onDeleteClick,
 }) {
+    const { symbol } = useShopCurrency();
     return (
         <s-section>
             <s-table>
@@ -38,10 +40,10 @@ export function RulesTable({
                                     <s-badge>{r.event?.type || "—"}</s-badge>
                                 </s-table-cell>
                                 <s-table-cell>
-                                    <s-text>{getPointsSummary(r)}</s-text>
+                                    <s-text>{getPointsSummary(r, symbol)}</s-text>
                                 </s-table-cell>
                                 <s-table-cell>
-                                    <s-text tone="subdued">{getAppliestoSummary(r)}</s-text>
+                                    <s-text color="subdued">{getAppliestoSummary(r)}</s-text>
                                 </s-table-cell>
                                 <s-table-cell>
                                     <s-badge tone={r.isActive ? "success" : "critical"}>{r.isActive ? "Yes" : "No"}</s-badge>

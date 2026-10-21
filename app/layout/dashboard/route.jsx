@@ -21,6 +21,7 @@ import { useLoaderData } from "react-router";
 import { authenticate } from "shopify-server";
 
 import { loadDashboardData } from "./_loader.server";
+import { loadHealthData } from "../health/_health.server";
 import { useDashboardPage } from "./_hooks";
 import { DateRangePicker } from "./components/DateRangePicker";
 import { CancelNeedsActionBanner } from "./components/CancelNeedsActionBanner";
@@ -28,12 +29,14 @@ import { OverviewSection } from "./components/OverviewSection";
 import { PrizeStatsSection } from "./components/PrizeStatsSection";
 import { ChartsSection } from "./components/ChartsSection";
 import { PrizeChartsSection } from "./components/PrizeChartsSection";
+import { AttentionSummary } from "./components/AttentionSummary";
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
 export const loader = async ({ request }) => {
     const { session } = await authenticate.admin(request);
-    return loadDashboardData(session.id);
+    const [dashboard, health] = await Promise.all([loadDashboardData(session.id), loadHealthData(session)]);
+    return { ...dashboard, health };
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -43,7 +46,9 @@ export default function Dashboard() {
     const page = useDashboardPage(loaderData);
 
     return (
-        <s-page>
+        <s-page heading="Dashboard">
+
+            <AttentionSummary health={loaderData.health} />
 
             <CancelNeedsActionBanner count={page.cancelNeedsAction} />
 

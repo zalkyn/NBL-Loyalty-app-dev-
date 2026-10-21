@@ -22,10 +22,11 @@ import shopCurrency from "@graphql/query/shop/shopCurrency.js";
 
 import { useShadowRulesPage } from "./_hooks";
 import { DevConfigNav } from "../components/DevConfigNav";
-import { PageHeading } from "./components/PageHeading";
+import { PageHeading, pageTitle } from "./components/PageHeading";
 import { ShadowRuleTable } from "./components/ShadowRuleTable";
 import { ShadowRuleForm } from "./components/ShadowRuleForm";
 import { DeleteConfirmModal } from "./components/DeleteConfirmModal";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared server-side rate validation — mirrors _data.js's validate() for
@@ -169,6 +170,19 @@ export const action = async ({ request }) => {
                     pointsPerUnit: data.rateType === "PER_AMOUNT" ? Number(data.pointsPerUnit) : null,
                     maxPoints: data.maxPoints ? Number(data.maxPoints) : null,
                 };
+
+                // Re-derived from live Shopify data on every save while the rule
+                // is still unlocked — the form promises "re-verified on every
+                // save", and without this a rule created before a store currency
+                // change would stay in the old currency forever and every
+                // customer would be skipped as a currency mismatch. Rules that
+                // already have entries stay locked (see above), exactly like the
+                // rate fields.
+                const liveCurrency = await shopCurrency(admin);
+                if (!liveCurrency) {
+                    return { message: "Could not verify your shop's currency — please try again.", status: "error", submitType };
+                }
+                updateData.currencyCode = liveCurrency;
             }
 
             const updated = await prisma.shadowRule.update({
@@ -235,17 +249,16 @@ export default function ShadowRulesPage() {
     const isEdit = page.view === "edit";
 
     return (
-        <s-page heading="Points Backfill Rules">
+        <s-page heading={pageTitle(page.view)}>
+            <GuideButton topic="backfill" />
             <DevConfigNav active="points-backfill-rules" />
 
-            <s-section>
-                <PageHeading
-                    view={page.view}
-                    isAnyBusy={page.isAnyBusy}
-                    onCreate={page.goToCreate}
-                    onBackToList={page.goToList}
-                />
-            </s-section>
+            <PageHeading
+                view={page.view}
+                isAnyBusy={page.isAnyBusy}
+                onCreate={page.goToCreate}
+                onBackToList={page.goToList}
+            />
 
             {page.view === "list" && (
                 <ShadowRuleTable
@@ -311,7 +324,7 @@ export function ErrorBoundary() {
                     </s-paragraph>
                     {error?.message && (
                         <s-box paddingBlockStart="small">
-                            <s-paragraph tone="subdued">{error.message}</s-paragraph>
+                            <s-paragraph color="subdued">{error.message}</s-paragraph>
                         </s-box>
                     )}
                 </s-banner>

@@ -2,7 +2,7 @@ import prisma from "db-server";
 import createTransaction from "app/controller/transaction/createTransaction.js";
 import { syncCustomerConfig } from "app/controller/metafieldsSync/syncCustomerConfig.js";
 import { updateSubscriptionCancelResetSettings, getSubscriptionCancelResetSettings } from "app/controller/appSettings/subscriptionCancelResetSettings.js";
-import { MANUAL_RESET_MODES, cancelResetDeduction } from "app/utils/subscriptionCancelReset.js";
+import { MANUAL_RESET_MODES, RESET_TIMINGS, cancelResetDeduction } from "app/utils/subscriptionCancelReset.js";
 import { logger } from "app/utils/logger.js";
 import { restorableTotal, restoreRemaining, pickResetSibling } from "./_data";
 
@@ -460,19 +460,29 @@ export async function handleUpdateSettings({ formData, session }) {
     // changes (a missing "enabled" must not read as false).
     const rawEnabled = formData.get("enabled");
     const rawMode = formData.get("manualResetMode");
+    const rawTiming = formData.get("resetTiming");
     const enabled = rawEnabled === null ? undefined : rawEnabled === "true";
     const manualResetMode = rawMode === null ? undefined : String(rawMode);
+    const resetTiming = rawTiming === null ? undefined : String(rawTiming);
 
-    if (enabled === undefined && manualResetMode === undefined) {
+    if (enabled === undefined && manualResetMode === undefined && resetTiming === undefined) {
         return { message: "Nothing to update.", status: "error", submitType };
     }
     if (manualResetMode !== undefined && !MANUAL_RESET_MODES.includes(manualResetMode)) {
         return { message: "Choose a valid manual reset option.", status: "error", submitType };
     }
 
+    if (resetTiming !== undefined && !RESET_TIMINGS.includes(resetTiming)) {
+        return { message: "Choose a valid reset timing.", status: "error", submitType };
+    }
+
     try {
-        const settings = await updateSubscriptionCancelResetSettings({ shop: session.shop, sessionId: session.id, enabled, manualResetMode });
-        const message = manualResetMode !== undefined
+        const settings = await updateSubscriptionCancelResetSettings({ shop: session.shop, sessionId: session.id, enabled, manualResetMode, resetTiming });
+        const message = resetTiming !== undefined
+            ? (settings.resetTiming === "period_end"
+                ? "Points will now be kept until the customer's paid period ends, then reset. Cancellations already recorded are not changed."
+                : "Points will now reset immediately when a subscription is cancelled. Resets already scheduled still run on their date.")
+            : manualResetMode !== undefined
             ? (settings.manualResetMode === "KEEP_EARNED_AFTER"
                 ? "Manual resets will now keep points earned after cancelling."
                 : "Manual resets will now reset the whole balance to 0.")

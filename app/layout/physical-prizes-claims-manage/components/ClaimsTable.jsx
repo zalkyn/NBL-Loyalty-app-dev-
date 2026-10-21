@@ -1,3 +1,4 @@
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 import Pagination from "@app/components/pagination/Pagination";
 import { STATUS_CONFIG, formatDate } from "../_data";
 
@@ -27,6 +28,7 @@ export function ClaimsTable({
     setCurrentPage,
     setPerPage,
 }) {
+    const { symbol } = useShopCurrency();
     return (
         <s-section padding="none">
             <s-table>
@@ -54,7 +56,7 @@ export function ClaimsTable({
                     {claims.length === 0 ? (
                         <s-table-row>
                             <s-table-cell colSpan="9">
-                                <s-text tone="subdued">No claims found.</s-text>
+                                <s-text color="subdued">No claims found.</s-text>
                             </s-table-cell>
                         </s-table-row>
                     ) : (
@@ -93,8 +95,8 @@ export function ClaimsTable({
                                             <s-stack direction="block" gap="none">
                                                 <s-text variant="headingSm">{prize?.title ?? "—"}</s-text>
                                                 {prize?.productValue && (
-                                                    <s-text tone="subdued" variant="bodySm">
-                                                        Value: ${Number(prize.productValue).toLocaleString()}
+                                                    <s-text color="subdued" variant="bodySm">
+                                                        Value: {symbol}{Number(prize.productValue).toLocaleString()}
                                                     </s-text>
                                                 )}
                                             </s-stack>
@@ -112,7 +114,7 @@ export function ClaimsTable({
                                                     </s-button>
                                                 )}
                                             </s-stack>
-                                            <s-text tone="subdued" variant="bodySm">{customer?.email ?? "—"}</s-text>
+                                            <s-text color="subdued" variant="bodySm">{customer?.email ?? "—"}</s-text>
                                         </s-stack>
                                     </s-table-cell>
 
@@ -125,17 +127,17 @@ export function ClaimsTable({
 
                                     {/* Claimed date */}
                                     <s-table-cell>
-                                        <s-text tone="subdued" variant="bodySm">{formatDate(claim.createdAt)}</s-text>
+                                        <s-text color="subdued" variant="bodySm">{formatDate(claim.createdAt)}</s-text>
                                     </s-table-cell>
 
                                     {/* Fulfilled date */}
                                     <s-table-cell>
-                                        <s-text tone="subdued" variant="bodySm">{formatDate(claim.fulfilledAt)}</s-text>
+                                        <s-text color="subdued" variant="bodySm">{formatDate(claim.fulfilledAt)}</s-text>
                                     </s-table-cell>
 
                                     {/* Completed date */}
                                     <s-table-cell>
-                                        <s-text tone="subdued" variant="bodySm">{formatDate(claim.completedAt)}</s-text>
+                                        <s-text color="subdued" variant="bodySm">{formatDate(claim.completedAt)}</s-text>
                                     </s-table-cell>
 
                                     {/* Status */}

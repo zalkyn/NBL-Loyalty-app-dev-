@@ -43,6 +43,8 @@ const TRANSIENT_ERROR_PATTERNS = [
     "timed out",
     "no response available",
     "socket hang up",
+    // orderPaidJob: subscription order whose Appstle details had not arrived yet
+    "appstle_metafield_pending",
 ];
 
 /**

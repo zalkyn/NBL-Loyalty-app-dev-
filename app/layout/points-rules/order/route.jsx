@@ -6,7 +6,7 @@ import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppCo
 import { useRuleForm } from "@shared-utils/rule-utils/useRuleForm";
 import { useSubmitBusy } from "@shared-utils/rule-utils/useSubmitBusy";
 import { useToastRedirect } from "@shared-utils/rule-utils/useToastRedirect";
-import { PageHeader } from "@shared-utils/rule-components/PageHeader";
+import { PageHeader, ruleHeading } from "@shared-utils/rule-components/PageHeader";
 import { ProductList } from "@shared-utils/rule-components/ProductList";
 import { DescriptionField } from "@shared-utils/rule-components/DescriptionField";
 import { SaveBar } from "@app/components/saveBar/SaveBar";
@@ -18,6 +18,7 @@ import { EarningFields } from "./components/EarningFields";
 import { IntervalCard } from "./components/IntervalCard";
 import { GroupCard } from "./components/GroupCard";
 import { SummaryPanel } from "./components/SummaryPanel";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -147,13 +148,9 @@ export default function OrderRulePage() {
 
     return (
         <>
-            <s-page inlineSize="base">
-                <PageHeader
-                    title="Order Rule"
-                    mode={mode}
-                    isActive={formState.form.isActive}
-                    busy={isBusy}
-                />
+            <s-page heading={ruleHeading(mode, "Order Rule")} inlineSize="base">
+                <GuideButton topic="earning" />
+                <PageHeader busy={isBusy} />
 
                 <s-grid gridTemplateColumns="2fr 1fr" gap="base">
                     <s-box>
@@ -161,7 +158,7 @@ export default function OrderRulePage() {
                         {/* Trigger */}
                         <s-section>
                             <s-heading>Order Trigger</s-heading>
-                            <s-text tone="subdued">Choose which type of orders will earn points.</s-text>
+                            <s-text color="subdued">Choose which type of orders will earn points.</s-text>
                             <s-box paddingBlockEnd="small" />
                             <s-choice-list
                                 name="orderTrigger"
@@ -179,7 +176,7 @@ export default function OrderRulePage() {
                         {/* Earning method */}
                         <s-section>
                             <s-heading>Earning Method</s-heading>
-                            <s-text tone="subdued">Reward based on spend, or a flat amount per order.</s-text>
+                            <s-text color="subdued">Reward based on spend, or a flat amount per order.</s-text>
                             <s-box paddingBlockEnd="small" />
                             <s-choice-list
                                 name="orderMethod"
@@ -203,7 +200,7 @@ export default function OrderRulePage() {
                         {/* P1 — global earning fallback */}
                         <s-section>
                             <s-heading>Global Earning Points</s-heading>
-                            <s-text tone="subdued">Default rate — overridden by groups or intervals below.</s-text>
+                            <s-text color="subdued">Default rate — overridden by groups or intervals below.</s-text>
                             <s-box paddingBlockEnd="small" />
                             <EarningFields
                                 val={order}
@@ -223,7 +220,7 @@ export default function OrderRulePage() {
                         {/* Excluded products */}
                         <s-section>
                             <s-heading>Excluded Products (Optional)</s-heading>
-                            <s-text tone="subdued">
+                            <s-text color="subdued">
                                 Products here never earn points — regardless of group or interval.
                             </s-text>
                             <s-box paddingBlockEnd="base" />
@@ -244,7 +241,7 @@ export default function OrderRulePage() {
                                 <s-grid gridTemplateColumns="1fr auto" alignItems="center">
                                     <div>
                                         <s-heading>Subscription Interval Overrides</s-heading>
-                                        <s-text tone="subdued">
+                                        <s-text color="subdued">
                                             Custom rates per billing frequency — applies to products not in any group.
                                         </s-text>
                                     </div>
@@ -277,7 +274,7 @@ export default function OrderRulePage() {
                                 <s-grid gridTemplateColumns="1fr auto" alignItems="center">
                                     <div>
                                         <s-heading>Product Groups</s-heading>
-                                        <s-text tone="subdued">
+                                        <s-text color="subdued">
                                             Custom rates for specific products — overrides global and interval rates.
                                         </s-text>
                                     </div>

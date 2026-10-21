@@ -57,14 +57,14 @@ export function validate(form) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Resolve `{{currency_value}}` in the title for display purposes. */
-export const previewTitle = (title, discountType, rewardValue) => {
+export const previewTitle = (title, discountType, rewardValue, symbol = "") => {
     if (!title) return "";
-    const formatted = discountType === "percentage" ? `${rewardValue}%` : `$${rewardValue}`;
+    const formatted = discountType === "percentage" ? `${rewardValue}%` : `${symbol}${rewardValue}`;
     return title.replace(/\{\{currency_value\}\}/gi, formatted);
 };
 
-export const formatDiscount = (discountType, rewardValue) =>
-    discountType === "percentage" ? `${rewardValue}%` : `$${rewardValue}`;
+export const formatDiscount = (discountType, rewardValue, symbol = "") =>
+    discountType === "percentage" ? `${rewardValue}%` : `${symbol}${rewardValue}`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGINATION

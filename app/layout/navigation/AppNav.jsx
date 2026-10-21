@@ -15,18 +15,30 @@ export default function AppNav() {
     // tool, so it belongs in normal navigation. See DevConfigNav.jsx's own
     // comment for how that page avoids leaking the OTHER dev-config links
     // onto this main-nav path.
+    //
+    // Order follows how a merchant thinks, top to bottom (the Shopify app nav is
+    // a flat list, so grouping is by position):
+    //   watch      – Dashboard, Program Health, Customers
+    //   earn/spend – Points Earning Rules, Reward Rules, Physical Prizes + Claims
+    //   decisions  – Referral Reviews, Subscription Cancellations
+    //   one-offs   – Points Backfill (its rules are reached from that page and Settings)
+    //   storefront – Review Points Setup, Widget Customize
+    //   help       – Settings (the map of every setting), Setup Guide, Feature Guide
     return <s-app-nav>
         <s-link href="/app/dashboard">Dashboard</s-link>
-        <s-link href="/app/setup-guide">Setup Guide</s-link>
+        <s-link href="/app/health">Program Health</s-link>
         <s-link href="/app/customers">Customers</s-link>
         <s-link href="/app/points-rules">Points Earning Rules</s-link>
         <s-link href="/app/rewards-rules">Reward Rules</s-link>
         <s-link href="/app/physical-prizes-rules">Physical Prize Rules</s-link>
         <s-link href="/app/physical-prizes-claims-manage">Physical Prize Claims</s-link>
+        <s-link href="/app/referral-reviews">Referral Reviews</s-link>
         <s-link href="/app/subscription-cancellations">Subscription Cancellations</s-link>
-        <s-link href="/app/points-backfill-rules">Points Backfill Rules</s-link>
         <s-link href="/app/points-backfill">Points Backfill</s-link>
-        <s-link href="/app/customize">Widget Customize</s-link>
         <s-link href="/app/loox-setup">Review Points Setup</s-link>
+        <s-link href="/app/customize">Widget Customize</s-link>
+        <s-link href="/app/settings">Settings</s-link>
+        <s-link href="/app/setup-guide">Setup Guide</s-link>
+        <s-link href="/app/guide">Feature Guide</s-link>
     </s-app-nav>
 }

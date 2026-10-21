@@ -21,11 +21,17 @@
 import { report } from "./lib/assert.js";
 import { run as runComputePoints } from "./computePoints.test.js";
 import { run as runNormalizeSegmentMemberGid } from "./normalizeSegmentMemberGid.test.js";
+import { run as runCurrency } from "./currency.test.js";
+import { run as runReferralFraud } from "./referralFraud.test.js";
+import { run as runCancelResetTiming } from "./cancelResetTiming.test.js";
 
 const unitOnly = process.argv.includes("--unit-only");
 
 await runComputePoints();
 await runNormalizeSegmentMemberGid();
+await runCurrency();
+await runReferralFraud();
+await runCancelResetTiming();
 
 if (!unitOnly) {
     const { run: runBackfillIntegration } = await import("./backfillIntegration.test.js");

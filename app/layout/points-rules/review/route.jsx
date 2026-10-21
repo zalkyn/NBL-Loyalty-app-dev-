@@ -6,7 +6,7 @@ import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppCo
 import { useRuleForm } from "@shared-utils/rule-utils/useRuleForm";
 import { useSubmitBusy } from "@shared-utils/rule-utils/useSubmitBusy";
 import { useToastRedirect } from "@shared-utils/rule-utils/useToastRedirect";
-import { PageHeader } from "@shared-utils/rule-components/PageHeader";
+import { PageHeader, ruleHeading } from "@shared-utils/rule-components/PageHeader";
 import { DescriptionField } from "@shared-utils/rule-components/DescriptionField";
 import { SaveBar } from "@app/components/saveBar/SaveBar";
 
@@ -15,6 +15,7 @@ import { parseRulePayload, validateRulePayload } from "../shared-utils/rule-util
 import { ReviewTypeCard } from "./components/ReviewTypeCard";
 import { RewardModeSelector } from "./components/RewardModeSelector";
 import { SummaryPanel } from "./components/SummaryPanel";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -135,8 +136,9 @@ export default function ReviewRulePage() {
 
     return (
         <>
-            <s-page inlineSize="base">
-                <PageHeader title="Review Rule" mode={mode} isActive={fs.form.isActive} busy={busy} />
+            <s-page heading={ruleHeading(mode, "Review Rule")} inlineSize="base">
+                <GuideButton topic="reviews" />
+                <PageHeader busy={busy} />
 
                 <s-grid gridTemplateColumns="2fr 1fr" gap="base">
                     <s-box>
@@ -144,7 +146,7 @@ export default function ReviewRulePage() {
                         {/* Review types */}
                         <s-section>
                             <s-heading>Review Types & Points</s-heading>
-                            <s-text tone="subdued">
+                            <s-text color="subdued">
                                 Enable or disable each type and set how many points it earns.
                             </s-text>
                             <s-box paddingBlockEnd="base" />

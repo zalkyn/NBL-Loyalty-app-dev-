@@ -8,9 +8,12 @@ import createTransaction from "../../app/controller/transaction/createTransactio
 import { getAppstleMetafield } from "../../app/graphql/mutation/order/getAppstleMetafield.js";
 import { createCustomerReward } from "../../app/controller/customerReward/createCustomerReward.js";
 import { syncCustomerConfig } from "../../app/controller/metafieldsSync/syncCustomerConfig.js";
-import { getCustomerRewardByCode } from "../../app/controller/customerReward/getCustomerReward.js";
 import { updateCustomerReward } from "../../app/controller/customerReward/updateCustomerReward.js";
 import { updateReferral } from "../../app/controller/referral/updateReferral.js";
+import { awardReferralEarn, awardFirstReferralReward, markReferralVoucherUsed } from "../../app/controller/referral/awardReferralReward.js";
+import { notifyReferralOutcome } from "../../app/controller/referral/notifyReferralOutcome.js";
+import getReferralAddresses from "../../app/graphql/query/referralAddresses.js";
+import { assessReferral, describeSignals } from "../../app/utils/referralFraud.js";
 import enqueueDiscountDeleteJob from "../../app/controller/jobs/enqueueDiscountDeleteJob.js";
 import { callShopifyGraphql, SHOPIFY_RETRYABLE_ERRORS } from "../../app/utils/shopifyGraphql.js";
 
@@ -210,7 +213,7 @@ async function processJob(job) {
 
         if (!session) throw new Error(`No active session for shop: ${shop}`);
 
-        await mainHandler({ admin, session, shop, orderId, customerId });
+        await mainHandler({ admin, session, shop, orderId, customerId, isLastAttempt: attempts + 1 >= maxAttempts });
 
         // ── 3a. Success ───────────────────────────────────────────────────────
         await dbRetry(
@@ -308,6 +311,7 @@ async function fetchFullOrder(admin, orderId) {
                                 shopMoney { amount }
                             }
                             product { id }
+                            sellingPlan { sellingPlanId }
                         }
                     }
                 }
@@ -352,6 +356,10 @@ async function fetchFullOrder(admin, orderId) {
         // (webhook order isn't guaranteed: ORDER_REVERSED could be enqueued
         // and even attempt to run before ORDER_PAID is processed).
         cancelled_at: raw.cancelledAt ?? null,
+        // Shopify itself marks subscription line items at checkout (sellingPlan),
+        // independent of Appstle. Used to tell "one-time order" apart from
+        // "subscription order whose Appstle metafield isn't attached yet".
+        has_selling_plan: (raw.lineItems?.edges ?? []).some(({ node }) => Boolean(node?.sellingPlan)),
     };
 
     // Raw Appstle metafield value — passed directly to getAppstleMetafield
@@ -380,7 +388,7 @@ async function fetchFullOrder(admin, orderId) {
  * @param {string} params.customerId - Shopify customer GID
  * @returns {Promise<void>}
  */
-async function mainHandler({ admin, session, shop, orderId, customerId }) {
+async function mainHandler({ admin, session, shop, orderId, customerId, isLastAttempt = false }) {
     if (!customerId) {
         logger.warn(MODULE, "No customer GID in job payload — skipping", { shop, orderId });
         return;
@@ -445,6 +453,26 @@ async function mainHandler({ admin, session, shop, orderId, customerId }) {
         return;
     }
 
+    // ── Appstle metafield not attached yet ───────────────────────────────────
+    // Appstle writes its "details" metafield onto the order a little AFTER the
+    // orders/paid webhook fires, and this job can run within seconds. Without
+    // it the order used to be classified as one-time, so a subscription-only
+    // rule skipped it — silently, with the job marked complete and never
+    // re-checked. Shopify marks subscription line items (sellingPlan) at
+    // checkout, so a selling-plan order with no metafield is "not ready yet",
+    // not "one-time": fail the job so it retries with backoff. Done BEFORE the
+    // order-count increment below so a retry can't count the order twice.
+    // On the last attempt fall through to the old behaviour (the order may be
+    // from a subscription app other than Appstle) but say so loudly.
+    if (orderFields.has_selling_plan && !appstleData) {
+        if (!isLastAttempt) {
+            throw new Error("APPSTLE_METAFIELD_PENDING: order has a selling plan but Appstle details are not attached yet");
+        }
+        logger.warn(MODULE, "Subscription order still has no Appstle details after all retries — treating as one-time", {
+            shop, orderId,
+        });
+    }
+
     // ── Cached order-count maintenance ──────────────────────────────────────
     // Keeps Customer.orders in sync incrementally so the admin dashboard can
     // read it directly instead of calling Shopify's API on every page view
@@ -495,7 +523,7 @@ async function mainHandler({ admin, session, shop, orderId, customerId }) {
     if (!referralContext.isReferralOrder) {
         await handleNormalOrder({ admin, order, customer, session, shop, subscriptionInterval, isSubscription });
     } else {
-        await handleReferral({ admin, referralContext, order, subscriptionContract, subscriptionInterval, isSubscription, session, shop });
+        await handleReferral({ admin, referralContext, order, customer, subscriptionContract, subscriptionInterval, isSubscription, session, shop });
     }
 
     // Always run — referral orders may also have separate reward vouchers applied
@@ -761,7 +789,30 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop, subscr
 
     logger.info(MODULE, "Order points resolved", { shop, points, orderLabel, subscriptionInterval });
 
-    await createTransaction(
+    // A retried job (automatic, or the merchant's "Retry failed orders") must
+    // never pay the same order twice: if this customer already has an EARN for
+    // this order under this rule, the points are already there.
+    const alreadyEarned = await dbRetry(
+        () =>
+            prisma.transaction.findFirst({
+                where: {
+                    customerId: customer.id,
+                    type: "EARN",
+                    pointsRuleId: rule.id,
+                    metadata: { path: ["orderId"], equals: order.admin_graphql_api_id },
+                },
+                select: { id: true },
+            }),
+        { module: MODULE, shop, orderId: order.admin_graphql_api_id }
+    );
+    if (alreadyEarned) {
+        logger.warn(MODULE, "Order points already recorded — not awarding twice", {
+            shop, orderLabel, customerId: customer.id, transactionId: alreadyEarned.id,
+        });
+        return;
+    }
+
+    const earnTransaction = await createTransaction(
         {
             customerId: customer.id,
             type: "EARN",
@@ -776,10 +827,18 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop, subscr
             metadata: {
                 orderId: order.admin_graphql_api_id,
                 orderTotal: order.total_price,
+                // Lets the subscription-cancel job tell that a customer who
+                // cancelled has since paid for a subscription again.
+                ...(isSubscription ? { subscription: true } : {}),
             },
         },
         session
     );
+    // createTransaction returns null on failure rather than throwing; without this
+    // the job would be marked complete with no points recorded.
+    if (!earnTransaction) {
+        throw new Error(`Order points could not be recorded for customer ${customer.id} (${orderLabel})`);
+    }
 
     // Non-critical — points already saved. syncCustomerConfig retries transient
     // network failures internally and never throws, so no outer retry/catch needed.
@@ -799,6 +858,7 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop, subscr
  * @param {Object}      params.admin
  * @param {Object}      params.referralContext    - Output of detectReferralOrder()
  * @param {Object}      params.order
+ * @param {Object}      params.customer           - DB customer who placed this order (the referred customer on FIRST orders)
  * @param {Object|null} params.subscriptionContract
  * @param {string|null} params.subscriptionInterval
  * @param {boolean}     params.isSubscription
@@ -806,12 +866,45 @@ const handleNormalOrder = async ({ admin, order, customer, session, shop, subscr
  * @param {string}      params.shop
  * @returns {Promise<void>}
  */
-const handleReferral = async ({ admin, referralContext, order, subscriptionContract, subscriptionInterval, isSubscription, session, shop }) => {
+/**
+ * A FIRST-order referral that earns nothing because of the rule's settings.
+ * The discount code was still used on this order, so the referral is closed
+ * (otherwise the widget keeps showing "code ready" forever), the reason is
+ * kept on the referral, and both customers are told.
+ */
+const closeSkippedFirstReferral = async ({ admin, referral, order, subscriptionContract, session, shop, reason, notice }) => {
+    const orderGid = order.admin_graphql_api_id;
+
+    await updateReferral(referral.id, {
+        status: "USED",
+        discountUsed: true,
+        rewardGiven: false,
+        orderId: orderGid,
+        subscriptionContractId: subscriptionContract?.id?.toString() ?? null,
+        metadata: { ...(subscriptionContract ?? {}), skipped: { reason, at: new Date().toISOString(), orderId: orderGid } },
+    });
+    await markReferralVoucherUsed({ referral, orderGid });
+
+    // The referred customer used a discount; only the referrer missed out on points,
+    // so only the referrer needs the explanation.
+    await notifyReferralOutcome({ session, shop, referralId: referral.id, customerId: referral.referrerId, notice, orderGid });
+    await syncCustomerConfig(admin, referral.referrerId);
+};
+
+const handleReferral = async ({ admin, referralContext, order, customer, subscriptionContract, subscriptionInterval, isSubscription, session, shop }) => {
     // getPointRuleByEvent retries transient DB errors internally.
     const rule = await getPointRuleByEvent("REFERRAL", session.id);
 
     if (!rule?.isActive) {
-        logger.warn(MODULE, "REFERRAL rule inactive — skipping", { shop });
+        logger.warn(MODULE, "REFERRAL rule inactive — referral reward skipped", {
+            shop, referralId: referralContext?.referral?.id, orderId: order?.admin_graphql_api_id,
+        });
+        if (referralContext?.type === "FIRST" && !referralContext.referral.discountUsed) {
+            await closeSkippedFirstReferral({
+                admin, referral: referralContext.referral, order, subscriptionContract, session, shop,
+                reason: "referral rule inactive", notice: "SKIPPED_PROGRAM_INACTIVE",
+            });
+        }
         return;
     }
 
@@ -821,87 +914,132 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
     const orderLabel = getOrderLabel(order);
     const lineItems = order?.line_items ?? [];
 
+    // A referral held for merchant review (or rejected) must not earn anything —
+    // including on later renewals of the same subscription.
+    if (referral.status === "HELD" || referral.status === "REJECTED") {
+        logger.warn(MODULE, `Referral is ${referral.status} — no reward for this order`, {
+            shop, type, referralId: referral.id, orderId: order.admin_graphql_api_id,
+        });
+        return;
+    }
+
     // ── Trigger check ─────────────────────────────────────────────────────────
     if (refConditions.trigger === "oneTime" && isSubscription) {
-        logger.info(MODULE, "REFERRAL trigger=oneTime but order is subscription — skipping", { shop, type });
+        // warn, not info: production only prints warn and above, and a skipped
+        // referral reward must be traceable after the fact.
+        logger.warn(MODULE, "REFERRAL trigger=oneTime but order is subscription — referral reward skipped", {
+            shop, type, referralId: referral?.id, orderId: order.admin_graphql_api_id, isSubscription,
+        });
+        if (type === "FIRST" && !referral.discountUsed) {
+            await closeSkippedFirstReferral({
+                admin, referral, order, subscriptionContract, session, shop,
+                reason: "rule is one-time orders only; order was a subscription", notice: "SKIPPED_ONE_TIME_ONLY",
+            });
+        }
         return;
     }
     if (refConditions.trigger === "subscription" && !isSubscription) {
-        logger.info(MODULE, "REFERRAL trigger=subscription but order is one-time — skipping", { shop, type });
+        logger.warn(MODULE, "REFERRAL trigger=subscription but order is one-time — referral reward skipped", {
+            shop, type, referralId: referral?.id, orderId: order.admin_graphql_api_id, isSubscription,
+        });
+        if (type === "FIRST" && !referral.discountUsed) {
+            await closeSkippedFirstReferral({
+                admin, referral, order, subscriptionContract, session, shop,
+                reason: "rule is subscription orders only; order was one-time", notice: "SKIPPED_SUBSCRIPTION_ONLY",
+            });
+        }
         return;
     }
 
     // ── FIRST referral order ──────────────────────────────────────────────────
     if (type === "FIRST") {
         if (referral.discountUsed) {
-            logger.warn(MODULE, "Referral discount already used — skipping", { shop, referralId: referral.id });
+            logger.warn(MODULE, "Referral discount already used — skipping", {
+                shop, referralId: referral.id, orderId: order.admin_graphql_api_id,
+            });
             return;
         }
 
         const { referrerPoints, referredPoints } = resolveReferralPoints(conditions, lineItems, subscriptionInterval, false);
 
-        await Promise.all([
-            updateReferral(referral.id, {
-                status: "USED",
-                discountUsed: true,
-                // Set alongside discountUsed since this is the single point
-                // where the referrer's points transaction (below, in the
-                // same Promise.all) is actually created — rewardGiven was
-                // previously never populated anywhere despite being a real
-                // schema field and a supported updateReferral() input.
-                rewardGiven: true,
-                orderId: order.admin_graphql_api_id,
-                subscriptionContractId: subscriptionContract?.id?.toString() ?? null,
-                metadata: subscriptionContract ?? {},
-            }),
-            createTransaction(
-                {
-                    customerId: referral.referrerId,
-                    type: "EARN",
-                    eventId: rule.event.id,
-                    referralId: referral.id,
-                    reason: `Referral reward — your friend placed their first order (${orderLabel})`,
-                    activity: `+${referrerPoints} points for successful referral`,
-                    points: referrerPoints,
-                    status: "COMPLETED",
-                    metadata: { orderId: order.admin_graphql_api_id, orderTotal: order.total_price },
-                },
-                session
-            ),
-            createTransaction(
-                {
-                    customerId: referral.referredId,
-                    type: "EARN",
-                    eventId: rule.event.id,
-                    referralId: referral.id,
-                    reason: `Referral discount used on order ${orderLabel}`,
-                    activity: referredPoints > 0
-                        ? `+${referredPoints} points — referral discount applied on order ${orderLabel}`
-                        : `Referral discount code applied on order ${orderLabel}`,
-                    points: referredPoints,
-                    status: "COMPLETED",
-                    metadata: { orderId: order.admin_graphql_api_id, orderTotal: order.total_price },
-                },
-                session
-            ),
-        ]);
+        const orderGid = order.admin_graphql_api_id;
 
-        // Mark referred customer's reward voucher as used — scoped to the
-        // referred customer so a discount code collision on another shop
-        // can never resolve to the wrong reward.
-        const existingReward = await getCustomerRewardByCode(
-            referral.discountCode,
-            { id: true, status: true },
-            referral.referredId
+        // ── Self-dealing check ────────────────────────────────────────────────
+        // Compare the two accounts before anything is awarded. HOLD parks the
+        // reward for the merchant to approve or reject (the referral discount
+        // was already applied by Shopify); FLAG rewards as usual but records
+        // the signal. A failed address lookup throws so the job retries —
+        // the check is never skipped silently.
+        const referrerCustomer = await dbRetry(
+            () => prisma.customer.findUnique({
+                where: { id: referral.referrerId },
+                select: { shopifyId: true, name: true, firstName: true, lastName: true },
+            }),
+            { module: MODULE, shop, referralId: referral.id }
         );
-        if (existingReward) {
-            await updateCustomerReward(existingReward.id, {
-                status: "USED",
+        const { referrerAddresses, referredAddresses } = await getReferralAddresses(admin, {
+            referrerGid: referrerCustomer?.shopifyId,
+            referredGid: customer?.shopifyId,
+            orderGid,
+        });
+        const assessment = assessReferral({
+            referrer: referrerCustomer ?? {},
+            referred: customer ?? {},
+            referrerAddresses,
+            referredAddresses,
+        });
+
+        if (assessment.decision === "HOLD") {
+            await updateReferral(referral.id, {
+                status: "HELD",
+                // Shopify already consumed the discount code on this order.
                 discountUsed: true,
-                usedAt: new Date(),
-                orderId: order.admin_graphql_api_id,
+                rewardGiven: false,
+                orderId: orderGid,
+                subscriptionContractId: subscriptionContract?.id?.toString() ?? null,
+                metadata: {
+                    ...(subscriptionContract ?? {}),
+                    hold: {
+                        heldAt: new Date().toISOString(),
+                        signals: assessment.signals,
+                        reason: describeSignals(assessment.signals),
+                        orderId: orderGid,
+                        orderLabel,
+                        orderTotal: order.total_price,
+                        referrerPoints,
+                        referredPoints,
+                        subscriptionInterval: subscriptionInterval ?? null,
+                    },
+                },
+            });
+            await markReferralVoucherUsed({ referral, orderGid });
+
+            await notifyReferralOutcome({ session, shop, referralId: referral.id, customerId: referral.referrerId, notice: "HELD_REFERRER", orderGid });
+            await notifyReferralOutcome({ session, shop, referralId: referral.id, customerId: referral.referredId, notice: "HELD_REFERRED", orderGid });
+
+            logger.warn(MODULE, "Referral reward HELD for merchant review", {
+                shop, referralId: referral.id, orderId: orderGid, signals: assessment.signals,
+            });
+            await Promise.all([
+                syncCustomerConfig(admin, referral.referrerId),
+                syncCustomerConfig(admin, referral.referredId),
+            ]);
+            return;
+        }
+
+        if (assessment.decision === "FLAG") {
+            logger.warn(MODULE, "Referral rewarded but flagged for review", {
+                shop, referralId: referral.id, orderId: orderGid, signals: assessment.signals,
             });
         }
+
+        await awardFirstReferralReward({
+            session, shop, referral, eventId: rule.event.id, orderGid, orderLabel,
+            orderTotal: order.total_price, referrerPoints, referredPoints, subscriptionContract,
+            extraMetadata: assessment.decision === "FLAG"
+                ? { reviewFlag: { signals: assessment.signals, reason: describeSignals(assessment.signals), orderId: orderGid } }
+                : {},
+        });
 
         // Non-critical — referral and transactions already committed.
         // syncCustomerConfig retries transient failures internally and never throws.
@@ -916,89 +1054,74 @@ const handleReferral = async ({ admin, referralContext, order, subscriptionContr
 
     // ── RECURRING referral (subscription renewal) ─────────────────────────────
     if (type === "RECURRING") {
-        // Duplicate guard — Shopify at-least-once delivery can fire this twice
-        const alreadyRewarded = await dbRetry(
-            () =>
-                prisma.reward.findFirst({
-                    where: { referralId: referral.id, orderId: order.admin_graphql_api_id, type: "RECURRING" },
-                    select: { id: true },
-                }),
-            { module: MODULE, shop, referralId: referral.id }
-        );
-
-        if (alreadyRewarded) {
-            logger.warn(MODULE, "RECURRING reward already issued for this order — skipping", {
-                shop, referralId: referral.id, orderId: order.admin_graphql_api_id,
-            });
-            return;
-        }
+        const orderGid = order.admin_graphql_api_id;
 
         const { referrerPoints, referredPoints } = resolveReferralPoints(conditions, lineItems, subscriptionInterval, true);
 
-        const rewardTasks = [];
-
+        // Duplicate protection (Shopify's at-least-once delivery, job retries)
+        // is per customer inside awardReferralEarn. The old guard here queried
+        // Reward.referralId, a column that does not exist — Prisma rejected the
+        // query, so every renewal failed before awarding anything.
+        const awards = [];
         if (referrerPoints > 0) {
-            rewardTasks.push(
-                createTransaction(
-                    {
-                        customerId: referral.referrerId,
-                        type: "EARN",
-                        eventId: rule.event.id,
-                        referralId: referral.id,
-                        reason: `Subscription renewal reward — referred customer renewed (${orderLabel})`,
-                        activity: `+${referrerPoints} points for referral renewal`,
-                        points: referrerPoints,
-                        status: "COMPLETED",
-                        metadata: { orderId: order.admin_graphql_api_id, orderTotal: order.total_price },
-                    },
-                    session
-                ),
-                createCustomerReward({
-                    customerId: referral.referrerId,
-                    event: "REFERRAL",
-                    type: "RECURRING",
-                    title: "Referral renewal reward",
-                    description: `Your referred customer renewed their subscription. You earned ${referrerPoints} points.`,
-                    orderId: order.admin_graphql_api_id,
-                    referralId: referral.id,
-                    status: "COMPLETED",
-                })
-            );
+            awards.push({
+                customerId: referral.referrerId,
+                points: referrerPoints,
+                reason: `Subscription renewal reward — referred customer renewed (${orderLabel})`,
+                activity: `+${referrerPoints} points for referral renewal`,
+                title: "Referral renewal reward",
+                description: `Your referred customer renewed their subscription. You earned ${referrerPoints} points.`,
+            });
         }
-
         if (referredPoints > 0) {
-            rewardTasks.push(
-                createTransaction(
-                    {
-                        customerId: referral.referredId,
-                        type: "EARN",
-                        eventId: rule.event.id,
-                        referralId: referral.id,
-                        reason: `Subscription renewal reward — earned for renewing subscription (${orderLabel})`,
-                        activity: `+${referredPoints} points for subscription renewal`,
-                        points: referredPoints,
-                        status: "COMPLETED",
-                        metadata: { orderId: order.admin_graphql_api_id, orderTotal: order.total_price },
-                    },
-                    session
-                ),
-                createCustomerReward({
-                    customerId: referral.referredId,
-                    event: "REFERRAL",
-                    type: "RECURRING",
-                    title: "Subscription renewal reward",
-                    description: `You earned ${referredPoints} points for renewing your subscription.`,
-                    orderId: order.admin_graphql_api_id,
-                    referralId: referral.id,
-                    status: "COMPLETED",
-                })
-            );
+            awards.push({
+                customerId: referral.referredId,
+                points: referredPoints,
+                reason: `Subscription renewal reward — earned for renewing subscription (${orderLabel})`,
+                activity: `+${referredPoints} points for subscription renewal`,
+                title: "Subscription renewal reward",
+                description: `You earned ${referredPoints} points for renewing your subscription.`,
+            });
         }
 
-        await Promise.all([
-            ...rewardTasks,
-            updateReferral(referral.id, { metadata: subscriptionContract ?? {} }),
-        ]);
+        for (const a of awards) {
+            await awardReferralEarn({
+                session, shop, referral, orderGid,
+                input: {
+                    customerId: a.customerId,
+                    type: "EARN",
+                    eventId: rule.event.id,
+                    referralId: referral.id,
+                    reason: a.reason,
+                    activity: a.activity,
+                    points: a.points,
+                    status: "COMPLETED",
+                    metadata: { orderId: orderGid, orderTotal: order.total_price },
+                },
+            });
+            // Idempotent on its own (rewardKey is deterministic per customer +
+            // order); a duplicate comes back null and is not an error.
+            await createCustomerReward({
+                customerId: a.customerId,
+                event: "REFERRAL",
+                type: "RECURRING",
+                title: a.title,
+                description: a.description,
+                orderId: orderGid,
+                referralId: referral.id,
+                status: "COMPLETED",
+            });
+        }
+
+        // Keep what was recorded on the first order (a review flag, or the
+        // merchant's approval); only the contract part is refreshed.
+        await updateReferral(referral.id, {
+            metadata: {
+                ...(subscriptionContract ?? {}),
+                ...(referral.metadata?.reviewFlag ? { reviewFlag: referral.metadata.reviewFlag } : {}),
+                ...(referral.metadata?.approval ? { approval: referral.metadata.approval } : {}),
+            },
+        });
 
         // Non-critical — syncCustomerConfig retries transient failures internally and never throws.
         await Promise.all([

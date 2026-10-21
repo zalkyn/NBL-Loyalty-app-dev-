@@ -1,5 +1,6 @@
 import { TRIGGER_DESCRIPTIONS } from "@shared-utils/constants/ruleConstants";
 import { ActiveToggle } from "@shared-utils/rule-components/ActiveToggle";
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SummaryPanel
@@ -15,8 +16,9 @@ import { ActiveToggle } from "@shared-utils/rule-components/ActiveToggle";
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function SummaryPanel({ event, order, isActive, onActiveChange, busy }) {
+    const { symbol } = useShopCurrency();
     const defaultRateLabel = order.type === "incremental"
-        ? `${order.rate.points || 0} pt for every $${order.rate.amount || 0} spent`
+        ? `${order.rate.points || 0} pt for every ${symbol}${order.rate.amount || 0} spent`
         : `${order.fixedPoints || 0} pts flat per order`;
 
     return (

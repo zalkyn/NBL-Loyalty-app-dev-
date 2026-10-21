@@ -4,6 +4,7 @@ import { logger } from "../../app/utils/logger.js";
 import { dbRetry } from "../../app/utils/retry/dbRetry.js";
 import createTransaction from "../../app/controller/transaction/createTransaction.js";
 import { syncCustomerConfig } from "../../app/controller/metafieldsSync/syncCustomerConfig.js";
+import { resolveRefundAmountInShopCurrency } from "../../app/utils/refundAmount.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "orderReversalJob";
@@ -123,7 +124,7 @@ async function requeueStaleJobs() {
  */
 async function processJob(job) {
     const { id, shop, payload, attempts, maxAttempts } = job;
-    const { orderId, reversalType, refundId, refundAmount } = payload;
+    const { orderId, reversalType, refundId, refundAmount, refundCurrency } = payload;
 
     // ── 1. Claim ──────────────────────────────────────────────────────────────
     // Conditional on status still being PENDING — see the matching comment in
@@ -153,7 +154,7 @@ async function processJob(job) {
 
         if (!session) throw new Error(`No active session for shop: ${shop}`);
 
-        await mainHandler({ admin, session, shop, orderId, reversalType, refundId, refundAmount });
+        await mainHandler({ admin, session, shop, orderId, reversalType, refundId, refundAmount, refundCurrency });
 
         // ── 3a. Success ───────────────────────────────────────────────────────
         await dbRetry(
@@ -277,7 +278,7 @@ function buildReversalMessage({ role, reversalType, reverseAmount }) {
     };
 }
 
-async function mainHandler({ admin, session, shop, orderId, reversalType, refundId, refundAmount }) {
+async function mainHandler({ admin, session, shop, orderId, reversalType, refundId, refundAmount: webhookRefundAmount, refundCurrency }) {
     // ── 1. Find every EARN transaction tagged with this order ──────────────────
     const earnTransactions = await dbRetry(
         () =>
@@ -304,6 +305,13 @@ async function mainHandler({ admin, session, shop, orderId, reversalType, refund
     }
 
     const orderTotal = Number(earnTransactions[0]?.metadata?.orderTotal || 0);
+
+    // orderTotal is in the order's shop currency; the webhook's refund amount is
+    // in the customer's payment currency. Bring both to the same currency before
+    // taking the ratio (a no-op for single-currency stores).
+    const refundAmount = reversalType === "REFUND"
+        ? await resolveRefundAmountInShopCurrency({ admin, refundId, refundAmount: webhookRefundAmount, refundCurrency })
+        : webhookRefundAmount;
 
     // Group by customer — an order can have earners on both sides of a referral
     const byCustomer = new Map();

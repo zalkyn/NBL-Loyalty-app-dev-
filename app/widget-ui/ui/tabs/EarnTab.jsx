@@ -129,7 +129,7 @@ export function EarnTab({ pointRules, currencySymbol, referralTabVisible, onOpen
             <ItemList
                 items={activeRules}
                 emptyText="No earn rules available"
-                renderItem={(rule) => <PointRuleItem rule={rule} currencySymbol={currencySymbol || '$'} referralTabVisible={referralTabVisible} onOpenInfo={onOpenInfo} />}
+                renderItem={(rule) => <PointRuleItem rule={rule} currencySymbol={currencySymbol || ''} referralTabVisible={referralTabVisible} onOpenInfo={onOpenInfo} />}
             />
         </div>
     );

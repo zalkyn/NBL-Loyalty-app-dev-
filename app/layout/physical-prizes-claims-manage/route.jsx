@@ -45,6 +45,7 @@ import { ConfirmActionModal } from "./components/ConfirmActionModal";
 import { AdminNoteModal } from "./components/AdminNoteModal";
 import { BulkConfirmModal } from "./components/BulkConfirmModal";
 import { ViewClaimModal } from "./components/ViewClaimModal";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -213,6 +214,7 @@ export default function PrizeClaimsPage() {
 
     return (
         <s-page heading="Prize Claims" inlineSize="large">
+            <GuideButton topic="prizes" />
 
             <ConfirmActionModal
                 modalRef={page.modalRef}
@@ -265,7 +267,7 @@ export default function PrizeClaimsPage() {
             />
 
             <s-section>
-                <s-text tone="subdued" variant="bodySm">
+                <s-text color="subdued" variant="bodySm">
                     Manage customer prize requests — fulfill when sent, complete when delivered, or cancel to refund points.
                 </s-text>
             </s-section>

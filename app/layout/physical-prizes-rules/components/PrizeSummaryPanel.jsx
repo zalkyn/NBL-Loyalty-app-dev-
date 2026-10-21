@@ -1,8 +1,10 @@
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 /**
  * Right-column summary of the in-progress prize, plus the active/inactive
  * switch. Read-only reflection of current form state.
  */
 export function PrizeSummaryPanel({ fs, imageFile, busy }) {
+    const { symbol } = useShopCurrency();
     return (
         <s-box>
             <s-section>
@@ -12,7 +14,7 @@ export function PrizeSummaryPanel({ fs, imageFile, busy }) {
                 <s-box paddingBlockEnd="small" />
                 <s-text>
                     <strong>Product value:</strong>{" "}
-                    {fs.form.productValue ? `$${Number(fs.form.productValue).toLocaleString()}` : "—"}
+                    {fs.form.productValue ? `${symbol}${Number(fs.form.productValue).toLocaleString()}` : "—"}
                 </s-text>
                 <s-box paddingBlockEnd="small" />
                 <s-text>
@@ -41,7 +43,7 @@ export function PrizeSummaryPanel({ fs, imageFile, busy }) {
 
             <s-section>
                 <s-text variant="headingSm">Active Status</s-text>
-                <s-text tone="subdued" variant="bodySm">
+                <s-text color="subdued" variant="bodySm">
                     Inactive prizes will not be shown to customers in the widget.
                 </s-text>
                 <s-box paddingBlockEnd="small" />

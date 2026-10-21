@@ -88,7 +88,7 @@ function PrizeItem({ prize, customerPoints, onClaim, onViewImage }) {
     );
 }
 
-export function PrizesTab({ physicalPrizes, points, prizeClaims, perPage, paginationMode, lbl, onOpenInfo, onOpenClaim, onViewImage }) {
+export function PrizesTab({ physicalPrizes, points, prizeClaims, perPage, paginationMode, lbl, onOpenInfo, onOpenClaim, onViewImage, currencySymbol }) {
     const activePrizes = (physicalPrizes || []).filter((p) => p.isActive);
     const pagination = usePagination(prizeClaims || [], perPage || 5, paginationMode || 'pagination');
 
@@ -97,7 +97,7 @@ export function PrizesTab({ physicalPrizes, points, prizeClaims, perPage, pagina
         const cost = Number(prize.pointsCost) || 0;
         const rows = [];
         if (prize.productValue) {
-            rows.push({ key: 'Prize value', val: `$${Number(prize.productValue).toLocaleString()}` });
+            rows.push({ key: 'Prize value', val: `${currencySymbol || ''}${Number(prize.productValue).toLocaleString()}` });
         }
         rows.push({ key: 'Points cost', val: `${formatNumber(cost)} pts` });
         rows.push({ key: 'Your balance', val: `${formatNumber(customerPts)} pts` });

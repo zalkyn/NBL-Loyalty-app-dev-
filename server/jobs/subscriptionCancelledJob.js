@@ -5,6 +5,7 @@ import { dbRetry } from "../../app/utils/retry/dbRetry.js";
 import createTransaction from "../../app/controller/transaction/createTransaction.js";
 import { syncCustomerConfig } from "../../app/controller/metafieldsSync/syncCustomerConfig.js";
 import { getSubscriptionCancelResetSettings } from "../../app/controller/appSettings/subscriptionCancelResetSettings.js";
+import { planCancelReset } from "../../app/utils/subscriptionCancelReset.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "subscriptionCancelledJob";
@@ -234,6 +235,13 @@ async function processJob(job) {
  * @returns {Promise<void>}
  */
 async function mainHandler({ admin, session, shop, payload }) {
+    // A job scheduled by an earlier cancellation ("reset when the paid period
+    // ends") — it carries no webhook payload of its own, only a pointer back
+    // to the cancellation it belongs to.
+    if (payload?.deferredFor) {
+        return applyDeferredReset({ admin, session, shop, payload });
+    }
+
     const contract = payload?.raw?.data;
     const svixId = payload?.svixId;
 
@@ -371,6 +379,44 @@ async function mainHandler({ admin, session, shop, payload }) {
         // cancelled would open a side door around that fraud check.
         skipReason = "NEGATIVE_BALANCE";
         logger.info(MODULE, "Customer balance is negative (debt) — recording event, deliberately not reset", { shop, svixId, customerId: customer.id, balance: customer.points });
+    } else if (planCancelReset({ timing: settings.resetTiming, nextBillingDate: contract?.nextBillingDate }).action === "defer") {
+        // "Reset when the paid period ends": the customer has paid up to
+        // nextBillingDate, so they keep their points until then. The reset is
+        // a delayed job of its own (applyDeferredReset below); this row says so
+        // and the customer is told.
+        const { dueAt } = planCancelReset({ timing: settings.resetTiming, nextBillingDate: contract?.nextBillingDate });
+        skipReason = "WAITING_PERIOD_END";
+
+        try {
+            await prisma.job.create({
+                data: {
+                    type: "SUBSCRIPTION_CANCELLED",
+                    shop,
+                    status: "PENDING",
+                    runAt: dueAt,
+                    idempotencyKey: `SUBSCRIPTION_RESET_DUE:${svixId}`,
+                    payload: { deferredFor: svixId, dueAt: dueAt.toISOString(), subscriptionContractId: contractGid },
+                },
+            });
+        } catch (err) {
+            // Already scheduled by an earlier attempt of this same job — fine.
+            if (err?.code !== "P2002") throw err;
+        }
+
+        await createTransaction(
+            {
+                customerId: customer.id,
+                type: "EARN",
+                points: 0,
+                status: "PENDING",
+                reason: "Subscription cancelled — your points are kept until your paid period ends",
+                activity: `Subscription cancelled. Your points stay available until ${formatLongDate(dueAt)}.`,
+                metadata: { notice: "RESET_SCHEDULED", svixId, dueAt: dueAt.toISOString() },
+            },
+            session
+        ).catch(() => null); // a notice must never block the scheduling it describes
+
+        logger.info(MODULE, "Points reset scheduled for the end of the paid period", { shop, svixId, customerId: customer.id, dueAt });
     } else {
         // ── 5. Reset current balance to 0, lifetimePoints untouched ─────────
         const transaction = await createTransaction(
@@ -421,4 +467,106 @@ async function mainHandler({ admin, session, shop, payload }) {
     }
 
     logger.success(MODULE, "Subscription cancel event handled", { shop, customerId: customer?.id ?? null, resetApplied, skipReason });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Deferred reset ("reset when the paid period ends")
+// ─────────────────────────────────────────────────────────────────────────────
+
+const formatLongDate = (d) => new Date(d).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+/**
+ * Runs when a scheduled reset comes due. Re-checks everything that may have
+ * changed while waiting: whether an admin already reset it by hand, whether
+ * the feature is still on, and whether the customer came back.
+ *
+ * "Came back" can only be inferred: this app cannot read Appstle's contracts,
+ * so a subscription order paid after the cancellation (recorded as an EARN
+ * with metadata.subscription — see orderPaidJob.js) is the signal. A customer
+ * whose order earned no points leaves no trace and would still be reset; the
+ * admin's Restore Points covers that.
+ */
+async function applyDeferredReset({ admin, session, shop, payload }) {
+    const svixId = payload.deferredFor;
+
+    const event = await dbRetry(
+        () => prisma.subscriptionCancelEvent.findUnique({ where: { svixId } }),
+        { module: MODULE, shop, svixId }
+    );
+    if (!event) {
+        logger.warn(MODULE, "Deferred reset has no matching cancellation event — skipping", { shop, svixId });
+        return;
+    }
+    // Already applied (by an admin, or by an earlier attempt), or no longer waiting.
+    if (event.resetApplied || event.skipReason !== "WAITING_PERIOD_END") {
+        logger.info(MODULE, "Deferred reset no longer needed — skipping", { shop, svixId, resetApplied: event.resetApplied, skipReason: event.skipReason });
+        return;
+    }
+
+    const finish = (data) => prisma.subscriptionCancelEvent.update({ where: { id: event.id }, data });
+
+    const customer = await dbRetry(
+        () => prisma.customer.findUnique({
+            where: { shopifyId: event.customerShopifyId },
+            select: { id: true, shopifyId: true, points: true },
+        }),
+        { module: MODULE, shop, svixId }
+    );
+
+    if (!customer) { await finish({ skipReason: "CUSTOMER_NOT_ENROLLED" }); return; }
+
+    const settings = await getSubscriptionCancelResetSettings(shop);
+    if (!settings.enabled) { await finish({ skipReason: "FEATURE_DISABLED" }); return; }
+
+    const resubscribed = await dbRetry(
+        () => prisma.transaction.findFirst({
+            where: {
+                customerId: customer.id,
+                type: "EARN",
+                createdAt: { gt: event.cancelledAt },
+                metadata: { path: ["subscription"], equals: true },
+            },
+            select: { id: true },
+        }),
+        { module: MODULE, shop, svixId }
+    );
+    if (resubscribed) {
+        logger.info(MODULE, "Customer paid for a subscription order after cancelling — not resetting", { shop, svixId, customerId: customer.id });
+        await finish({ skipReason: "RESUBSCRIBED" });
+        return;
+    }
+
+    if (customer.points === 0) { await finish({ skipReason: "ALREADY_ZERO" }); return; }
+    if (customer.points < 0) { await finish({ skipReason: "NEGATIVE_BALANCE" }); return; }
+
+    // A crashed earlier attempt may already have written the reset.
+    const existing = await dbRetry(
+        () => prisma.transaction.findFirst({
+            where: { type: "SUBSCRIPTION_CANCEL_RESET", metadata: { path: ["svixId"], equals: svixId } },
+            select: { id: true },
+        }),
+        { module: MODULE, shop, svixId }
+    );
+
+    let transactionId = existing?.id ?? null;
+    if (!existing) {
+        const transaction = await createTransaction(
+            {
+                customerId: customer.id,
+                type: "SUBSCRIPTION_CANCEL_RESET",
+                status: "COMPLETED",
+                reason: "Subscription cancelled — paid period ended, points balance reset",
+                activity: "Points reset to 0 (your paid period has ended)",
+                metadata: { subscriptionContractId: event.subscriptionContractId, svixId, deferred: true },
+            },
+            session
+        );
+        if (!transaction) throw new Error(`createTransaction returned null for customer #${customer.id}`);
+        transactionId = transaction.id;
+    }
+
+    await finish({ resetApplied: true, skipReason: null, transactionId });
+    logger.info(MODULE, "Deferred points reset applied", { shop, svixId, customerId: customer.id });
+
+    await syncCustomerConfig(admin, customer.shopifyId);
 }
