@@ -1,4 +1,5 @@
 import { formatDiscount } from "../_data";
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REWARD RULE FORM
@@ -9,6 +10,7 @@ import { formatDiscount } from "../_data";
 
 export function RewardRuleForm({ fs, busy, titlePreview }) {
     const { form } = fs;
+    const { symbol } = useShopCurrency();
 
     return (
         <s-grid gridTemplateColumns="2fr 1fr" gap="base">
@@ -56,7 +58,7 @@ export function RewardRuleForm({ fs, busy, titlePreview }) {
                                 {/* Discount Value */}
                                 <s-number-field
                                     label="Value"
-                                    prefix={form.discountType === "fixed" ? "$" : ""}
+                                    prefix={form.discountType === "fixed" ? symbol : ""}
                                     suffix={form.discountType === "percentage" ? "%" : ""}
                                     step={1} min={0}
                                     value={form.rewardValue ?? ""}
@@ -99,7 +101,7 @@ export function RewardRuleForm({ fs, busy, titlePreview }) {
                         {/* Live preview when placeholder is present */}
                         {form.title?.includes("{{currency_value}}") && (
                             <s-box paddingBlockStart="small">
-                                <s-text tone="subdued">Preview: {titlePreview}</s-text>
+                                <s-text color="subdued">Preview: {titlePreview}</s-text>
                             </s-box>
                         )}
                     </s-section>
@@ -129,7 +131,7 @@ export function RewardRuleForm({ fs, busy, titlePreview }) {
                             <s-text><strong>Type:</strong> {form.rewardType}</s-text>
                             <s-box paddingBlockEnd="small" />
                             <s-text>
-                                <strong>Discount:</strong> {formatDiscount(form.discountType, form.rewardValue)}
+                                <strong>Discount:</strong> {formatDiscount(form.discountType, form.rewardValue, symbol)}
                             </s-text>
                             <s-box paddingBlockEnd="small" />
                             <s-text><strong>Cost:</strong> {form.pointsCost} points</s-text>
@@ -137,7 +139,7 @@ export function RewardRuleForm({ fs, busy, titlePreview }) {
                             <s-text><strong>Status:</strong> <s-badge tone={form.isActive ? "success" : "critical"}>{form.isActive ? "Active" : "Inactive"}</s-badge></s-text>
                         </>
                     ) : (
-                        <s-text tone="subdued">Select a reward type to see a summary.</s-text>
+                        <s-text color="subdued">Select a reward type to see a summary.</s-text>
                     )}
                 </s-section>
 

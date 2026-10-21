@@ -130,6 +130,11 @@
 
   NBL_v1.appConfig = {{ nbl_config | json }};
 
+  // Live store currency (ISO code) straight from Liquid, so the widget never
+  // shows a hardcoded symbol and follows a store currency change immediately
+  // — no config re-sync needed. The symbol is derived in the widget (Intl).
+  NBL_v1.shopCurrency = {{ shop.currency | json }};
+
   NBL_v1.customer = {
     id:         {{ customer.id         | json }},
     email:      {{ customer.email      | json }},

@@ -23,6 +23,7 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
     const [pendingSettingsEnabled, setPendingSettingsEnabled] = useState(null);
     // Same optimistic pattern for the manual reset mode.
     const [pendingMode, setPendingMode] = useState(null);
+    const [pendingTiming, setPendingTiming] = useState(null);
 
     // Shared confirm modal — turning auto-reset OFF, a single reset, and a
     // bulk reset all route through this one modal/ref, same "target state +
@@ -45,6 +46,7 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
     const stats = loaderData?.stats ?? { total: 0, applied: 0, needsAction: 0 };
     const settingsEnabled = pendingSettingsEnabled ?? loaderData?.settings?.enabled ?? true;
     const manualResetMode = pendingMode ?? loaderData?.settings?.manualResetMode ?? "FULL_BALANCE";
+    const resetTiming = pendingTiming ?? loaderData?.settings?.resetTiming ?? "immediate";
 
     const isSubmitting = navigation.state === "submitting";
     const pendingEventId = navigation.formData?.get("eventId");
@@ -92,6 +94,7 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
             // Settled — defer back to loaderData's fresh value either way.
             setPendingSettingsEnabled(null);
             setPendingMode(null);
+            setPendingTiming(null);
         }
         if (actionData.status === "success" && (actionData.submitType === "resetPoints" || actionData.submitType === "bulkResetPoints")) {
             setSelectedIds(new Set());
@@ -119,6 +122,14 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
         setConfirmTarget({ type: "mode", nextMode: mode });
         requestAnimationFrame(() => modalRef.current?.showOverlay());
     }, [manualResetMode]);
+
+    // ── Reset timing (now / when the paid period ends) — confirmed first too,
+    // since it changes what happens to every FUTURE cancellation.
+    const handleTimingChange = useCallback((timing) => {
+        if (!timing || timing === resetTiming) return;
+        setConfirmTarget({ type: "timing", nextTiming: timing });
+        requestAnimationFrame(() => modalRef.current?.showOverlay());
+    }, [resetTiming]);
 
     // ── Reset actions — both open the shared confirm modal; the actual
     // submit happens in handleConfirm below once the admin confirms ────────
@@ -155,6 +166,9 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
         } else if (confirmTarget.type === "mode") {
             setPendingMode(confirmTarget.nextMode);
             submit({ submitType: "updateSettings", manualResetMode: confirmTarget.nextMode }, { method: "post" });
+        } else if (confirmTarget.type === "timing") {
+            setPendingTiming(confirmTarget.nextTiming);
+            submit({ submitType: "updateSettings", resetTiming: confirmTarget.nextTiming }, { method: "post" });
         } else if (confirmTarget.type === "resetOne") {
             submit({ submitType: "resetPoints", eventId: String(confirmTarget.event.id) }, { method: "post" });
         } else if (confirmTarget.type === "resetBulk") {
@@ -191,12 +205,12 @@ export function useSubscriptionCancellationsPage(loaderData, actionData) {
     const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
     return {
-        events, stats, settingsEnabled, manualResetMode,
+        events, stats, settingsEnabled, manualResetMode, resetTiming,
         activeTab, setActiveTab,
         currentPage, perPage, totalItems, totalPages, startIndex, setCurrentPage, setPerPage,
         isSubmitting, isBusy,
         selectedIds, selectableIds, allSelected, toggleSelect, toggleSelectAll, clearSelection,
-        handleToggleSettings, handleModeChange, handleResetOne, handleBulkReset, handleRestore,
+        handleToggleSettings, handleModeChange, handleTimingChange, handleResetOne, handleBulkReset, handleRestore,
         modalRef, confirmTarget, handleConfirm, closeConfirmModal,
         restoreAmountInput, setRestoreAmountInput,
         loaderError: loaderData?.loaderError ?? null,

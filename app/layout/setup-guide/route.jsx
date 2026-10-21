@@ -23,6 +23,7 @@
  * builds each link to their own app.
  */
 
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 import { useLoaderData } from "react-router";
 import { authenticate } from "shopify-server";
 
@@ -115,6 +116,7 @@ export default function SetupGuidePage() {
 
     return (
         <s-page heading="Setup Guide" inlineSize="base">
+            <GuideButton topic="setup" />
             <s-section>
                 <s-paragraph>
                     Everything needed to show the loyalty program on your store, in order. Step 1 is required; the

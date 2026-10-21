@@ -10,6 +10,7 @@
  *   components/      -> presentational pieces
  */
 
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 import { useLoaderData, useActionData } from "react-router";
 import { authenticate } from "shopify-server";
 import prisma from "db-server";
@@ -72,14 +73,13 @@ export default function EventsPage() {
     const handleDeleteClick = (ev) => page.setSelectedEvent(ev);
 
     return (
-        <s-page inlineSize="base">
-            <s-section>
-                <PageHeading
-                    showAddForm={page.showAddForm}
-                    isAnyBusy={page.isAnyBusy}
-                    onToggle={page.toggleAddForm}
-                />
-            </s-section>
+        <s-page heading="Points Events" inlineSize="base">
+            <GuideButton topic="events" />
+            <PageHeading
+                showAddForm={page.showAddForm}
+                isAnyBusy={page.isAnyBusy}
+                onToggle={page.toggleAddForm}
+            />
 
             {page.showAddForm ? (
                 <AddEventForm

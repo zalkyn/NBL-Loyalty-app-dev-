@@ -6,7 +6,7 @@ import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppCo
 import { useRuleForm } from "@shared-utils/rule-utils/useRuleForm";
 import { useSubmitBusy } from "@shared-utils/rule-utils/useSubmitBusy";
 import { useToastRedirect } from "@shared-utils/rule-utils/useToastRedirect";
-import { PageHeader } from "@shared-utils/rule-components/PageHeader";
+import { PageHeader, ruleHeading } from "@shared-utils/rule-components/PageHeader";
 import { DescriptionField } from "@shared-utils/rule-components/DescriptionField";
 import { SaveBar } from "@app/components/saveBar/SaveBar";
 
@@ -17,6 +17,8 @@ import { PointsFields } from "./components/PointsFields";
 import { IntervalCard } from "./components/IntervalCard";
 import { GroupCard } from "./components/GroupCard";
 import { SummaryPanel } from "./components/SummaryPanel";
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -124,6 +126,7 @@ export const action = async ({ request }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function ReferralRulePage() {
+    const { symbol } = useShopCurrency();
     const { rule, event, mode } = useLoaderData();
     const actionData = useActionData();
     const navigate = useNavigate();
@@ -147,13 +150,9 @@ export default function ReferralRulePage() {
 
     return (
         <>
-            <s-page inlineSize="base">
-                <PageHeader
-                    title="Referral Rule"
-                    mode={mode}
-                    isActive={formState.form.isActive}
-                    busy={isBusy}
-                />
+            <s-page heading={ruleHeading(mode, "Referral Rule")} inlineSize="base">
+                <GuideButton topic="referrals" />
+                <PageHeader busy={isBusy} />
 
                 <s-grid gridTemplateColumns="2fr 1fr" gap="base">
                     <s-box>
@@ -161,7 +160,7 @@ export default function ReferralRulePage() {
                         {/* Trigger */}
                         <s-section>
                             <s-heading>When should rewards be given?</s-heading>
-                            <s-text tone="subdued">
+                            <s-text color="subdued">
                                 Choose which types of orders trigger the referral reward.
                             </s-text>
                             <s-box paddingBlockEnd="small" />
@@ -181,7 +180,7 @@ export default function ReferralRulePage() {
                         {/* New customer discount — always global, never overridden */}
                         <s-section>
                             <s-heading>New Customer Discount</s-heading>
-                            <s-text tone="subdued">
+                            <s-text color="subdued">
                                 The referred customer gets this discount on their first order. Never overridden.
                             </s-text>
                             <s-box paddingBlockEnd="base" />
@@ -196,7 +195,7 @@ export default function ReferralRulePage() {
                             <s-box paddingBlockEnd="base" />
                             <s-number-field
                                 label="Discount Value"
-                                prefix={referral.referred.discountType === "fixed" ? "$" : ""}
+                                prefix={referral.referred.discountType === "fixed" ? symbol : ""}
                                 suffix={referral.referred.discountType === "percentage" ? "%" : ""}
                                 step={1}
                                 min={0}
@@ -214,7 +213,7 @@ export default function ReferralRulePage() {
                         {/* P1 — global points fallback */}
                         <s-section>
                             <s-heading>Points to Award</s-heading>
-                            <s-text tone="subdued">Default amounts — overridden by groups or intervals below.</s-text>
+                            <s-text color="subdued">Default amounts — overridden by groups or intervals below.</s-text>
                             <s-box paddingBlockEnd="base" />
                             <PointsFields
                                 referrerVal={referral.referrer}
@@ -243,7 +242,7 @@ export default function ReferralRulePage() {
                                     <div>
                                         <s-heading>Reward by Subscription Frequency</s-heading>
                                         <s-box paddingBlockEnd="small" />
-                                        <s-text tone="subdued">
+                                        <s-text color="subdued">
                                             Custom points per billing frequency — applies to products not in any group.
                                         </s-text>
                                     </div>
@@ -277,7 +276,7 @@ export default function ReferralRulePage() {
                                     <div>
                                         <s-heading>Product Groups</s-heading>
                                         <s-box paddingBlockEnd="small" />
-                                        <s-text tone="subdued">
+                                        <s-text color="subdued">
                                             Custom points for specific products — overrides defaults above.
                                         </s-text>
                                     </div>

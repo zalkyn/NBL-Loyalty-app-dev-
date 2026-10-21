@@ -1,19 +1,21 @@
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 /**
  * Product Value + Points Cost fields, plus the "use suggested points"
  * shortcut derived from the multiplier calculator below it.
  */
 export function PricingFields({ fs, busy, suggestedPoints }) {
+    const { symbol } = useShopCurrency();
     return (
         <s-section>
             <s-text variant="headingSm">Pricing</s-text>
-            <s-text tone="subdued" variant="bodySm">
+            <s-text color="subdued" variant="bodySm">
                 Set the product value and use the multiplier calculator below to work out the right points cost.
             </s-text>
             <s-box paddingBlockEnd="small" />
             <s-grid gridTemplateColumns="1fr 1fr" gap="base">
                 <s-number-field
-                    label="Product Value ($)"
-                    prefix="$"
+                    label={`Product Value${symbol ? ` (${symbol})` : ""}`}
+                    prefix={symbol}
                     step={1} min={0}
                     value={fs.form.productValue}
                     disabled={busy}
@@ -38,7 +40,7 @@ export function PricingFields({ fs, busy, suggestedPoints }) {
             {suggestedPoints !== null && (
                 <s-box paddingBlockStart="small">
                     <s-stack direction="inline" gap="small" alignItems="center">
-                        <s-text tone="subdued" variant="bodySm">
+                        <s-text color="subdued" variant="bodySm">
                             Suggested: <strong>{suggestedPoints.toLocaleString()} pts</strong>
                         </s-text>
                         <s-button

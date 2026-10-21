@@ -32,6 +32,7 @@ import { FilterBar } from "./components/FilterBar";
 import { CancelEventsTable } from "./components/CancelEventsTable";
 import { ConfirmModal } from "./components/ConfirmModal";
 import { HowItWorksModal, HOW_IT_WORKS_MODAL_ID } from "./components/HowItWorksModal";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -119,8 +120,20 @@ export const loader = async ({ request }) => {
             return eventsWithSibling;
         });
 
+        // ── 5. When a "waiting for the paid period to end" reset will run ────
+        // The date lives on the delayed job that will perform it. Informational
+        // only — a failure just leaves the date off the row.
+        const waitingKeys = eventsWithPreview
+            .filter((e) => e.skipReason === "WAITING_PERIOD_END")
+            .map((e) => `SUBSCRIPTION_RESET_DUE:${e.svixId}`);
+        const dueJobs = waitingKeys.length
+            ? await prisma.job.findMany({ where: { idempotencyKey: { in: waitingKeys } }, select: { idempotencyKey: true, runAt: true } }).catch(() => [])
+            : [];
+        const dueBySvix = new Map(dueJobs.map((j) => [j.idempotencyKey.replace("SUBSCRIPTION_RESET_DUE:", ""), j.runAt]));
+        const eventsWithDue = eventsWithPreview.map((e) => (dueBySvix.has(e.svixId) ? { ...e, resetDueAt: dueBySvix.get(e.svixId) } : e));
+
         return {
-            events: eventsWithPreview,
+            events: eventsWithDue,
             stats,
             settings,
             pagination: { page, perPage, totalItems, totalPages },
@@ -130,7 +143,7 @@ export const loader = async ({ request }) => {
         return {
             events: [],
             stats: { total: 0, applied: 0, needsAction: 0 },
-            settings: { enabled: true, manualResetMode: "FULL_BALANCE" },
+            settings: { enabled: true, manualResetMode: "FULL_BALANCE", resetTiming: "immediate" },
             pagination: { page: 1, perPage, totalItems: 0, totalPages: 1 },
             loaderError: "Failed to load cancellations. Please refresh.",
         };
@@ -168,29 +181,30 @@ export default function SubscriptionCancellationsPage() {
 
     return (
         <s-page heading="Subscription Cancellations" inlineSize="large">
+            <GuideButton topic="subscriptions" />
 
-            <s-section>
-                <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
-                    <s-text tone="subdued" variant="bodySm">
-                        Every Appstle subscription cancellation this app has seen, and whether the customer&apos;s points
-                        balance was reset to 0. Lifetime points are never affected — see the toggle below.
-                    </s-text>
-                    <s-button
-                        icon="info"
-                        variant="tertiary"
-                        accessibilityLabel="How subscription cancellations work"
-                        commandFor={HOW_IT_WORKS_MODAL_ID}
-                        command="--show"
-                    />
-                </s-stack>
-            </s-section>
+            <s-banner slot="supplemental-start" tone="info" heading="Subscription cancellations" dismissible>
+                <s-text>
+                    Every Appstle subscription cancellation this app has seen, and whether the customer&apos;s points
+                    balance was reset to 0. Lifetime points are never affected — see the toggle below.
+                </s-text>
+                <s-button
+                    slot="secondary-actions"
+                    variant="secondary"
+                    icon="info"
+                    commandFor={HOW_IT_WORKS_MODAL_ID}
+                    command="--show"
+                >
+                    How it works
+                </s-button>
+            </s-banner>
 
             <HowItWorksModal />
 
             {page.loaderError && (
-                <s-section>
-                    <s-banner tone="critical">{page.loaderError}</s-banner>
-                </s-section>
+                <s-banner slot="supplemental-start" tone="critical" heading="Something went wrong">
+                    <s-text>{page.loaderError}</s-text>
+                </s-banner>
             )}
 
             <ConfirmModal
@@ -208,9 +222,11 @@ export default function SubscriptionCancellationsPage() {
             <SettingsCard
                 enabled={page.settingsEnabled}
                 manualResetMode={page.manualResetMode}
+                resetTiming={page.resetTiming}
                 isSubmitting={page.isSubmitting}
                 onChange={page.handleToggleSettings}
                 onModeChange={page.handleModeChange}
+                onTimingChange={page.handleTimingChange}
             />
 
             <FilterBar

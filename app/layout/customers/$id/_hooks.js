@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { useNavigate, useNavigation, useSubmit } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { usePagination } from "@app/hooks/pagination/usePagination";
+import { matchesFilter, isNotice } from "./components/TransactionsTable";
 
 export function useCustomerDetailsPage(loaderData, actionData) {
     const navigate = useNavigate();
@@ -62,13 +63,31 @@ export function useCustomerDetailsPage(loaderData, actionData) {
     }, [cancelTarget, submit]);
 
     // ── Pagination ────────────────────────────────────────────────────────────
-    const txPagination = usePagination(customer?.transactions ?? [], 25);
+    // Transactions: filter by kind, and fold away the zero-point customer notices
+    // by default so the list shows actual point movements first.
+    const [txFilter, setTxFilter] = useState("all");
+    const [showNotices, setShowNotices] = useState(false);
+    const allTx = customer?.transactions ?? [];
+    const noticeCount = allTx.filter(isNotice).length;
+    const visibleTx = allTx.filter((t) => (showNotices || !isNotice(t)));
+    const txCounts = {
+        all: visibleTx.length,
+        earned: visibleTx.filter((t) => matchesFilter(t, "earned")).length,
+        spent: visibleTx.filter((t) => matchesFilter(t, "spent")).length,
+        adjusted: visibleTx.filter((t) => matchesFilter(t, "adjusted")).length,
+    };
+    const txPagination = usePagination(visibleTx.filter((t) => matchesFilter(t, txFilter)), 25);
     const rwPagination = usePagination(customer?.rewards ?? [], 25);
     const prizeClaimPagination = usePagination(customer?.prizeClaims ?? [], 25);
     const cancelEventPagination = usePagination(customer?.subscriptionCancelEvents ?? [], 25);
 
+    // Referrals of this customer (as referrer or as the referred) waiting on the merchant.
+    const heldReferrals =
+        (customer?.referralsSent ?? []).filter((r) => r.status === "HELD").length +
+        (customer?.referralsUsed?.status === "HELD" ? 1 : 0);
+
     return {
-        customer, customerLabel,
+        customer, customerLabel, navigate, heldReferrals,
         isAdjusting,
         isCancellingReward,
         handleBack,
@@ -78,7 +97,7 @@ export function useCustomerDetailsPage(loaderData, actionData) {
         openCancelReward,
         closeCancelRewardModal,
         handleConfirmCancelReward,
-        txPagination,
+        txPagination, txFilter, setTxFilter, txCounts, showNotices, setShowNotices, noticeCount,
         rwPagination,
         prizeClaimPagination,
         cancelEventPagination,

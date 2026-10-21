@@ -7,6 +7,7 @@ import { useCustomersPage } from "./_hooks";
 import { CustomerTable } from "./components/CustomerTable";
 import { ConfirmSyncModal, SYNC_MODAL_ID } from "./components/ConfirmSyncModal";
 import { SyncProgressSection } from "./components/SyncProgressSection";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
@@ -39,7 +40,8 @@ export default function Customers() {
     const page = useCustomersPage(loaderData, actionData);
 
     return (
-        <s-page title="Customers" inlineSize="base">
+        <s-page heading="Customers" inlineSize="base">
+            <GuideButton topic="customers" />
             {/* onClick fetches the counts; commandFor opens the modal. Both
                 are needed: the count has to be in flight by the time the
                 modal paints, and the modal has to open declaratively for
@@ -68,19 +70,12 @@ export default function Customers() {
                 The sync itself is unaffected — this is only about whether
                 this page keeps watching it. */}
             {page.pollExpired && (
-                <s-box paddingBlockEnd="base">
-                    <s-banner tone="warning">
-                        <s-paragraph>
-                            <strong>Stopped watching for updates.</strong> This sync has been running a long time —
-                            it carries on regardless.
-                        </s-paragraph>
-                        <s-box paddingBlockStart="small">
-                            <s-button variant="secondary" size="small" onClick={page.resumePolling}>
-                                Check again
-                            </s-button>
-                        </s-box>
-                    </s-banner>
-                </s-box>
+                <s-banner slot="supplemental-start" tone="warning" heading="Stopped watching for updates">
+                    <s-text>This sync has been running a long time — it carries on regardless.</s-text>
+                    <s-button slot="secondary-actions" variant="secondary" onClick={page.resumePolling}>
+                        Check again
+                    </s-button>
+                </s-banner>
             )}
 
             {(page.isSyncRunning || page.syncJobStatus === "FAILED") && (

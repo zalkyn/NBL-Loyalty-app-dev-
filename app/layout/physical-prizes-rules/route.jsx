@@ -20,10 +20,11 @@ import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppCo
 
 import { uploadImageIfPresent } from "./_data.server";
 import { usePhysicalPrizesPage } from "./_hooks";
-import { PageHeading } from "./components/PageHeading";
+import { PageHeading, pageTitle } from "./components/PageHeading";
 import { PrizeTable } from "./components/PrizeTable";
 import { PrizeForm } from "./components/PrizeForm";
 import { DeleteConfirmModal } from "./components/DeleteConfirmModal";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -154,15 +155,14 @@ export default function PhysicalPrizesPage() {
     const isEdit = page.view === "edit";
 
     return (
-        <s-page inlineSize="base">
-            <s-section>
-                <PageHeading
-                    view={page.view}
-                    isAnyBusy={page.isAnyBusy}
-                    onCreate={page.goToCreate}
-                    onBackToList={page.goToList}
-                />
-            </s-section>
+        <s-page heading={pageTitle(page.view)} inlineSize="base">
+            <GuideButton topic="prizes" />
+            <PageHeading
+                view={page.view}
+                isAnyBusy={page.isAnyBusy}
+                onCreate={page.goToCreate}
+                onBackToList={page.goToList}
+            />
 
             {page.view === "list" && (
                 <PrizeTable

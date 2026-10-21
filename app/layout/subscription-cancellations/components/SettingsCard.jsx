@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { MANUAL_RESET_MODE_OPTIONS } from "../_data";
+import { MANUAL_RESET_MODE_OPTIONS, RESET_TIMING_OPTIONS } from "../_data";
 
 /**
  * Controls whether a customer's points balance is automatically reset to 0
@@ -22,13 +22,15 @@ import { MANUAL_RESET_MODE_OPTIONS } from "../_data";
  * the modal first, and the choice list is forced back to the saved value
  * (`manualResetMode`) until then.
  */
-export function SettingsCard({ enabled, manualResetMode, isSubmitting, onChange, onModeChange }) {
+export function SettingsCard({ enabled, manualResetMode, resetTiming, isSubmitting, onChange, onModeChange, onTimingChange }) {
     const switchRef = useRef(null);
     const modeRef = useRef(null);
+    const timingRef = useRef(null);
 
     useEffect(() => {
         if (switchRef.current) switchRef.current.checked = enabled;
         if (modeRef.current) modeRef.current.values = [manualResetMode];
+        if (timingRef.current) timingRef.current.values = [resetTiming];
     });
 
     return (
@@ -36,9 +38,10 @@ export function SettingsCard({ enabled, manualResetMode, isSubmitting, onChange,
             <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
                 <s-stack direction="block" gap="none">
                     <s-heading>Auto-reset points on cancellation</s-heading>
-                    <s-text tone="subdued" variant="bodySm">
-                        When ON, a customer&apos;s points balance resets to 0 automatically the moment their subscription
-                        is cancelled. Lifetime points are never affected either way.
+                    <s-text color="subdued" variant="bodySm">
+                        When ON, a customer&apos;s points balance resets to 0 automatically after their subscription is
+                        cancelled — at the moment of cancelling, or when their paid period ends (choose below).
+                        Lifetime points are never affected either way.
                     </s-text>
                 </s-stack>
                 <s-switch
@@ -57,11 +60,39 @@ export function SettingsCard({ enabled, manualResetMode, isSubmitting, onChange,
 
             <s-box paddingBlockStart="base">
                 <s-stack direction="block" gap="small-300">
+                    <s-heading>When the automatic reset happens</s-heading>
+                    <s-text color="subdued" variant="bodySm">
+                        Only used while auto-reset is ON. Pick &quot;when the paid period ends&quot; if customers keep
+                        their membership after cancelling (for example a yearly plan cancelled after one month).
+                    </s-text>
+                    <s-choice-list
+                        ref={timingRef}
+                        name="resetTiming"
+                        label="When the automatic reset happens"
+                        labelAccessibilityVisibility="exclusive"
+                        disabled={isSubmitting || !enabled}
+                        onChange={(e) => onTimingChange(e.currentTarget.values?.[0])}
+                    >
+                        {RESET_TIMING_OPTIONS.map((o) => (
+                            <s-choice key={o.value} value={o.value} selected={resetTiming === o.value} details={o.details}>
+                                {o.label}{o.value === "immediate" ? " (default)" : ""}
+                            </s-choice>
+                        ))}
+                    </s-choice-list>
+                </s-stack>
+            </s-box>
+
+            <s-box paddingBlockStart="base">
+                <s-divider />
+            </s-box>
+
+            <s-box paddingBlockStart="base">
+                <s-stack direction="block" gap="small-300">
                     <s-heading>When you reset manually</s-heading>
-                    <s-text tone="subdued" variant="bodySm">
+                    <s-text color="subdued" variant="bodySm">
                         Applies to Reset Now and bulk reset. A manual reset can happen days after the cancellation,
-                        when the customer may have earned more points. The automatic reset happens at the moment of
-                        cancellation, so this setting doesn&apos;t change it.
+                        when the customer may have earned more points. The automatic reset runs on its own schedule
+                        (above), so this setting doesn&apos;t change it.
                     </s-text>
                     <s-choice-list
                         ref={modeRef}

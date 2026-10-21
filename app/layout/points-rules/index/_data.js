@@ -20,7 +20,7 @@ export const PER_PAGE = 10;
 /** Human-readable earning summary for a rule row, phrased the same way as
  *  each rule type's own "Summary" panel so merchants see consistent wording
  *  across the list page and the edit page. */
-export const getPointsSummary = (r) => {
+export const getPointsSummary = (r, symbol = "") => {
     const c = r.conditions;
     const type = r.event?.type?.toUpperCase();
     if (!c) return "—";
@@ -30,7 +30,7 @@ export const getPointsSummary = (r) => {
         const ord = c.order;
         if (!ord) return "—";
         if (ord.type === "incremental") {
-            return `${ord.rate?.points ?? 0} pt for every $${ord.rate?.amount ?? 0} spent`;
+            return `${ord.rate?.points ?? 0} pt for every ${symbol}${ord.rate?.amount ?? 0} spent`;
         }
         return `${ord.fixedPoints ?? 0} pts flat per order`;
     }
@@ -47,7 +47,7 @@ export const getPointsSummary = (r) => {
         const friendDiscount = ref.referred?.discountValue
             ? (ref.referred.discountType === "percentage"
                 ? `${ref.referred.discountValue}% off`
-                : `$${ref.referred.discountValue} off`)
+                : `${symbol}${ref.referred.discountValue} off`)
             : null;
 
         const friendParts = [

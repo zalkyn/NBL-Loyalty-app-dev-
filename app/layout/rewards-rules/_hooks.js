@@ -6,6 +6,7 @@ import { useFormState } from "@app/hooks/useFormState";
 import { notifyInvalidForm, isErrorResult } from "@app/utils/formFeedback";
 
 import { EMPTY_RULE, buildFormShape, validate, previewTitle, PER_PAGE } from "./_data";
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 
 /**
  * Encapsulates all page-level state for the Reward Rules list/create/edit
@@ -13,6 +14,7 @@ import { EMPTY_RULE, buildFormShape, validate, previewTitle, PER_PAGE } from "./
  * itself (via useFormState), and every submit/navigate handler.
  */
 export function useRewardRulesPage(loaderData, actionData) {
+    const { symbol } = useShopCurrency();
     const submit = useSubmit();
     const navigation = useNavigation();
     const tryLock = useSubmitLock(navigation.state);
@@ -68,7 +70,7 @@ export function useRewardRulesPage(loaderData, actionData) {
     const paginatedRules = rules.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
 
     // Live title preview (resolves placeholder while user types)
-    const titlePreview = previewTitle(fs.form.title, fs.form.discountType, fs.form.rewardValue);
+    const titlePreview = previewTitle(fs.form.title, fs.form.discountType, fs.form.rewardValue, symbol);
 
     // ── NAVIGATION HELPERS ────────────────────────────────────────────────────
     const goToCreate = useCallback(() => {

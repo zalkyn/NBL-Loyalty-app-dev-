@@ -22,6 +22,7 @@ import { PageHeader } from "./components/PageHeader";
 import { RulesTable } from "./components/RulesTable";
 import { EventSelectorModal } from "./components/EventSelectorModal";
 import { DeleteRuleModal } from "./components/DeleteRuleModal";
+import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOADER
@@ -70,7 +71,8 @@ export default function PointsRulesIndexPage() {
     const page = usePointsRulesIndexPage(loaderData, actionData);
 
     return (
-        <s-page inlineSize="base">
+        <s-page heading="Points Earning Rules" inlineSize="base">
+            <GuideButton topic="earning" />
 
             <PageHeader />
 

@@ -84,52 +84,42 @@ export default function PointsBackfillPage() {
         <s-page heading="Points Backfill">
             <DevConfigNav active="points-backfill" />
 
-            <s-box paddingBlockEnd="base">
-                <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-                    {/* Not scoped to whichever rule is selected above (or even
-                        to any rule at all) — every customer this shop has ever
-                        backfilled, across every rule, in one file. See
-                        controller/jobs/pointsBackfill.js's
-                        getBackfilledCustomersForExport() for the query.
+            {/* Export is not scoped to whichever rule is selected below (or even
+                to any rule at all) — every customer this shop has ever
+                backfilled, across every rule, in one file. See
+                controller/jobs/pointsBackfill.js's getBackfilledCustomersForExport()
+                for the query.
 
-                        A button, not a link: the export route authenticates
-                        with a session token that only exists inside this
-                        iframe. See hooks/useCsvDownload.js. */}
-                    <s-button
-                        variant="secondary"
-                        size="small"
-                        disabled={page.downloadingKey === "all"}
-                        loading={page.downloadingKey === "all" || undefined}
-                        onClick={page.downloadAllCsv}
-                    >
-                        {page.downloadingKey === "all"
-                            ? "Preparing CSV…"
-                            : "Export ALL backfilled customers (CSV)"}
-                    </s-button>
-                    <s-button variant="plain" commandFor={GUIDE_MODAL_ID} command="--show">
-                        How to use / Guide
-                    </s-button>
-                </s-stack>
-            </s-box>
+                A button, not a link: the export route authenticates with a
+                session token that only exists inside this iframe. See
+                hooks/useCsvDownload.js. Page-level actions live in the page
+                header's secondary-actions slot. */}
+            <s-button
+                slot="secondary-actions"
+                variant="secondary"
+                disabled={page.downloadingKey === "all"}
+                loading={page.downloadingKey === "all" || undefined}
+                onClick={page.downloadAllCsv}
+            >
+                {page.downloadingKey === "all"
+                    ? "Preparing CSV…"
+                    : "Export ALL backfilled customers (CSV)"}
+            </s-button>
+            <s-button slot="secondary-actions" variant="secondary" commandFor={GUIDE_MODAL_ID} command="--show">
+                How to use / Guide
+            </s-button>
 
             {/* Polling gives up after a long stretch rather than pinging
                 the server every few seconds forever from a tab someone
                 left open a week ago. The work itself is unaffected — this
                 is only about whether this page keeps watching it. */}
             {page.pollExpired && (
-                <s-box paddingBlockEnd="base">
-                    <s-banner tone="warning">
-                        <s-paragraph>
-                            <strong>Stopped watching for updates.</strong> This has been running a long time —
-                            any work still in progress carries on regardless.
-                        </s-paragraph>
-                        <s-box paddingBlockStart="small">
-                            <s-button variant="secondary" size="small" onClick={page.resumePolling}>
-                                Check again
-                            </s-button>
-                        </s-box>
-                    </s-banner>
-                </s-box>
+                <s-banner slot="supplemental-start" tone="warning" heading="Stopped watching for updates">
+                    <s-text>This has been running a long time — any work still in progress carries on regardless.</s-text>
+                    <s-button slot="secondary-actions" variant="secondary" onClick={page.resumePolling}>
+                        Check again
+                    </s-button>
+                </s-banner>
             )}
 
             <ActiveWorkBanner
@@ -290,7 +280,7 @@ export function ErrorBoundary() {
                     </s-paragraph>
                     {error?.message && (
                         <s-box paddingBlockStart="small">
-                            <s-paragraph tone="subdued">{error.message}</s-paragraph>
+                            <s-paragraph color="subdued">{error.message}</s-paragraph>
                         </s-box>
                     )}
                 </s-banner>

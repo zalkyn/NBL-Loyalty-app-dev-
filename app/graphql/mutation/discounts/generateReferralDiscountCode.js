@@ -3,6 +3,8 @@ import { normalizeCustomerGid } from "../../../controller/customers/normalizeCus
 import { generateDiscountCode } from "../../../utils/generateDiscountCode.js";
 import { getPointRuleByEvent } from "../../../controller/pointsRule/getPointRuleByEvent";
 import { callShopifyGraphql } from "../../../utils/shopifyGraphql.js";
+import shopCurrency from "../../query/shop/shopCurrency.js";
+import { currencySymbol } from "../../../utils/currency.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "graphql/mutation/discounts/generateReferralDiscountCode.js";
@@ -53,7 +55,8 @@ export const generateReferralDiscountCode = async (admin, customerId, referralCo
         throw new Error("Something went wrong. Please try again later.");
     });
 
-    const title = buildTitle(code, referredEarningRule);
+    const shopCurrencyCode = await shopCurrency(admin);
+    const title = buildTitle(code, referredEarningRule, currencySymbol(shopCurrencyCode));
     const discountValue = buildDiscountValue(referredEarningRule);
 
     // ── Shopify mutation ──────────────────────────────────────────────────────
@@ -94,15 +97,15 @@ export const generateReferralDiscountCode = async (admin, customerId, referralCo
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * Builds the display title for the discount, e.g. "ABC123_REFERRAL_$10" or
+ * Builds the display title for the discount, e.g. "ABC123_REFERRAL_$10" (symbol = the store currency symbol) or
  * "ABC123_REFERRAL_15%".
  *
  * @param {string} code
  * @param {{ discountType: "fixed"|"percentage", discountValue: number }} earningRule
  * @returns {string}
  */
-function buildTitle(code, { discountType, discountValue }) {
-    const suffix = discountType === "fixed" ? `$${discountValue}` : `${discountValue}%`;
+function buildTitle(code, { discountType, discountValue }, symbol = "") {
+    const suffix = discountType === "fixed" ? `${symbol}${discountValue}` : `${discountValue}%`;
     return `${code}_REFERRAL_${suffix}`;
 }
 

@@ -2,6 +2,7 @@ import { authenticate } from "shopify-server";
 import { logger } from "app/utils/logger.js";
 import { isDuplicateEvent } from "app/controller/webhook/handleDuplicateWebhook";
 import { enqueueJob } from "app/controller/webhook/enqueueJob";
+import { getRefundCurrency } from "app/utils/refundAmount.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "webhooks.app.refunds.create";
@@ -52,6 +53,9 @@ export const action = async ({ request }) => {
 
         const orderGid = `gid://shopify/Order/${refund.order_id}`;
         const refundAmount = getRefundAmount(refund);
+        // Transaction amounts are in the customer's payment currency; the job
+        // uses this to convert to shop currency when they differ.
+        const refundCurrency = getRefundCurrency(refund);
 
         const webhookId = request.headers.get("X-Shopify-Webhook-Id");
         const eventKey = webhookId
@@ -86,6 +90,7 @@ export const action = async ({ request }) => {
                 reversalType: "REFUND",
                 refundId: refund.id,
                 refundAmount,
+                refundCurrency,
                 webhookId,
             },
         });
