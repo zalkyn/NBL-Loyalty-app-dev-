@@ -73,7 +73,7 @@ export function AttentionPanel({ items, retrying, onRetry, onHide, busy }) {
                         <s-text>{item.text}</s-text>
                         {item.steps?.length > 0 && (
                             <>
-                                <strong>What to do</strong>
+                                <strong>{item.stepsHeading ?? "What to do"}</strong>
                                 <s-ordered-list>
                                     {item.steps.map((step) => <s-list-item key={step}>{step}</s-list-item>)}
                                 </s-ordered-list>
@@ -118,11 +118,21 @@ export function AttentionPanel({ items, retrying, onRetry, onHide, busy }) {
                     heading="New: referral protection and store currency"
                     dismissible
                 >
-                    <s-text>
-                        Referral rewards are now checked before they are paid: accounts that look like the same person are held for your approval
-                        (see Referral Reviews). Customers are told when a reward is held, rejected or skipped. Amounts and symbols now follow your
-                        store currency everywhere.
-                    </s-text>
+                    <s-stack direction="block" gap="small-300">
+                        <s-text>Two things changed in the app. You do not need to do anything now.</s-text>
+                        <strong>Referral rewards are checked before they are paid</strong>
+                        <s-unordered-list>
+                            <s-list-item>If the person who shared the code and the friend who used it look like the same person or household (for example the same name and address), the reward is held instead of paid.</s-list-item>
+                            <s-list-item>Held rewards wait for you in Referral Reviews. You press Approve (points are paid) or Reject. Nobody is accused of anything.</s-list-item>
+                            <s-list-item>Customers see a short, neutral message in the widget when a reward is held, rejected or skipped.</s-list-item>
+                        </s-unordered-list>
+                        <strong>Amounts follow your store currency</strong>
+                        <s-unordered-list>
+                            <s-list-item>Money amounts and currency symbols in the app and in the widget now use your store currency.</s-list-item>
+                            <s-list-item>If an old points backfill rule was saved in another currency, a yellow notice on this page tells you.</s-list-item>
+                        </s-unordered-list>
+                        <s-text color="subdued">Close this message with the X when you have read it.</s-text>
+                    </s-stack>
                     <s-button slot="secondary-actions" variant="secondary" onClick={() => navigate("/app/referral-reviews")}>
                         Open Referral Reviews
                     </s-button>

@@ -12,6 +12,7 @@ export function StatusHero({ items, checkedAt, details, unavailable, hiddenCount
     const critical = items.filter((i) => i.tone === "critical").length;
     const warning = items.filter((i) => i.tone === "warning").length;
     const info = items.filter((i) => i.tone === "info").length;
+    const names = (tone) => items.filter((i) => i.tone === tone).map((i) => i.heading);
 
     // Time passes after load; re-render the "checked … ago" text each minute.
     const [, tick] = useState(0);
@@ -34,9 +35,9 @@ export function StatusHero({ items, checkedAt, details, unavailable, hiddenCount
     const status = unavailable
         ? { tone: "neutral", label: "Could not check", line: "We couldn't read your program's numbers just now. This is usually temporary, so press Check again. Your customers' points are not affected." }
         : critical
-        ? { tone: "critical", label: "Needs attention now", line: "Something is stopping points or rewards from reaching customers." }
+        ? { tone: "critical", label: "Needs attention now", line: "Some customers are missing points or rewards. The red notice above says who and how to fix it. Nothing is lost: the points can be added." }
         : warning
-            ? { tone: "warning", label: "A decision is waiting", line: "Everything is running, but something needs a look from you." }
+            ? { tone: "warning", label: "A decision is waiting", line: "Everything is running. Something is waiting for your decision; the yellow notices above explain what to do." }
             : setupTodo > 0
                 ? { tone: "warning", label: "Setup unfinished", line: "The program can't fully work until the basic steps in the checklist below are done." }
                 : { tone: "success", label: "Healthy", line: info ? "Everything is running. Some orders are being retried by themselves." : "Orders are processing and nothing is waiting for you." };
@@ -50,13 +51,14 @@ export function StatusHero({ items, checkedAt, details, unavailable, hiddenCount
                         <s-badge tone={status.tone}>{status.label}</s-badge>
                     </s-stack>
                     <s-text>{status.line}</s-text>
+                    {!unavailable && critical + warning > 0 && (
+                        <s-stack direction="block" gap="small-500">
+                            {critical > 0 && <s-text color="subdued">{`Urgent (${critical}): ${names("critical").join("; ")}`}</s-text>}
+                            {warning > 0 && <s-text color="subdued">{`To decide (${warning}): ${names("warning").join("; ")}`}</s-text>}
+                        </s-stack>
+                    )}
                     <s-text color="subdued">
-                        {unavailable
-                            ? ""
-                            : critical + warning === 0
-                                ? "Nothing needs you right now."
-                                : `${critical ? `${critical} urgent` : ""}${critical && warning ? " · " : ""}${warning ? `${warning} to decide` : ""}`}
-                        {unavailable ? "" : " · "}Checked {timeAgo(checkedAt)}
+                        {!unavailable && critical + warning === 0 ? "Nothing needs you right now. " : ""}Checked {timeAgo(checkedAt)}
                     </s-text>
                     {!unavailable && alsoWaiting.length > 0 && (
                         <s-text color="subdued">Also waiting: {alsoWaiting.join(" · ")}. These are normal day-to-day jobs, not faults — see Can wait below.</s-text>

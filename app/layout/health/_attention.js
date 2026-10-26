@@ -96,7 +96,14 @@ function allItems(health, shopCurrency) {
         items.push({
             key: "waiting", tone: "info", count: jobs.waiting,
             heading: "Some orders are being retried",
-            text: `${jobs.waiting.toLocaleString()} order${jobs.waiting > 1 ? "s are" : " is"} being retried — usually because subscription details from Appstle hadn't arrived yet, or you just pressed Retry. You don't need to do anything; this notice disappears when they finish.`,
+            text: `${jobs.waiting.toLocaleString()} order${jobs.waiting > 1 ? "s" : ""} could not be finished on the first try, so the app is trying again by itself. Nothing is lost and nobody is paid twice. The points are added as soon as an attempt works.`,
+            stepsHeading: "What this means",
+            steps: [
+                "This is normal. It usually happens with subscription orders, because the subscription details from Appstle arrive a little after the order.",
+                "You do not need to do anything. This notice goes away by itself when the orders finish.",
+                "Press Check again in a few minutes to see if it is gone.",
+                "If it is still here after a few hours, or it turns into a red \"Some orders could not be processed\" notice, press Retry failed orders there. If that does not help, send support the order IDs.",
+            ],
         });
     }
     return items;
