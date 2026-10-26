@@ -69,6 +69,18 @@ export function AttentionPanel({ items, retrying, onRetry, onHide, busy }) {
                                 </s-ordered-list>
                             </>
                         )}
+                        {SNOOZE_KEYS.includes(item.key) && (
+                            <s-stack direction="inline" gap="small" alignItems="center">
+                                <s-button
+                                    variant="tertiary"
+                                    loading={busy("snoozeItem", item.key) || undefined}
+                                    onClick={() => onHide(item)}
+                                >
+                                    {`Hide for ${SNOOZE_DAYS} days`}
+                                </s-button>
+                                <s-text color="subdued">{"Can't deal with this today? It comes back after a week, or sooner if it gets worse."}</s-text>
+                            </s-stack>
+                        )}
                     </s-stack>
                     {item.retry && (
                         <s-button slot="secondary-actions" variant="secondary" loading={retrying || undefined} disabled={retrying} onClick={onRetry}>
@@ -83,16 +95,6 @@ export function AttentionPanel({ items, retrying, onRetry, onHide, busy }) {
                     {item.action && (
                         <s-button slot="secondary-actions" variant="secondary" onClick={() => navigate(item.action.href)}>
                             {item.action.label}
-                        </s-button>
-                    )}
-                    {SNOOZE_KEYS.includes(item.key) && (
-                        <s-button
-                            slot="secondary-actions"
-                            variant="tertiary"
-                            loading={busy("snoozeItem", item.key) || undefined}
-                            onClick={() => onHide(item)}
-                        >
-                            {`Hide for ${SNOOZE_DAYS} days`}
                         </s-button>
                     )}
                 </s-banner>
