@@ -7,7 +7,7 @@ import { timeAgo } from "../_format.js";
  * many things need the merchant, and a Refresh button. Banners above hold the
  * detail and the fixes; this just summarises them.
  */
-export function StatusHero({ items, checkedAt, details, unavailable }) {
+export function StatusHero({ items, checkedAt, details, unavailable, hiddenCount = 0 }) {
     const revalidator = useRevalidator();
     const critical = items.filter((i) => i.tone === "critical").length;
     const warning = items.filter((i) => i.tone === "warning").length;
@@ -60,6 +60,11 @@ export function StatusHero({ items, checkedAt, details, unavailable }) {
                     </s-text>
                     {!unavailable && alsoWaiting.length > 0 && (
                         <s-text color="subdued">Also waiting: {alsoWaiting.join(" · ")}. These are normal day-to-day jobs, not faults — see Can wait below.</s-text>
+                    )}
+                    {!unavailable && hiddenCount > 0 && (
+                        <s-text color="subdued">
+                            {`${hiddenCount} notice${hiddenCount === 1 ? " is" : "s are"} hidden for now, so ${hiddenCount === 1 ? "it is" : "they are"} not counted above. You can bring ${hiddenCount === 1 ? "it" : "them"} back under "Hidden for now" at the bottom of this page.`}
+                        </s-text>
                     )}
                 </s-stack>
                 <s-button

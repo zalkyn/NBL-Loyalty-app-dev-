@@ -95,7 +95,7 @@ export default function ProgramHealthPage() {
             <GuideButton topic="health" />
             <AttentionPanel items={items} retrying={retrying} onRetry={retry} onHide={actions.hide} busy={actions.busy} />
 
-            <StatusHero items={items} checkedAt={checkedAt} details={details} unavailable={Boolean(health.unavailable)} />
+            <StatusHero items={items} checkedAt={checkedAt} details={details} unavailable={Boolean(health.unavailable)} hiddenCount={hidden.length} />
             {details && <StuckReferrals stuck={details.stuck} total={health.referral.stuck} onHandled={actions.markHandled} busy={actions.busy} />}
             {details && <FailedOrdersTable failed={details.failed} total={details.failedTotal} shop={details.shop} retrying={retrying} onRetry={retry} />}
             {details && <CanWait details={details} />}

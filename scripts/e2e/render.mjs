@@ -97,7 +97,7 @@ await suite("Program Health page", async () => {
     // hidden notice: out of banners and status, listed with a way back
     const until = new Date(Date.now() + 5 * 86400000).toISOString();
     const html5 = await render(Page, { health: { ...health, referral: { ...health.referral, stuck: 1 }, snoozes: { "stuck-referrals": { until, count: 1 } } }, details: withStuck, checkedAt: new Date().toISOString() });
-    sane("health (hidden)", html5); has("health (hidden)", html5, "Hidden for now"); has("health (hidden)", html5, "Show again");
+    sane("health (hidden)", html5); has("health (hidden)", html5, "Hidden for now"); has("health (hidden)", html5, "Show again"); has("health (hidden)", html5, "1 notice is hidden for now");
     check("health (hidden): no urgent status", () => !html5.includes("Needs attention now"));
     // things that can wait are listed apart, never as faults
     const html6 = await render(Page, { health, details: { ...details, subscriptions: { ...details.subscriptions, needsAction: 3 } }, checkedAt: new Date().toISOString() });
