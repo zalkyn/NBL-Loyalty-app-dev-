@@ -323,6 +323,9 @@ const BASE_TOPICS = [
             "Blue (info): nothing to do. For example orders being retried automatically.",
             "Green (success): everything is healthy.",
             "\"Retry failed orders\" tries again for orders that failed in the last 30 days. It's safe: points are never paid twice.",
+            "Every banner says what happened, lists what to do, and has a button that goes straight to the right place.",
+            "\"Hide for 7 days\" puts a notice away when you can't deal with it today. It comes back after a week, or sooner if it gets worse, and you can bring it back at any time from \"Hidden for now\".",
+            "\"Can wait — no rush\" holds normal jobs such as subscription cancellations and prize requests. They never make the status red.",
         ],
         example: {
             title: "\"2 orders could not be processed\"",

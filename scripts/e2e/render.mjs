@@ -88,11 +88,27 @@ await suite("Program Health page", async () => {
     // numbers unreadable → must NOT claim healthy
     const html3 = await render(Page, { health: { unavailable: true, referral: { ruleActive: null, trigger: null, held: 0, skipped30d: 0, flagged30d: 0, stuck: 0 }, jobs: { failed: 0, failedOrders: [], waiting: 0 }, ruleCurrencies: [] }, details: null, checkedAt: new Date().toISOString() });
     sane("health (unreadable)", html3); has("health (unreadable)", html3, "Could not check");
-    check("health (unreadable): does not claim Healthy", () => !html3.includes("Healthy"));
+    // the Guide modal's own text mentions "Healthy", so look at the page without it
+    check("health (unreadable): does not claim Healthy", () => !html3.replace(/<s-modal[\s\S]*?<\/s-modal>/g, "").includes("Healthy"));
+    // the Guide button opens a modal with this page's topic, and a way to the full guide
+    for (const t of ["Guide: Program Health and the banners", "How to use it, step by step", "Common questions", "Open full guide", 'commandFor="guide-modal"']) has("health (guide modal)", html, t);
     // a stuck referral shows who to fix
     const withStuck = { ...details, stuck: [{ id: 1, code: "ABC", at: new Date().toISOString(), referrerId: 7, referrer: "Ann Lee", friend: "Bo Kay" }], failedTotal: details.failed.length };
     const html4 = await render(Page, { health: { ...health, referral: { ...health.referral, stuck: 1 } }, details: withStuck, checkedAt: new Date().toISOString() });
     sane("health (stuck)", html4); has("health (stuck)", html4, "Ann Lee"); has("health (stuck)", html4, "Open referrer");
+    for (const t of ["Urgent (1): Some referral rewards were not paid"]) has("health (stuck)", html4, t);
+    for (const t of ["What to do", "Show who", "Hide for 7 days", "Mark as handled", 'id="stuck-referrals"']) has("health (stuck)", html4, t);
+    // hidden notice: out of banners and status, listed with a way back
+    const until = new Date(Date.now() + 5 * 86400000).toISOString();
+    const html5 = await render(Page, { health: { ...health, referral: { ...health.referral, stuck: 1 }, snoozes: { "stuck-referrals": { until, count: 1 } } }, details: withStuck, checkedAt: new Date().toISOString() });
+    sane("health (hidden)", html5); has("health (hidden)", html5, "Hidden for now"); has("health (hidden)", html5, "Show again"); has("health (hidden)", html5, "1 notice is hidden for now");
+    check("health (hidden): no urgent status", () => !html5.includes("Needs attention now"));
+    // the "being retried" notice explains itself
+    const html7 = await render(Page, { health: { ...health, jobs: { ...health.jobs, waiting: 3 } }, details, checkedAt: new Date().toISOString() });
+    for (const t of ["Some orders are being retried", "What this means", "This notice goes away by itself", "press Retry failed orders there"]) has("health (retrying)", html7, t.replace(/"/g, "&quot;"));
+    // things that can wait are listed apart, never as faults
+    const html6 = await render(Page, { health, details: { ...details, subscriptions: { ...details.subscriptions, needsAction: 3 } }, checkedAt: new Date().toISOString() });
+    has("health (can wait)", html6, "Can wait"); has("health (can wait)", html6, "3 subscription cancellations to look at");
 });
 
 // ── Feature Guide: every topic ────────────────────────────────────────────

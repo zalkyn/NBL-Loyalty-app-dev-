@@ -96,6 +96,7 @@ export async function loadHealthDetails(session) {
                 JOIN "Reward" rw ON UPPER(rw.code) = UPPER(r."discountCode") AND rw."customerId" = r."referredId"
                 WHERE c."sessionId" = ${session.id}
                   AND r.status = 'ACTIVE' AND r."discountUsed" = false AND rw.status = 'USED'
+                  AND r.metadata->>'healthHandled' IS NULL
                 ORDER BY r."updatedAt" DESC
                 LIMIT 10`,
         ]);

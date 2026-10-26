@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
-import { buildAttentionItems } from "../_attention.js";
+import { SNOOZE_DAYS, SNOOZE_KEYS } from "../_attention.js";
 
 const INTRO_KEY = "nbl_dashboard_intro_dismissed_v1";
 
@@ -20,16 +19,33 @@ function writeDismissed() {
 }
 
 /**
+ * Smooth-scroll to a section of this page. The id sits on a plain <div> inside the
+ * section: Polaris' own elements (<s-section>, <s-stack>) may not make a box the
+ * browser can scroll to. Falls back to jumping if smooth scrolling isn't available.
+ */
+function scrollToSection(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    try {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch {
+        el.scrollIntoView();
+    }
+}
+
+/**
  * "Needs your attention" — everything the merchant should look at, one banner
  * each, with the tone matching how urgent it is:
  *   critical → money/points are not flowing (failed order jobs, rewards that
  *              never recorded), warning → a decision or check is waiting,
  *   info     → a dismissible explanation of the new features. (All clear is shown by StatusHero.)
+ * Each banner says what happened, lists the steps to fix it, and has one button
+ * that goes straight to the place to do it. "Hide for 7 days" is for things the
+ * merchant cannot deal with today (see _attention.js).
  * Renders from numbers the loader already computed; nothing here fetches.
  */
-export function AttentionPanel({ health, retrying, onRetry }) {
+export function AttentionPanel({ items, retrying, onRetry, onHide, busy }) {
     const navigate = useNavigate();
-    const { code: shopCurrency } = useShopCurrency();
     // Start dismissed so the info banner never flashes in for someone who
     // already closed it; the real value is read after mount.
     const [introDismissed, setIntroDismissed] = useState(true);
@@ -46,8 +62,6 @@ export function AttentionPanel({ health, retrying, onRetry }) {
         return () => el.removeEventListener("dismiss", onDismiss);
     }, [introDismissed]);
 
-    const items = buildAttentionItems(health, shopCurrency);
-
     // Page-wide banners: direct children of <s-page> in its supplemental-start
     // slot (outside any section), next steps as secondary-actions, one message
     // per banner. Only banners the merchant doesn't have to act on can be closed.
@@ -55,10 +69,37 @@ export function AttentionPanel({ health, retrying, onRetry }) {
         <>
             {items.map((item) => (
                 <s-banner key={item.key} slot="supplemental-start" tone={item.tone} heading={item.heading}>
-                    <s-text>{item.text}</s-text>
+                    <s-stack direction="block" gap="small-300">
+                        <s-text>{item.text}</s-text>
+                        {item.steps?.length > 0 && (
+                            <>
+                                <strong>{item.stepsHeading ?? "What to do"}</strong>
+                                <s-ordered-list>
+                                    {item.steps.map((step) => <s-list-item key={step}>{step}</s-list-item>)}
+                                </s-ordered-list>
+                            </>
+                        )}
+                        {SNOOZE_KEYS.includes(item.key) && (
+                            <s-stack direction="inline" gap="small" alignItems="center">
+                                <s-button
+                                    variant="secondary"
+                                    loading={busy("snoozeItem", item.key) || undefined}
+                                    onClick={() => onHide(item)}
+                                >
+                                    {`Hide for ${SNOOZE_DAYS} days`}
+                                </s-button>
+                                <s-text color="subdued">{"Can't deal with this today? It comes back after a week, or sooner if it gets worse."}</s-text>
+                            </s-stack>
+                        )}
+                    </s-stack>
                     {item.retry && (
                         <s-button slot="secondary-actions" variant="secondary" loading={retrying || undefined} disabled={retrying} onClick={onRetry}>
                             Retry failed orders
+                        </s-button>
+                    )}
+                    {item.anchor && (
+                        <s-button slot="secondary-actions" variant="secondary" onClick={() => scrollToSection(item.anchor.id)}>
+                            {item.anchor.label}
                         </s-button>
                     )}
                     {item.action && (
@@ -77,11 +118,21 @@ export function AttentionPanel({ health, retrying, onRetry }) {
                     heading="New: referral protection and store currency"
                     dismissible
                 >
-                    <s-text>
-                        Referral rewards are now checked before they are paid: accounts that look like the same person are held for your approval
-                        (see Referral Reviews). Customers are told when a reward is held, rejected or skipped. Amounts and symbols now follow your
-                        store currency everywhere.
-                    </s-text>
+                    <s-stack direction="block" gap="small-300">
+                        <s-text>Two things changed in the app. You do not need to do anything now.</s-text>
+                        <strong>Referral rewards are checked before they are paid</strong>
+                        <s-unordered-list>
+                            <s-list-item>If the person who shared the code and the friend who used it look like the same person or household (for example the same name and address), the reward is held instead of paid.</s-list-item>
+                            <s-list-item>Held rewards wait for you in Referral Reviews. You press Approve (points are paid) or Reject. Nobody is accused of anything.</s-list-item>
+                            <s-list-item>Customers see a short, neutral message in the widget when a reward is held, rejected or skipped.</s-list-item>
+                        </s-unordered-list>
+                        <strong>Amounts follow your store currency</strong>
+                        <s-unordered-list>
+                            <s-list-item>Money amounts and currency symbols in the app and in the widget now use your store currency.</s-list-item>
+                            <s-list-item>If an old points backfill rule was saved in another currency, a yellow notice on this page tells you.</s-list-item>
+                        </s-unordered-list>
+                        <s-text color="subdued">Close this message with the X when you have read it.</s-text>
+                    </s-stack>
                     <s-button slot="secondary-actions" variant="secondary" onClick={() => navigate("/app/referral-reviews")}>
                         Open Referral Reviews
                     </s-button>

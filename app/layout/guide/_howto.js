@@ -348,8 +348,8 @@ export const HOW_TO = {
             title: "Read the page in 10 seconds",
             steps: [
                 "Look at the top box. A green Healthy means nothing needs you. Yellow means there is something to decide. Red means points are not reaching customers.",
-                "Read the banners under the title. Each one says what happened and gives a button to fix it.",
-                "\"Also waiting\" lists normal day-to-day work such as prize requests. They are not faults.",
+                "Read the banners under the title. Each one says what happened, lists the steps \"What to do\", and has a button that takes you straight to the place to fix it.",
+                "The section \"Can wait — no rush\" lists normal day-to-day work such as subscription cancellations and prize requests. They are not faults and they never turn the status red.",
                 "Press Check again to refresh the numbers.",
             ],
         },
@@ -365,9 +365,19 @@ export const HOW_TO = {
         {
             title: "Pay a referrer who was missed",
             steps: [
-                "Find the table \"Referral rewards that were not paid\".",
+                "On the red banner press Show who, or scroll to the table \"Referral rewards that were not paid\".",
                 "Press Open referrer on the row.",
-                "On their page press Adjust Points, choose Add points and enter the referral points. Write a reason such as \"Referral reward missed\".",
+                "On their page press Adjust Points, choose Add points and enter the referral points from your referral rule. Write a reason such as \"Referral reward missed\".",
+                "Come back to Program Health and press Mark as handled on that row. Do this only after you added the points, or if you decided not to pay. It does not add points by itself.",
+            ],
+        },
+        {
+            title: "Hide something you can't deal with today",
+            steps: [
+                "On a banner press Hide for 7 days.",
+                "It leaves the banners, the status and the dashboard. Nothing is lost.",
+                "It comes back by itself after 7 days, or sooner if the problem gets bigger.",
+                "To bring it back now, scroll to \"Hidden for now\" at the bottom and press Show again.",
             ],
         },
         {
