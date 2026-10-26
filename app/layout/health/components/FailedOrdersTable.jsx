@@ -20,8 +20,8 @@ export function FailedOrdersTable({ failed, total, shop, retrying, onRetry }) {
     if (!failed.length) return null;
 
     return (
-        <s-section id="failed-orders" heading="Orders that could not be processed">
-            <s-stack direction="block" gap="base">
+        <s-section heading="Orders that could not be processed">
+            <s-stack id="failed-orders" direction="block" gap="base">
                 <s-stack direction="inline" gap="base" justifyContent="space-between" alignItems="center">
                     <s-text color="subdued">{total > failed.length ? `Showing the newest ${failed.length} of ${total} from the last 30 days. ` : "Last 30 days, newest first. "}Trying again is safe: nothing is paid twice. If an order keeps failing, send support its ID and the note under "Why".</s-text>
                     <s-button variant="primary" loading={retrying || undefined} disabled={retrying} onClick={onRetry}>Retry failed orders</s-button>

@@ -37,11 +37,9 @@ export function CanWait({ details }) {
                     do them later.
                 </s-text>
                 {rows.map((r) => (
-                    <s-stack key={r.key} direction="inline" gap="base" justifyContent="space-between" alignItems="center">
-                        <s-stack direction="block" gap="small-500">
-                            <s-text type="strong">{r.title}</s-text>
-                            <s-text color="subdued">{r.text}</s-text>
-                        </s-stack>
+                    <s-stack key={r.key} direction="block" gap="small-500">
+                        <s-text type="strong">{r.title}</s-text>
+                        <s-text color="subdued">{r.text}</s-text>
                         <s-link href={r.href}>{r.label}</s-link>
                     </s-stack>
                 ))}

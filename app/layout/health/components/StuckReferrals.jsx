@@ -9,8 +9,8 @@ import { timeAgo } from "../_format.js";
 export function StuckReferrals({ stuck, total, onHandled, busy }) {
     if (!stuck.length) return null;
     return (
-        <s-section id="stuck-referrals" heading="Referral rewards that were not paid">
-            <s-stack direction="block" gap="base">
+        <s-section heading="Referral rewards that were not paid">
+            <s-stack id="stuck-referrals" direction="block" gap="base">
                 <s-text color="subdued">
                     {total > stuck.length ? `Showing ${stuck.length} of ${total}. ` : ""}
                     The friend used the referral code, but the referrer did not receive points. For each row: (1) press Open

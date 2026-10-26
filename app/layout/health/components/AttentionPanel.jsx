@@ -18,9 +18,9 @@ function writeDismissed() {
     } catch { /* storage blocked — the banner just comes back next visit */ }
 }
 
-/** Smooth-scroll to a section of this page (its id is set on the <s-section>). */
+/** Smooth-scroll to a section of this page (the id sits on a real box inside it: <s-section> itself has none to scroll to). */
 function scrollToSection(id) {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 /**
