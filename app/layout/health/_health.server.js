@@ -17,6 +17,7 @@ export const EMPTY_HEALTH = {
     referral: { ruleActive: null, trigger: null, held: 0, skipped30d: 0, flagged30d: 0, stuck: 0 },
     jobs: { failed: 0, failedOrders: [], waiting: 0 },
     ruleCurrencies: [],
+    snoozes: {},
 };
 
 /**
@@ -40,7 +41,7 @@ export async function loadHealthData(session) {
     const since = new Date(Date.now() - THIRTY_DAYS_MS);
 
     try {
-        const [referralRule, held, recentUsed, stuckRows, failedJobs, waitingJobs, shadowRules] = await Promise.all([
+        const [referralRule, held, recentUsed, stuckRows, failedJobs, waitingJobs, shadowRules, settingsRow] = await Promise.all([
             getRuleState("REFERRAL", session.id),
 
             prisma.referral.count({ where: { status: "HELD", referrer: { sessionId: session.id } } }),
@@ -61,7 +62,8 @@ export async function loadHealthData(session) {
                 JOIN "Customer" c ON c.id = r."referrerId"
                 JOIN "Reward" rw ON UPPER(rw.code) = UPPER(r."discountCode") AND rw."customerId" = r."referredId"
                 WHERE c."sessionId" = ${session.id}
-                  AND r.status = 'ACTIVE' AND r."discountUsed" = false AND rw.status = 'USED'`,
+                  AND r.status = 'ACTIVE' AND r."discountUsed" = false AND rw.status = 'USED'
+                  AND r.metadata->>'healthHandled' IS NULL`,
 
             // Newest few failures, so the merchant can quote the order ids to support
             // (the Background Jobs page is developer-only and not available to them).
@@ -81,6 +83,9 @@ export async function loadHealthData(session) {
                 select: { currencyCode: true },
                 distinct: ["currencyCode"],
             }),
+
+            // What the merchant chose to hide for a week (see _snooze.server.js).
+            prisma.appSettings.findUnique({ where: { shop: session.shop }, select: { settings: true } }),
         ]);
 
         return {
@@ -98,6 +103,7 @@ export async function loadHealthData(session) {
                 waiting: waitingJobs,
             },
             ruleCurrencies: shadowRules.map((r) => r.currencyCode).filter(Boolean),
+            snoozes: settingsRow?.settings?.healthSnooze ?? {},
         };
     } catch (err) {
         logger.error("Failed to load dashboard health data", { module: MODULE, sessionId: session.id, error: err?.message });

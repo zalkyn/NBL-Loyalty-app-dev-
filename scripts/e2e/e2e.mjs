@@ -30,6 +30,8 @@ const { handleDecide } = await import("../../app/layout/referral-reviews/_data.s
 const { loadReviews } = await import("../../app/layout/referral-reviews/_data.server.js");
 const { loadHealthData, retryFailedOrderJobs } = await import("../../app/layout/health/_health.server.js");
 const { loadHealthDetails } = await import("../../app/layout/health/_details.server.js");
+const { snoozeItem, unsnoozeItem, markReferralHandled } = await import("../../app/layout/health/_snooze.server.js");
+const { buildAttentionItems, buildHiddenItems } = await import("../../app/layout/health/_attention.js");
 const { handleAdjustPoints } = await import("../../app/layout/customers/$id/_action.server.js");
 const { handleResetPoints, handleRestorePoints } = await import("../../app/layout/subscription-cancellations/_data.server.js");
 const { loadSettingsOverview } = await import("../../app/layout/settings/_settings.server.js");
@@ -415,6 +417,31 @@ await suite("Program Health, retry and Settings overview", async () => {
     checkEqual("stuck referral listed with both people", [d2.stuck[0]?.referrer, d2.stuck[0]?.friend], ["Stuck Referrer", "Stuck Friend"]);
     checkEqual("stuck list matches the banner count", d2.stuck.length, (await loadHealthData(session)).referral.stuck);
     checkEqual("failed total present", typeof d2.failedTotal, "number");
+
+    // Mark as handled: leaves the list and the count; can't touch another shop's referral or an unknown id
+    const stuckRef = await prisma.referral.findFirst({ where: { discountCode: "STUCK-CODE" } });
+    checkEqual("handled: unknown id refused", await markReferralHandled(session, 999999999), false);
+    checkEqual("handled: bad id refused", await markReferralHandled(session, "abc"), false);
+    checkEqual("handled: marks the referral", await markReferralHandled(session, stuckRef.id), true);
+    checkEqual("handled: leaves the details list", (await loadHealthDetails(session)).stuck.length, 0);
+    checkEqual("handled: leaves the banner count", (await loadHealthData(session)).referral.stuck, 0);
+    checkEqual("handled: points untouched", await points(sRef), 0);
+    checkEqual("handled: referral otherwise unchanged", (await prisma.referral.findUnique({ where: { id: stuckRef.id } })).status, "ACTIVE");
+    await prisma.referral.update({ where: { id: stuckRef.id }, data: { metadata: {} } });
+    checkEqual("un-handled referral is listed again", (await loadHealthDetails(session)).stuck.length, 1);
+
+    // Hide for 7 days: leaves the banners, comes back when worse, can be shown again
+    const h0 = await loadHealthData(session);
+    checkEqual("not hidden at first", buildAttentionItems(h0, "AUD").some((i) => i.key === "stuck-referrals"), true);
+    checkEqual("hide: unknown key refused", await snoozeItem(session, "nope", 1), false);
+    checkEqual("hide: accepted", await snoozeItem(session, "stuck-referrals", h0.referral.stuck), true);
+    const h1 = await loadHealthData(session);
+    checkEqual("hidden item leaves the banners", buildAttentionItems(h1, "AUD").some((i) => i.key === "stuck-referrals"), false);
+    checkEqual("hidden item is listed as hidden", buildHiddenItems(h1, "AUD").map((i) => i.key), ["stuck-referrals"]);
+    checkEqual("hidden item comes back when the problem grows", buildAttentionItems({ ...h1, referral: { ...h1.referral, stuck: h1.referral.stuck + 1 } }, "AUD").some((i) => i.key === "stuck-referrals"), true);
+    checkEqual("hidden item comes back after the week", buildAttentionItems(h1, "AUD", Date.now() + 8 * 86400000).some((i) => i.key === "stuck-referrals"), true);
+    await unsnoozeItem(session, "stuck-referrals");
+    checkEqual("show again works", buildAttentionItems(await loadHealthData(session), "AUD").some((i) => i.key === "stuck-referrals"), true);
 
     // A referral rule that is switched off must read "off", not "missing"
     await prisma.pointsRule.update({ where: { id: refRule.id }, data: { isActive: false } });

@@ -59,7 +59,7 @@ export function StatusHero({ items, checkedAt, details, unavailable }) {
                         {unavailable ? "" : " · "}Checked {timeAgo(checkedAt)}
                     </s-text>
                     {!unavailable && alsoWaiting.length > 0 && (
-                        <s-text color="subdued">Also waiting: {alsoWaiting.join(" · ")}. These are normal day-to-day jobs, not faults.</s-text>
+                        <s-text color="subdued">Also waiting: {alsoWaiting.join(" · ")}. These are normal day-to-day jobs, not faults — see Can wait below.</s-text>
                     )}
                 </s-stack>
                 <s-button

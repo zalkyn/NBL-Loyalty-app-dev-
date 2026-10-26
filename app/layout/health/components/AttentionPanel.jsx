@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
-import { buildAttentionItems } from "../_attention.js";
+import { SNOOZE_DAYS, SNOOZE_KEYS } from "../_attention.js";
 
 const INTRO_KEY = "nbl_dashboard_intro_dismissed_v1";
 
@@ -19,17 +18,24 @@ function writeDismissed() {
     } catch { /* storage blocked — the banner just comes back next visit */ }
 }
 
+/** Smooth-scroll to a section of this page (its id is set on the <s-section>). */
+function scrollToSection(id) {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 /**
  * "Needs your attention" — everything the merchant should look at, one banner
  * each, with the tone matching how urgent it is:
  *   critical → money/points are not flowing (failed order jobs, rewards that
  *              never recorded), warning → a decision or check is waiting,
  *   info     → a dismissible explanation of the new features. (All clear is shown by StatusHero.)
+ * Each banner says what happened, lists the steps to fix it, and has one button
+ * that goes straight to the place to do it. "Hide for 7 days" is for things the
+ * merchant cannot deal with today (see _attention.js).
  * Renders from numbers the loader already computed; nothing here fetches.
  */
-export function AttentionPanel({ health, retrying, onRetry }) {
+export function AttentionPanel({ items, retrying, onRetry, onHide, busy }) {
     const navigate = useNavigate();
-    const { code: shopCurrency } = useShopCurrency();
     // Start dismissed so the info banner never flashes in for someone who
     // already closed it; the real value is read after mount.
     const [introDismissed, setIntroDismissed] = useState(true);
@@ -46,8 +52,6 @@ export function AttentionPanel({ health, retrying, onRetry }) {
         return () => el.removeEventListener("dismiss", onDismiss);
     }, [introDismissed]);
 
-    const items = buildAttentionItems(health, shopCurrency);
-
     // Page-wide banners: direct children of <s-page> in its supplemental-start
     // slot (outside any section), next steps as secondary-actions, one message
     // per banner. Only banners the merchant doesn't have to act on can be closed.
@@ -55,15 +59,40 @@ export function AttentionPanel({ health, retrying, onRetry }) {
         <>
             {items.map((item) => (
                 <s-banner key={item.key} slot="supplemental-start" tone={item.tone} heading={item.heading}>
-                    <s-text>{item.text}</s-text>
+                    <s-stack direction="block" gap="small-300">
+                        <s-text>{item.text}</s-text>
+                        {item.steps?.length > 0 && (
+                            <>
+                                <s-text type="strong">What to do</s-text>
+                                <s-ordered-list>
+                                    {item.steps.map((step) => <s-list-item key={step}>{step}</s-list-item>)}
+                                </s-ordered-list>
+                            </>
+                        )}
+                    </s-stack>
                     {item.retry && (
                         <s-button slot="secondary-actions" variant="secondary" loading={retrying || undefined} disabled={retrying} onClick={onRetry}>
                             Retry failed orders
                         </s-button>
                     )}
+                    {item.anchor && (
+                        <s-button slot="secondary-actions" variant="secondary" onClick={() => scrollToSection(item.anchor.id)}>
+                            {item.anchor.label}
+                        </s-button>
+                    )}
                     {item.action && (
                         <s-button slot="secondary-actions" variant="secondary" onClick={() => navigate(item.action.href)}>
                             {item.action.label}
+                        </s-button>
+                    )}
+                    {SNOOZE_KEYS.includes(item.key) && (
+                        <s-button
+                            slot="secondary-actions"
+                            variant="tertiary"
+                            loading={busy("snoozeItem", item.key) || undefined}
+                            onClick={() => onHide(item)}
+                        >
+                            {`Hide for ${SNOOZE_DAYS} days`}
                         </s-button>
                     )}
                 </s-banner>
