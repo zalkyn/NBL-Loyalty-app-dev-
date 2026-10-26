@@ -88,7 +88,10 @@ await suite("Program Health page", async () => {
     // numbers unreadable → must NOT claim healthy
     const html3 = await render(Page, { health: { unavailable: true, referral: { ruleActive: null, trigger: null, held: 0, skipped30d: 0, flagged30d: 0, stuck: 0 }, jobs: { failed: 0, failedOrders: [], waiting: 0 }, ruleCurrencies: [] }, details: null, checkedAt: new Date().toISOString() });
     sane("health (unreadable)", html3); has("health (unreadable)", html3, "Could not check");
-    check("health (unreadable): does not claim Healthy", () => !html3.includes("Healthy"));
+    // the Guide modal's own text mentions "Healthy", so look at the page without it
+    check("health (unreadable): does not claim Healthy", () => !html3.replace(/<s-modal[\s\S]*?<\/s-modal>/g, "").includes("Healthy"));
+    // the Guide button opens a modal with this page's topic, and a way to the full guide
+    for (const t of ["Guide: Program Health and the banners", "How to use it, step by step", "Common questions", "Open full guide", 'commandFor="guide-modal"']) has("health (guide modal)", html, t);
     // a stuck referral shows who to fix
     const withStuck = { ...details, stuck: [{ id: 1, code: "ABC", at: new Date().toISOString(), referrerId: 7, referrer: "Ann Lee", friend: "Bo Kay" }], failedTotal: details.failed.length };
     const html4 = await render(Page, { health: { ...health, referral: { ...health.referral, stuck: 1 } }, details: withStuck, checkedAt: new Date().toISOString() });
