@@ -63,7 +63,7 @@ export function AttentionPanel({ items, retrying, onRetry, onHide, busy }) {
                         <s-text>{item.text}</s-text>
                         {item.steps?.length > 0 && (
                             <>
-                                <s-text type="strong">What to do</s-text>
+                                <strong>What to do</strong>
                                 <s-ordered-list>
                                     {item.steps.map((step) => <s-list-item key={step}>{step}</s-list-item>)}
                                 </s-ordered-list>
@@ -72,7 +72,7 @@ export function AttentionPanel({ items, retrying, onRetry, onHide, busy }) {
                         {SNOOZE_KEYS.includes(item.key) && (
                             <s-stack direction="inline" gap="small" alignItems="center">
                                 <s-button
-                                    variant="tertiary"
+                                    variant="secondary"
                                     loading={busy("snoozeItem", item.key) || undefined}
                                     onClick={() => onHide(item)}
                                 >
