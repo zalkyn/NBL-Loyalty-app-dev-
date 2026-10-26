@@ -18,9 +18,19 @@ function writeDismissed() {
     } catch { /* storage blocked — the banner just comes back next visit */ }
 }
 
-/** Smooth-scroll to a section of this page (the id sits on a real box inside it: <s-section> itself has none to scroll to). */
+/**
+ * Smooth-scroll to a section of this page. The id sits on a plain <div> inside the
+ * section: Polaris' own elements (<s-section>, <s-stack>) may not make a box the
+ * browser can scroll to. Falls back to jumping if smooth scrolling isn't available.
+ */
 function scrollToSection(id) {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const el = document.getElementById(id);
+    if (!el) return;
+    try {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch {
+        el.scrollIntoView();
+    }
 }
 
 /**
