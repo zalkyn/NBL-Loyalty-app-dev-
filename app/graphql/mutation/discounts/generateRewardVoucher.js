@@ -39,7 +39,9 @@ export const generateRewardVoucher = async (admin, customerId, rewardRule) => {
     const discountValue = buildDiscountValue(rewardRule);
 
     // ── Shopify mutation ──────────────────────────────────────────────────────
-    const json = await runDiscountMutation(admin, { code, customerGid, discountValue }).catch((err) => {
+    const minimumRequirement = buildMinimumRequirement(rewardRule.minOrderAmount);
+
+    const json = await runDiscountMutation(admin, { code, customerGid, discountValue, minimumRequirement }).catch((err) => {
         logger.error("Shopify GraphQL request failed", err, ctx);
         throw new Error("Something went wrong. Please try again later.");
     });
@@ -96,6 +98,24 @@ function buildDiscountValue({ discountType, rewardValue }) {
 }
 
 /**
+ * Builds the Shopify minimum-spend requirement from the reward rule's
+ * minOrderAmount (set per rule on the Reward Rules page).
+ *
+ * Returns undefined when there's no minimum to set — null/0/blank all mean
+ * "No minimum requirements", and the field is then left out of the mutation
+ * input entirely rather than sent as null (Shopify treats an absent
+ * minimumRequirement as none).
+ *
+ * @param {number|string|null|undefined} minOrderAmount
+ * @returns {{ subtotal: { greaterThanOrEqualToSubtotal: string } } | undefined}
+ */
+function buildMinimumRequirement(minOrderAmount) {
+    const amount = Number(minOrderAmount);
+    if (!Number.isFinite(amount) || amount <= 0) return undefined;
+    return { subtotal: { greaterThanOrEqualToSubtotal: String(amount) } };
+}
+
+/**
  * Executes the Shopify discountCodeBasicCreate GraphQL mutation.
  *
  * @param {Object} admin - Shopify Admin GraphQL client
@@ -103,10 +123,11 @@ function buildDiscountValue({ discountType, rewardValue }) {
  * @param {string} params.code - Generated discount code string
  * @param {string} params.customerGid - Shopify customer GID
  * @param {Object} params.discountValue - Shopify-compatible discount value input
+ * @param {Object} [params.minimumRequirement] - Minimum-spend requirement, or undefined for none
  *
  * @returns {Promise<Object>} Raw Shopify GraphQL JSON response
  */
-async function runDiscountMutation(admin, { code, customerGid, discountValue }) {
+async function runDiscountMutation(admin, { code, customerGid, discountValue, minimumRequirement }) {
     return callShopifyGraphql(
         admin,
         `#graphql
@@ -139,6 +160,7 @@ async function runDiscountMutation(admin, { code, customerGid, discountValue }) 
                     value: discountValue,
                     items: { all: true },
                 },
+                ...(minimumRequirement ? { minimumRequirement } : {}),
                 usageLimit: 1,
                 appliesOncePerCustomer: true,
             },

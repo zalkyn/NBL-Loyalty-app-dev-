@@ -1,4 +1,5 @@
 import { str, num, bool } from "@app/hooks/useFormState";
+import { minOrderAmountError } from "../../utils/minOrderAmount";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FORM SHAPE
@@ -12,6 +13,10 @@ export const EMPTY_RULE = {
     rewardValue: 5,
     rewardType: "orderDiscount", // "orderDiscount" | "productDiscount" | "freeProduct" | "freeShipping"
     pointsCost: 100,
+    // null = "No minimum requirements". Any number = the minimum order
+    // subtotal Shopify requires before the voucher can be applied (set on
+    // the discount at creation time — see generateRewardVoucher.js).
+    minOrderAmount: null,
     isActive: true,
     startDate: null,
     endDate: null,
@@ -26,6 +31,10 @@ export function buildFormShape(data) {
         rewardValue: num(data?.rewardValue ?? EMPTY_RULE.rewardValue),
         rewardType: str(data?.rewardType ?? EMPTY_RULE.rewardType),
         pointsCost: num(data?.pointsCost ?? EMPTY_RULE.pointsCost),
+        // Deliberately not run through num() — null has to survive as null
+        // (it's what tells the form "No minimum requirements" is selected),
+        // and num(null) would flatten it to 0.
+        minOrderAmount: data?.minOrderAmount == null ? null : num(data.minOrderAmount),
         isActive: bool(data?.isActive ?? true),
         startDate: data?.startDate ?? null,
         endDate: data?.endDate ?? null,
@@ -46,6 +55,8 @@ export function validate(form) {
         errors.pointsCost = "Points cost must be greater than 0.";
     if (form.rewardType === "orderDiscount" && !(Number(form.rewardValue) > 0))
         errors.rewardValue = "Discount value must be greater than 0.";
+    const minError = minOrderAmountError(form.minOrderAmount, form.discountType, form.rewardValue);
+    if (minError) errors.minOrderAmount = minError;
     return errors;
 }
 

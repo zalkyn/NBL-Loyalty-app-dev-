@@ -1,4 +1,5 @@
 import { str, bool, num, arr } from "@app/hooks/useFormState";
+import { minOrderAmountError } from "../../../utils/minOrderAmount";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // buildConditions
@@ -28,6 +29,13 @@ export function buildConditions(referral) {
                 // "fixed" | "percentage"
                 discountType: referral.referred?.discountType ?? "fixed",
                 discountValue: Number(referral.referred?.discountValue ?? 0),
+                // null = "No minimum requirements". Any number = the minimum
+                // order subtotal Shopify requires before the referral code can
+                // be applied (set at creation — generateReferralDiscountCode.js).
+                minOrderAmount:
+                    referral.referred?.minOrderAmount == null
+                        ? null
+                        : Number(referral.referred.minOrderAmount),
                 points: Number(referral.referred?.points ?? 0),
                 allowRenewalReward: Boolean(referral.referred?.allowRenewalReward ?? false),
                 renewalPoints: Number(referral.referred?.renewalPoints ?? 0),
@@ -109,6 +117,10 @@ export function buildFormShape(data) {
             referred: {
                 discountType: str(ref?.referred?.discountType ?? "fixed"),
                 discountValue: num(ref?.referred?.discountValue ?? 10),
+                // Not run through num() — null must stay null, it's what
+                // selects "No minimum requirements" in the form.
+                minOrderAmount:
+                    ref?.referred?.minOrderAmount == null ? null : num(ref.referred.minOrderAmount),
                 points: num(ref?.referred?.points ?? 50),
                 allowRenewalReward: bool(ref?.referred?.allowRenewalReward ?? false),
                 renewalPoints: num(ref?.referred?.renewalPoints ?? 40),
@@ -137,6 +149,10 @@ export function validate(form) {
     }
     if (!referred.points || Number(referred.points) <= 0) {
         errors["referral.referred.points"] = "Referred points must be greater than 0.";
+    }
+    const minError = minOrderAmountError(referred.minOrderAmount, referred.discountType, referred.discountValue);
+    if (minError) {
+        errors["referral.referred.minOrderAmount"] = minError;
     }
 
     return errors;

@@ -206,6 +206,54 @@ export default function ReferralRulePage() {
                             {formState.errorFor("referral.referred.discountValue") && (
                                 <s-text tone="critical">{formState.errorFor("referral.referred.discountValue")}</s-text>
                             )}
+
+                            {/* Minimum purchase requirements
+                                One field, two states: null = no minimum.
+                                Picking "Minimum purchase amount" seeds 0 so the
+                                number field has something to show; picking
+                                "No minimum requirements" clears it back to null. */}
+                            <s-box paddingBlockStart="small">
+                                <s-choice-list
+                                    label="Minimum purchase requirements"
+                                    name="referredMinRequirement"
+                                    value={[referral.referred.minOrderAmount == null ? "none" : "amount"]}
+                                    onInput={(e) =>
+                                        formState.set(
+                                            "referral.referred.minOrderAmount",
+                                            e.currentTarget.values[0] === "amount"
+                                                ? (referral.referred.minOrderAmount ?? 0)
+                                                : null
+                                        )
+                                    }
+                                >
+                                    <s-choice value="none" selected={referral.referred.minOrderAmount == null}>
+                                        No minimum requirements
+                                    </s-choice>
+                                    <s-choice value="amount" selected={referral.referred.minOrderAmount != null}>
+                                        Minimum purchase amount ({symbol})
+                                    </s-choice>
+                                </s-choice-list>
+                            </s-box>
+
+                            {referral.referred.minOrderAmount != null && (
+                                <s-box paddingBlockStart="small">
+                                    <s-number-field
+                                        label="Minimum purchase amount"
+                                        prefix={symbol}
+                                        step={1}
+                                        min={0}
+                                        value={referral.referred.minOrderAmount ?? ""}
+                                        disabled={isBusy}
+                                        error={formState.errorFor("referral.referred.minOrderAmount") ?? undefined}
+                                        onInput={(e) =>
+                                            formState.set(
+                                                "referral.referred.minOrderAmount",
+                                                e.target.value === "" ? 0 : Number(e.target.value)
+                                            )
+                                        }
+                                    />
+                                </s-box>
+                            )}
                         </s-section>
 
                         <s-box paddingBlockEnd="base" />

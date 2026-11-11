@@ -1,6 +1,7 @@
 import prisma from "db-server";
 import syncAppConfig, { syncOutcome } from "@controller/metafieldsSync/syncAppConfig";
 import { logger } from "app/utils/logger.js";
+import { minOrderAmountError } from "app/utils/minOrderAmount.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "layout/rewards-rules/_data.server.js";
@@ -44,6 +45,9 @@ export async function handleAddRule({ formData, session, admin }) {
         return { message: "Display title is required.", status: "error", submitType };
     if (!newRule.pointsCost || Number(newRule.pointsCost) <= 0)
         return { message: "Points cost must be greater than 0.", status: "error", submitType };
+    const newRuleMinError = minOrderAmountError(newRule.minOrderAmount, newRule.discountType, newRule.rewardValue);
+    if (newRuleMinError)
+        return { message: newRuleMinError, status: "error", submitType };
 
     try {
         const created = await prisma.rewardRule.create({
@@ -54,6 +58,8 @@ export async function handleAddRule({ formData, session, admin }) {
                 rewardValue: Number(newRule.rewardValue) || 0,
                 rewardType: newRule.rewardType,
                 pointsCost: Number(newRule.pointsCost),
+                // null = no minimum requirement (the column is nullable).
+                minOrderAmount: newRule.minOrderAmount == null ? null : Number(newRule.minOrderAmount),
                 isActive: newRule.isActive ?? true,
                 startDate: newRule.startDate ? new Date(newRule.startDate) : null,
                 endDate: newRule.endDate ? new Date(newRule.endDate) : null,
@@ -89,6 +95,9 @@ export async function handleUpdateRule({ formData, session, admin }) {
         return { message: "Display title is required.", status: "error", submitType };
     if (!updatedRule.pointsCost || Number(updatedRule.pointsCost) <= 0)
         return { message: "Points cost must be greater than 0.", status: "error", submitType };
+    const updatedRuleMinError = minOrderAmountError(updatedRule.minOrderAmount, updatedRule.discountType, updatedRule.rewardValue);
+    if (updatedRuleMinError)
+        return { message: updatedRuleMinError, status: "error", submitType };
 
     try {
         const existing = await prisma.rewardRule.findUnique({ where: { id: parseInt(updatedRule.id) } });
@@ -104,6 +113,7 @@ export async function handleUpdateRule({ formData, session, admin }) {
                 rewardValue: Number(updatedRule.rewardValue) || 0,
                 rewardType: updatedRule.rewardType,
                 pointsCost: Number(updatedRule.pointsCost),
+                minOrderAmount: updatedRule.minOrderAmount == null ? null : Number(updatedRule.minOrderAmount),
                 isActive: updatedRule.isActive ?? true,
                 startDate: updatedRule.startDate ? new Date(updatedRule.startDate) : null,
                 endDate: updatedRule.endDate ? new Date(updatedRule.endDate) : null,

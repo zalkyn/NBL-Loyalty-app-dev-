@@ -60,12 +60,15 @@ export const generateReferralDiscountCode = async (admin, customerId, referralCo
     const discountValue = buildDiscountValue(referredEarningRule);
 
     // ── Shopify mutation ──────────────────────────────────────────────────────
+    const minimumRequirement = buildMinimumRequirement(referredEarningRule.minOrderAmount);
+
     const json = await runDiscountMutation(admin, {
         code,
         title,
         customerGid,
         discountValue,
         referralTrigger,
+        minimumRequirement,
     }).catch((err) => {
         logger.error(MODULE, "Shopify GraphQL request failed", { error: err?.message, ...ctx });
         throw new Error("Something went wrong. Please try again later.");
@@ -135,6 +138,24 @@ function buildDiscountValue({ discountType, discountValue }) {
 }
 
 /**
+ * Builds the Shopify minimum-spend requirement from the referral rule's
+ * referred.minOrderAmount (set on the Points Earning Rules → Referral page).
+ *
+ * Returns undefined when there's no minimum to set — null/0/blank all mean
+ * "No minimum requirements", and the field is then left out of the mutation
+ * input entirely rather than sent as null (Shopify treats an absent
+ * minimumRequirement as none).
+ *
+ * @param {number|string|null|undefined} minOrderAmount
+ * @returns {{ subtotal: { greaterThanOrEqualToSubtotal: string } } | undefined}
+ */
+function buildMinimumRequirement(minOrderAmount) {
+    const amount = Number(minOrderAmount);
+    if (!Number.isFinite(amount) || amount <= 0) return undefined;
+    return { subtotal: { greaterThanOrEqualToSubtotal: String(amount) } };
+}
+
+/**
  * Executes the Shopify discountCodeBasicCreate GraphQL mutation for a referral reward.
  *
  * @param {Object} admin - Shopify Admin GraphQL client
@@ -144,10 +165,11 @@ function buildDiscountValue({ discountType, discountValue }) {
  * @param {string} params.customerGid     - Shopify customer GID
  * @param {Object} params.discountValue   - Shopify-compatible discount value input
  * @param {"oneTime"|"subscription"|"both"} params.referralTrigger - Which purchase types the discount applies to
+ * @param {Object} [params.minimumRequirement] - Minimum-spend requirement, or undefined for none
  *
  * @returns {Promise<Object>} Raw Shopify GraphQL JSON response
  */
-async function runDiscountMutation(admin, { code, title, customerGid, discountValue, referralTrigger }) {
+async function runDiscountMutation(admin, { code, title, customerGid, discountValue, referralTrigger, minimumRequirement }) {
     return callShopifyGraphql(
         admin,
         `#graphql
@@ -180,6 +202,7 @@ async function runDiscountMutation(admin, { code, title, customerGid, discountVa
                     value: discountValue,
                     items: { all: true },
                 },
+                ...(minimumRequirement ? { minimumRequirement } : {}),
                 usageLimit: 1,
                 appliesOncePerCustomer: true,
             },

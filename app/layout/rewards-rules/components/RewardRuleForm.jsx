@@ -81,6 +81,48 @@ export function RewardRuleForm({ fs, busy, titlePreview }) {
                                 onInput={(e) => fs.set("pointsCost", e.target.value)}
                                 onBlur={() => fs.touchField("pointsCost")}
                             />
+
+                            {/* Minimum purchase requirements
+                                One field, two states: null = no minimum.
+                                Picking "Minimum purchase amount" seeds 0 so the
+                                number field has something to show; picking
+                                "No minimum requirements" clears it back to null. */}
+                            <s-box paddingBlockStart="small">
+                                <s-choice-list
+                                    label="Minimum purchase requirements"
+                                    name="minRequirement"
+                                    value={[form.minOrderAmount == null ? "none" : "amount"]}
+                                    onInput={(e) =>
+                                        fs.set(
+                                            "minOrderAmount",
+                                            e.currentTarget.values[0] === "amount" ? (form.minOrderAmount ?? 0) : null
+                                        )
+                                    }
+                                >
+                                    <s-choice value="none" selected={form.minOrderAmount == null}>
+                                        No minimum requirements
+                                    </s-choice>
+                                    <s-choice value="amount" selected={form.minOrderAmount != null}>
+                                        Minimum purchase amount ({symbol})
+                                    </s-choice>
+                                </s-choice-list>
+                            </s-box>
+
+                            {form.minOrderAmount != null && (
+                                <s-box paddingBlockStart="small">
+                                    <s-number-field
+                                        label="Minimum purchase amount"
+                                        prefix={symbol}
+                                        step={1} min={0}
+                                        value={form.minOrderAmount ?? ""}
+                                        disabled={busy}
+                                        error={fs.errorFor("minOrderAmount") ?? undefined}
+                                        onInput={(e) =>
+                                            fs.set("minOrderAmount", e.target.value === "" ? 0 : Number(e.target.value))
+                                        }
+                                    />
+                                </s-box>
+                            )}
                         </s-section>
                     </s-box>
                 )}
@@ -132,6 +174,11 @@ export function RewardRuleForm({ fs, busy, titlePreview }) {
                             <s-box paddingBlockEnd="small" />
                             <s-text>
                                 <strong>Discount:</strong> {formatDiscount(form.discountType, form.rewardValue, symbol)}
+                            </s-text>
+                            <s-box paddingBlockEnd="small" />
+                            <s-text>
+                                <strong>Minimum spend:</strong>{" "}
+                                {form.minOrderAmount == null ? "None" : `${symbol}${form.minOrderAmount}`}
                             </s-text>
                             <s-box paddingBlockEnd="small" />
                             <s-text><strong>Cost:</strong> {form.pointsCost} points</s-text>

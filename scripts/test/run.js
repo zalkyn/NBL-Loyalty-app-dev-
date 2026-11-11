@@ -24,6 +24,7 @@ import { run as runNormalizeSegmentMemberGid } from "./normalizeSegmentMemberGid
 import { run as runCurrency } from "./currency.test.js";
 import { run as runReferralFraud } from "./referralFraud.test.js";
 import { run as runCancelResetTiming } from "./cancelResetTiming.test.js";
+import { run as runMinOrderAmount } from "./minOrderAmount.test.js";
 
 const unitOnly = process.argv.includes("--unit-only");
 
@@ -32,6 +33,7 @@ await runNormalizeSegmentMemberGid();
 await runCurrency();
 await runReferralFraud();
 await runCancelResetTiming();
+await runMinOrderAmount();
 
 if (!unitOnly) {
     const { run: runBackfillIntegration } = await import("./backfillIntegration.test.js");
