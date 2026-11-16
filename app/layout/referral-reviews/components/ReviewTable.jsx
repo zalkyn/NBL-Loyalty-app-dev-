@@ -28,6 +28,7 @@ const date = (value) => (value ? new Date(value).toLocaleDateString(undefined, {
 const EMPTY = {
     claims: "No new claims are waiting for approval.",
     waiting: "Nothing is waiting for your decision.",
+    awaiting: "No rewards are waiting for a full-price payment.",
     flagged: "No flagged referrals yet.",
     rejected: "No rejected referrals.",
 };
@@ -58,7 +59,7 @@ export function ReviewTable({ tab, rows, shop, q, busy, selected, onToggle, onTo
                 {!claims && <s-table-header>Order</s-table-header>}
                 {!claims && <s-table-header>{waiting ? "Why it was held" : "Note"}</s-table-header>}
                 {waiting && !claims && <s-table-header>Points</s-table-header>}
-                <s-table-header>{tab === "rejected" ? "Rejected on" : claims ? "Claimed on" : waiting ? "Held on" : "Date"}</s-table-header>
+                <s-table-header>{tab === "rejected" ? "Rejected on" : claims ? "Claimed on" : waiting ? "Held on" : tab === "awaiting" ? "Waiting since" : "Date"}</s-table-header>
                 {waiting && <s-table-header>Decision</s-table-header>}
             </s-table-header-row>
             <s-table-body>
@@ -71,13 +72,16 @@ export function ReviewTable({ tab, rows, shop, q, busy, selected, onToggle, onTo
                 ) : rows.map((r) => {
                     const hold = r.metadata?.hold ?? {};
                     const claimRejected = r.metadata?.rejection?.kind === "claim";
-                    const note = claimRejected
+                    const awaitingNote = r.status === "AWAITING_FULL_PRICE"
+                        ? "First order was the promo. Paid on the first full-price payment."
+                        : null;
+                    const note = awaitingNote ? awaitingNote : claimRejected
                         ? "Claim not approved — no discount code was issued."
                         : r.metadata?.approval
                             ? `Approved by you. ${sentence(r.metadata.approval.heldReason ?? "")}`
                             : sentence(r.metadata?.reviewFlag?.reason ?? hold.reason);
                     const when = r.metadata?.rejection?.rejectedAt ?? r.metadata?.approval?.approvedAt
-                        ?? hold.heldAt ?? r.metadata?.claim?.requestedAt ?? r.updatedAt;
+                        ?? hold.heldAt ?? r.metadata?.awaiting?.since ?? r.metadata?.claim?.requestedAt ?? r.updatedAt;
 
                     return (
                         <s-table-row key={r.id}>
@@ -90,7 +94,7 @@ export function ReviewTable({ tab, rows, shop, q, busy, selected, onToggle, onTo
                             <s-table-cell><Person person={r.referred} /></s-table-cell>
                             {!claims && (
                                 <s-table-cell>
-                                    <OrderLink shop={shop} orderGid={hold.orderId ?? r.orderId} label={hold.orderLabel} />
+                                    <OrderLink shop={shop} orderGid={hold.orderId ?? r.orderId} label={hold.orderLabel ?? r.metadata?.awaiting?.orderLabel} />
                                 </s-table-cell>
                             )}
                             {!claims && <s-table-cell>{note}</s-table-cell>}

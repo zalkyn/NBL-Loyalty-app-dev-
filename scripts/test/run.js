@@ -27,6 +27,7 @@ import { run as runCancelResetTiming } from "./cancelResetTiming.test.js";
 import { run as runMinOrderAmount } from "./minOrderAmount.test.js";
 import { run as runReferralApproval } from "./referralApproval.test.js";
 import { run as runPaidAmount } from "./paidAmount.test.js";
+import { run as runFullPrice } from "./fullPrice.test.js";
 
 const unitOnly = process.argv.includes("--unit-only");
 
@@ -38,6 +39,7 @@ await runCancelResetTiming();
 await runMinOrderAmount();
 await runReferralApproval();
 await runPaidAmount();
+await runFullPrice();
 
 if (!unitOnly) {
     const { run: runBackfillIntegration } = await import("./backfillIntegration.test.js");

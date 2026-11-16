@@ -10,11 +10,12 @@ import { createCustomerReward } from "../../app/controller/customerReward/create
 import { syncCustomerConfig } from "../../app/controller/metafieldsSync/syncCustomerConfig.js";
 import { updateCustomerReward } from "../../app/controller/customerReward/updateCustomerReward.js";
 import { updateReferral } from "../../app/controller/referral/updateReferral.js";
-import { awardReferralEarn, awardFirstReferralReward, markReferralVoucherUsed } from "../../app/controller/referral/awardReferralReward.js";
+import { awardReferralEarn, awardFirstReferralReward, deferFirstReferralReward, markReferralVoucherUsed } from "../../app/controller/referral/awardReferralReward.js";
 import { notifyReferralOutcome } from "../../app/controller/referral/notifyReferralOutcome.js";
 import getReferralAddresses from "../../app/graphql/query/referralAddresses.js";
 import { assessReferral, describeSignals } from "../../app/utils/referralFraud.js";
 import { lineItemAmount, readBasis } from "../../app/utils/paidAmount.js";
+import { readRewardTiming, isFullPriceOrder, isReleasingPayment, amountPaid } from "../../app/utils/fullPrice.js";
 import enqueueDiscountDeleteJob from "../../app/controller/jobs/enqueueDiscountDeleteJob.js";
 import { callShopifyGraphql, SHOPIFY_RETRYABLE_ERRORS } from "../../app/utils/shopifyGraphql.js";
 
@@ -317,6 +318,7 @@ async function fetchFullOrder(admin, orderId) {
                             taxLines {
                                 priceSet { shopMoney { amount } }
                             }
+                            variant { price }
                             product { id }
                             sellingPlan { sellingPlanId }
                         }
@@ -358,6 +360,8 @@ async function fetchFullOrder(admin, orderId) {
             // Total tax on this line, and whether the store's prices already include it.
             tax: (node.taxLines ?? []).reduce((sum, t) => sum + (Number(t?.priceSet?.shopMoney?.amount) || 0), 0),
             taxes_included: Boolean(raw.taxesIncluded),
+            // The product's regular price today — what "full price" is measured against.
+            variant_price: node.variant?.price ?? null,
             quantity: node.quantity ?? 1,
         })),
         // discount_codes: Shopify returns string[] on GraphQL, normalize to [{ code }]
@@ -984,6 +988,12 @@ const handleReferral = async ({ admin, referralContext, order, customer, subscri
 
         const orderGid = order.admin_graphql_api_id;
 
+        // The first-month promo order is not what the reward is for. Unless
+        // the merchant chose the old behaviour, or this order was already paid
+        // at the full price, the reward waits for the first full-price payment.
+        const deferReward = readRewardTiming(refConditions) === "afterFullPrice" && !isFullPriceOrder(lineItems);
+        const firstPaid = amountPaid(lineItems);
+
         // ── Self-dealing check ────────────────────────────────────────────────
         // Compare the two accounts before anything is awarded. HOLD parks the
         // reward for the merchant to approve or reject (the referral discount
@@ -1029,6 +1039,9 @@ const handleReferral = async ({ admin, referralContext, order, customer, subscri
                         referrerPoints,
                         referredPoints,
                         subscriptionInterval: subscriptionInterval ?? null,
+                        // If approved, the reward then waits for the first full-price payment.
+                        deferred: deferReward,
+                        firstPaid,
                     },
                 },
             });
@@ -1053,12 +1066,26 @@ const handleReferral = async ({ admin, referralContext, order, customer, subscri
             });
         }
 
+        const flagMetadata = assessment.decision === "FLAG"
+            ? { reviewFlag: { signals: assessment.signals, reason: describeSignals(assessment.signals), orderId: orderGid } }
+            : {};
+
+        if (deferReward) {
+            await deferFirstReferralReward({
+                session, shop, referral, orderGid, orderLabel, firstPaid, subscriptionContract, extraMetadata: flagMetadata,
+            });
+            await Promise.all([
+                syncCustomerConfig(admin, referral.referrerId),
+                syncCustomerConfig(admin, referral.referredId),
+            ]);
+            logger.success(MODULE, "Referral reward waiting for the first full-price payment", { shop, referralId: referral.id, orderLabel, firstPaid });
+            return;
+        }
+
         await awardFirstReferralReward({
             session, shop, referral, eventId: rule.event.id, orderGid, orderLabel,
             orderTotal: order.total_price, referrerPoints, referredPoints, subscriptionContract,
-            extraMetadata: assessment.decision === "FLAG"
-                ? { reviewFlag: { signals: assessment.signals, reason: describeSignals(assessment.signals), orderId: orderGid } }
-                : {},
+            extraMetadata: flagMetadata,
         });
 
         // Non-critical — referral and transactions already committed.
@@ -1075,6 +1102,43 @@ const handleReferral = async ({ admin, referralContext, order, customer, subscri
     // ── RECURRING referral (subscription renewal) ─────────────────────────────
     if (type === "RECURRING") {
         const orderGid = order.admin_graphql_api_id;
+
+        // The reward was waiting for the first full-price payment. If this is
+        // it, release the referral reward now — only the referral reward:
+        // renewal points start from the NEXT payment, so nobody is paid twice
+        // for the same payment. If it's still the promo price, keep waiting.
+        if (referral.status === "AWAITING_FULL_PRICE") {
+            if (!isReleasingPayment(lineItems, referral.metadata?.awaiting?.firstPaid)) {
+                logger.info(MODULE, "Referral reward still waiting — this payment is not at the full price", {
+                    shop, referralId: referral.id, orderId: orderGid,
+                });
+                return;
+            }
+
+            const { referrerPoints: releaseReferrer, referredPoints: releaseReferred } =
+                resolveReferralPoints(conditions, lineItems, subscriptionInterval, false);
+
+            await awardFirstReferralReward({
+                session, shop, referral, eventId: rule.event.id, orderGid, orderLabel,
+                orderTotal: order.total_price,
+                referrerPoints: releaseReferrer, referredPoints: releaseReferred,
+                subscriptionContract, fullPrice: true,
+                extraMetadata: {
+                    ...(referral.metadata?.reviewFlag ? { reviewFlag: referral.metadata.reviewFlag } : {}),
+                    ...(referral.metadata?.approval ? { approval: referral.metadata.approval } : {}),
+                    released: { at: new Date().toISOString(), orderId: orderGid, after: referral.metadata?.awaiting?.since ?? null },
+                },
+            });
+
+            await Promise.all([
+                syncCustomerConfig(admin, referral.referrerId),
+                syncCustomerConfig(admin, referral.referredId),
+            ]);
+            logger.success(MODULE, "Referral reward released on the first full-price payment", {
+                shop, referralId: referral.id, orderLabel, referrerPoints: releaseReferrer, referredPoints: releaseReferred,
+            });
+            return;
+        }
 
         const { referrerPoints, referredPoints } = resolveReferralPoints(conditions, lineItems, subscriptionInterval, true);
 

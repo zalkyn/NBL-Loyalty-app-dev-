@@ -198,6 +198,55 @@ export default function ReferralRulePage() {
 
                         <s-box paddingBlockEnd="base" />
 
+                        {/* When the referral points are given */}
+                        <s-section>
+                            <s-heading>When are referral points given?</s-heading>
+                            <s-text color="subdued">
+                                For a subscription that starts with a cheap first month, the referral points should not
+                                be paid on that first order. Both the referrer and the new member get their referral points
+                                together, when this happens.
+                            </s-text>
+                            <s-box paddingBlockEnd="small" />
+                            <s-choice-list
+                                label="Referral points are given"
+                                name="referralRewardTiming"
+                                value={[referral.rewardTiming]}
+                                onInput={(e) => formState.set("referral.rewardTiming", e.currentTarget.values[0])}
+                            >
+                                <s-choice
+                                    value="afterFullPrice"
+                                    selected={referral.rewardTiming === "afterFullPrice"}
+                                    details="Paid on the new member's first payment at the full product price, usually their first renewal. Their first-month promo payment earns the referral nothing. The renewal points start from the payment after that. (Recommended)"
+                                >
+                                    After the first full-price payment
+                                </s-choice>
+                                <s-choice
+                                    value="firstOrder"
+                                    selected={referral.rewardTiming === "firstOrder"}
+                                    details="Paid as soon as the new member places their first order, even if that order is a cheap promo. This is how it worked before."
+                                >
+                                    On the first order (old behaviour)
+                                </s-choice>
+                            </s-choice-list>
+
+                            {referral.rewardTiming === "afterFullPrice" && (
+                                <s-box paddingBlockStart="small">
+                                    <s-number-field
+                                        label="Close an unpaid reward after (days)"
+                                        details="If the new member never reaches a full-price payment in this many days (for example they cancel after the promo month), the reward is closed and nobody gets the referral points. Use 0 to wait forever."
+                                        step={1}
+                                        min={0}
+                                        value={referral.rewardExpiryDays ?? ""}
+                                        disabled={isBusy}
+                                        error={formState.errorFor("referral.rewardExpiryDays") ?? undefined}
+                                        onInput={(e) => formState.set("referral.rewardExpiryDays", e.target.value === "" ? "" : Number(e.target.value))}
+                                    />
+                                </s-box>
+                            )}
+                        </s-section>
+
+                        <s-box paddingBlockEnd="base" />
+
                         {/* New customer discount — always global, never overridden */}
                         <s-section>
                             <s-heading>New Customer Discount</s-heading>

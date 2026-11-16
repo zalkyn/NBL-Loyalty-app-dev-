@@ -6,6 +6,7 @@ import { runBulkCustomerSyncJob } from "../jobs/bulkCustomerSyncJob.js";
 import { runEmptyCustomerConfigJob } from "../jobs/emptyCustomerConfigJob.js";
 import { runCustomerSyncJob } from "../jobs/customerSyncJob.js";
 import { runJobCleanupJob } from "../jobs/jobCleanupJob.js";
+import { runReferralExpiryJob } from "../jobs/referralExpiryJob.js";
 import { runJobAutoRetryJob } from "../jobs/jobAutoRetryJob.js";
 import { runPointsBackfillJob } from "../jobs/pointsBackfillJob.js";
 import { runSnapshotBuildJob } from "../jobs/snapshotBuildJob.js";
@@ -323,6 +324,23 @@ export const JOB_CONFIGS = [
         ],
         handlers: [
             async () => runJobCleanupJob(),
+        ],
+        retry: { maxAttempts: 2 },
+    },
+
+    // ── Referral Expiry ──────────────────────────────────────────────────────
+    // Closes referral rewards that waited too long for the referred member's
+    // first full-price payment (expiry is set per shop on the referral rule).
+    // Once an hour is plenty: expiry is counted in days.
+    {
+        name: "referral_expiry",
+        cron: cron("15 * * * *", "*/45 * * * * *"),    // production: hourly at :15 | dev: every 45 sec
+        lockTimeout: 30 * 60 * 1000,
+        immediate: false,
+        jobTimeout: 10 * 60 * 1000,
+        preHooks: [],
+        handlers: [
+            async () => runReferralExpiryJob(),
         ],
         retry: { maxAttempts: 2 },
     },

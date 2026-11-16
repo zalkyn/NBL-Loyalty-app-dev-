@@ -133,6 +133,7 @@ export default function ReferralReviewsPage() {
                 <s-box paddingBlockStart="base" />
                 <s-paragraph color="subdued">
                     {tab === "claims" && "These customers claimed a referral and are waiting for their discount code. Approve to create the code and tell them it's ready, or reject to issue nothing. Turn this on or off in Points Rules → Referral."}
+                    {tab === "awaiting" && "These customers used a referral on their first-month promo order. Their referral points (the referrer's and the new member's) are paid automatically on their first payment at the full price. A reward that is not released within the expiry time you set in Points Rules → Referral is closed with no points."}
                     {tab === "waiting" && "These rewards were held because the two accounts look like the same person or household. The referred customer's discount was already applied by Shopify. Approve to award the points, or reject to award nothing."}
                     {tab === "flagged" && "These were rewarded normally, but one weaker signal was noticed (same name, or a similar address), or you approved them after a hold."}
                     {tab === "rejected" && "Claims and rewards you rejected. No discount code or points were given for these."}

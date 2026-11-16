@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "db-server";
 import { logger } from "app/utils/logger.js";
 import { getPointRuleByEvent } from "@controller/pointsRule/getPointRuleByEvent.js";
-import { awardFirstReferralReward } from "@controller/referral/awardReferralReward.js";
+import { awardFirstReferralReward, deferFirstReferralReward } from "@controller/referral/awardReferralReward.js";
 import { notifyReferralOutcome } from "@controller/referral/notifyReferralOutcome.js";
 import { syncCustomerConfig } from "@controller/metafieldsSync/syncCustomerConfig.js";
 import { generateReferralDiscountCode } from "@graphql/mutation/discounts/generateReferralDiscountCode.js";
@@ -26,6 +26,8 @@ const tabWhere = (tab, sessionId) => {
     switch (tab) {
         case "claims":
             return { ...scope, status: CLAIM_STATUS.PENDING_APPROVAL };
+        case "awaiting":
+            return { ...scope, status: "AWAITING_FULL_PRICE" };
         case "flagged":
             return {
                 ...scope,
@@ -85,8 +87,9 @@ export async function loadReviews(session, params) {
     const where = { ...tabWhere(tab, session.id), ...searchWhere(q) };
 
     // Tab badges are unfiltered counts, so they stay true while searching.
-    const [claims, waiting, flagged, rejected, total] = await Promise.all([
+    const [claims, awaiting, waiting, flagged, rejected, total] = await Promise.all([
         prisma.referral.count({ where: tabWhere("claims", session.id) }),
+        prisma.referral.count({ where: tabWhere("awaiting", session.id) }),
         prisma.referral.count({ where: tabWhere("waiting", session.id) }),
         prisma.referral.count({ where: tabWhere("flagged", session.id) }),
         prisma.referral.count({ where: tabWhere("rejected", session.id) }),
@@ -106,7 +109,7 @@ export async function loadReviews(session, params) {
 
     return {
         tab, q, page, perPage, total, totalPages, rows,
-        counts: { claims, waiting, flagged, rejected },
+        counts: { claims, awaiting, waiting, flagged, rejected },
         shop: session.shop,
     };
 }
@@ -141,19 +144,36 @@ async function approveOne(referralId, session, admin) {
         // eslint-disable-next-line no-unused-vars
         const { hold: _hold, ...contract } = referral.metadata ?? {};
 
-        await awardFirstReferralReward({
-            session,
-            shop: session.shop,
-            referral,
-            eventId: rule.event.id,
-            orderGid: hold.orderId,
-            orderLabel: hold.orderLabel,
-            orderTotal: hold.orderTotal,
-            referrerPoints: hold.referrerPoints,
-            referredPoints: hold.referredPoints,
-            subscriptionContract: Object.keys(contract).length ? contract : null,
-            extraMetadata: { approval: { approvedAt: new Date().toISOString(), heldReason: hold.reason, signals: hold.signals } },
-        });
+        const approval = { approvedAt: new Date().toISOString(), heldReason: hold.reason, signals: hold.signals };
+
+        if (hold.deferred) {
+            // The first order was the promo. Approving clears the suspicion;
+            // the reward is still paid only on the first full-price payment.
+            await deferFirstReferralReward({
+                session,
+                shop: session.shop,
+                referral,
+                orderGid: hold.orderId,
+                orderLabel: hold.orderLabel,
+                firstPaid: hold.firstPaid ?? 0,
+                subscriptionContract: Object.keys(contract).length ? contract : null,
+                extraMetadata: { approval },
+            });
+        } else {
+            await awardFirstReferralReward({
+                session,
+                shop: session.shop,
+                referral,
+                eventId: rule.event.id,
+                orderGid: hold.orderId,
+                orderLabel: hold.orderLabel,
+                orderTotal: hold.orderTotal,
+                referrerPoints: hold.referrerPoints,
+                referredPoints: hold.referredPoints,
+                subscriptionContract: Object.keys(contract).length ? contract : null,
+                extraMetadata: { approval },
+            });
+        }
 
         await Promise.all([
             syncCustomerConfig(admin, referral.referrerId),

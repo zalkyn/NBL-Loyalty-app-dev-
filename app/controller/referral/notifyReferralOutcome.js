@@ -25,6 +25,19 @@ export const REFERRAL_NOTICES = {
         reason: "Referral reward was not approved",
         activity: "Your referral reward wasn't approved, so no points were added for this referral.",
     },
+    // Reward waits for the friend's first full-price payment (see utils/fullPrice.js).
+    REWARD_AWAITING_REFERRER: {
+        reason: "Referral reward is on its way",
+        activity: "Your friend has joined. Your referral reward will be added after their first payment at the full price.",
+    },
+    REWARD_AWAITING_REFERRED: {
+        reason: "Referral bonus is on its way",
+        activity: "Your referral discount was applied. Your referral bonus points will be added after your first payment at the full price.",
+    },
+    REWARD_EXPIRED: {
+        reason: "Referral reward expired",
+        activity: "The referral reward wasn't paid because the first full-price payment didn't happen in time.",
+    },
     // Manual approval of referral claims (see utils/referralApproval.js).
     CLAIM_APPROVED: {
         reason: "Referral approved",

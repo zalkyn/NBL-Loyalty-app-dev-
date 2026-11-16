@@ -5,6 +5,7 @@ import createTransaction from "../transaction/createTransaction.js";
 import { updateReferral } from "./updateReferral.js";
 import { getCustomerRewardByCode } from "../customerReward/getCustomerReward.js";
 import { updateCustomerReward } from "../customerReward/updateCustomerReward.js";
+import { notifyReferralOutcome } from "./notifyReferralOutcome.js";
 
 const MODULE = "controller/referral/awardReferralReward.js";
 
@@ -91,10 +92,12 @@ export const markReferralVoucherUsed = async ({ referral, orderGid }) => {
  * @param {number} args.referredPoints
  * @param {Object|null} [args.subscriptionContract]
  * @param {Object} [args.extraMetadata] - merged into referral.metadata (e.g. reviewFlag, approval)
+ * @param {boolean} [args.fullPrice] - true when this is the payment that released a
+ *   reward that was waiting for the first full-price payment (changes the wording only)
  */
 export const awardFirstReferralReward = async ({
     session, shop, referral, eventId, orderGid, orderLabel, orderTotal,
-    referrerPoints, referredPoints, subscriptionContract = null, extraMetadata = {},
+    referrerPoints, referredPoints, subscriptionContract = null, extraMetadata = {}, fullPrice = false,
 }) => {
     await awardReferralEarn({
         session, shop, referral, orderGid,
@@ -103,7 +106,9 @@ export const awardFirstReferralReward = async ({
             type: "EARN",
             eventId,
             referralId: referral.id,
-            reason: `Referral reward — your friend placed their first order (${orderLabel})`,
+            reason: fullPrice
+                ? `Referral reward — your friend's first full-price payment (${orderLabel})`
+                : `Referral reward — your friend placed their first order (${orderLabel})`,
             activity: `+${referrerPoints} points for successful referral`,
             points: referrerPoints,
             status: "COMPLETED",
@@ -117,9 +122,13 @@ export const awardFirstReferralReward = async ({
             type: "EARN",
             eventId,
             referralId: referral.id,
-            reason: `Referral discount used on order ${orderLabel}`,
+            reason: fullPrice
+                ? `Referral bonus — your first full-price payment (${orderLabel})`
+                : `Referral discount used on order ${orderLabel}`,
             activity: referredPoints > 0
-                ? `+${referredPoints} points — referral discount applied on order ${orderLabel}`
+                ? (fullPrice
+                    ? `+${referredPoints} points — referral bonus for your first full-price payment (${orderLabel})`
+                    : `+${referredPoints} points — referral discount applied on order ${orderLabel}`)
                 : `Referral discount code applied on order ${orderLabel}`,
             points: referredPoints,
             status: "COMPLETED",
@@ -137,4 +146,44 @@ export const awardFirstReferralReward = async ({
     });
 
     await markReferralVoucherUsed({ referral, orderGid });
+};
+
+/**
+ * Parks a referral reward until the referred member's first payment at the
+ * full price. Nothing is awarded now. The discount code is already used
+ * (Shopify applied it on this order), so it is closed off here.
+ *
+ * Both people wait: the referrer and the new member each get their points
+ * only when the releasing payment arrives (see awardFirstReferralReward with
+ * fullPrice = true, called from the order job).
+ *
+ * @param {Object} args
+ * @param {Object} args.session
+ * @param {string} args.shop
+ * @param {Object} args.referral
+ * @param {string} args.orderGid       - the first (promo) order
+ * @param {string} args.orderLabel
+ * @param {number} args.firstPaid      - what that order actually cost, remembered so the releasing payment must be higher
+ * @param {Object|null} [args.subscriptionContract]
+ * @param {Object} [args.extraMetadata] - merged in (e.g. reviewFlag, approval)
+ */
+export const deferFirstReferralReward = async ({
+    session, shop, referral, orderGid, orderLabel, firstPaid, subscriptionContract = null, extraMetadata = {},
+}) => {
+    await updateReferral(referral.id, {
+        status: "AWAITING_FULL_PRICE",
+        discountUsed: true,
+        rewardGiven: false,
+        orderId: orderGid,
+        subscriptionContractId: subscriptionContract?.id?.toString() ?? null,
+        metadata: {
+            ...(subscriptionContract ?? {}),
+            ...extraMetadata,
+            awaiting: { since: new Date().toISOString(), orderId: orderGid, orderLabel, firstPaid },
+        },
+    });
+    await markReferralVoucherUsed({ referral, orderGid });
+
+    await notifyReferralOutcome({ session, shop, referralId: referral.id, customerId: referral.referrerId, notice: "REWARD_AWAITING_REFERRER", orderGid });
+    await notifyReferralOutcome({ session, shop, referralId: referral.id, customerId: referral.referredId, notice: "REWARD_AWAITING_REFERRED", orderGid });
 };

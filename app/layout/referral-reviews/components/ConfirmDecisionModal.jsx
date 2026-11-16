@@ -12,6 +12,8 @@ export function ConfirmDecisionModal({ decision, rows, busy, onConfirm }) {
     const pts = totalPoints(rows);
     // New claims have no order or points yet — approving creates the discount code.
     const claims = rows.length > 0 && rows.every((r) => r.status === "PENDING_APPROVAL");
+    // Held on the promo order: approving does not pay yet, the reward still waits for the full-price payment.
+    const deferred = rows.length > 0 && rows.every((r) => r.metadata?.hold?.deferred);
 
     return (
         <s-modal id={DECISION_MODAL_ID} heading={approve ? `Approve ${count} referral${count === 1 ? "" : "s"}?` : `Reject ${count} referral${count === 1 ? "" : "s"}?`} size="small">
@@ -28,6 +30,13 @@ export function ConfirmDecisionModal({ decision, rows, busy, onConfirm }) {
                             <s-text color="subdued">The customer is told their request wasn&apos;t approved. You can&apos;t undo a rejection.</s-text>
                         </>
                     )
+                ) : approve && deferred ? (
+                    <>
+                        <s-text>
+                            This clears the review. {count === 1 ? "The reward is" : "The rewards are"} still paid only on the customer&apos;s first payment at the full price
+                            ({pts.referrer.toLocaleString()} points for the referrer{count === 1 ? "" : "s"}, {pts.friend.toLocaleString()} for the new member{count === 1 ? "" : "s"}).
+                        </s-text>
+                    </>
                 ) : approve ? (
                     <>
                         <s-text>
@@ -56,7 +65,7 @@ export function ConfirmDecisionModal({ decision, rows, busy, onConfirm }) {
                 loading={busy || undefined}
                 disabled={busy}
             >
-                {approve ? (claims ? "Approve and create code" : "Approve and award points") : "Reject"}
+                {approve ? (claims ? "Approve and create code" : deferred ? "Approve" : "Approve and award points") : "Reject"}
             </s-button>
         </s-modal>
     );

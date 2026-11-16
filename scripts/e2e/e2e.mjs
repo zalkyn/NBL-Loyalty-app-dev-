@@ -25,6 +25,7 @@ const { default: prisma } = await import("../../app/db.server.js");
 const { runOrderPaidJob } = await import("../../server/jobs/orderPaidJob.js");
 const { runOrderReversalJob } = await import("../../server/jobs/orderReversalJob.js");
 const { runSubscriptionCancelledJob } = await import("../../server/jobs/subscriptionCancelledJob.js");
+const { runReferralExpiryJob } = await import("../../server/jobs/referralExpiryJob.js");
 const { updateSubscriptionCancelResetSettings } = await import("../../app/controller/appSettings/subscriptionCancelResetSettings.js");
 const { handleDecide } = await import("../../app/layout/referral-reviews/_data.server.js");
 const { loadReviews } = await import("../../app/layout/referral-reviews/_data.server.js");
@@ -84,7 +85,7 @@ function addOrder({ customer, items, codes = [], metafield = null, billing = nul
             // `paid` = what one unit cost after all discounts (omit = same as list price)
             ...(i.paid !== undefined && { discountedUnitPriceAfterAllDiscountsSet: { shopMoney: { amount: String(i.paid) } } }),
             ...(i.tax !== undefined && { taxLines: [{ priceSet: { shopMoney: { amount: String(i.tax) } } }] }),
-            originalUnitPriceSet: { shopMoney: { amount: String(i.price) } }, product: { id: GID("Product", i.product ?? 1) }, sellingPlan: sellingPlan ? { sellingPlanId: "1" } : null } })) },
+            originalUnitPriceSet: { shopMoney: { amount: String(i.price) } }, ...(i.variant !== undefined && { variant: { price: String(i.variant) } }), product: { id: GID("Product", i.product ?? 1) }, sellingPlan: sellingPlan ? { sellingPlanId: "1" } : null } })) },
         appstle_subscription: metafield ? { value: metafield } : null,
         billing, shipping: billing,
     };
@@ -250,6 +251,60 @@ await suite("Referral: different people are paid straight away", async () => {
     checkEqual("friend's voucher marked used", [reward.status, reward.discountUsed], ["USED", true]);
     await enqueuePaid(p.order, `again:${p.order.id}`); await runPaid();
     await checkEqual("redelivery pays nothing extra to referrer", await points(p.referrer), 2500);
+});
+
+await suite("Referral: reward waits for the first full-price payment", async () => {
+    const p = await referralPair("Kim", "Ortiz", "Lee", "Park", { referrerAddr: addr("7 A St"), friendAddr: addr("88 Z Rd", "3000") });
+    const contract = (cycle) => ({ id: "CW1", currentCycle: cycle, sellingPlanIds: [], subscriptionLineItemList: [] });
+    const promo = addOrder({ customer: p.friend, items: [{ price: 49, paid: 1, variant: 49, qty: 1 }], codes: [p.code], billing: addr("88 Z Rd", "3000"), metafield: { subscriptionContract: contract(1) } });
+    await enqueuePaid(promo); await runPaid();
+    let r = await prisma.referral.findUnique({ where: { id: p.referral.id } });
+    checkEqual("A$1 promo order: referral waits", [r.status, r.rewardGiven, r.discountUsed], ["AWAITING_FULL_PRICE", false, true]);
+    await checkEqual("referrer is paid nothing yet", await points(p.referrer), 0);
+    checkEqual("referrer is told it is on its way", (await notices(p.referrer, "REWARD_AWAITING_REFERRER")).length, 1);
+    checkEqual("friend is told too", (await notices(p.friend, "REWARD_AWAITING_REFERRED")).length, 1);
+
+    // The promo carries on: still not full price
+    const stillPromo = addOrder({ customer: p.friend, items: [{ price: 1, paid: 1, variant: 49, qty: 1 }], metafield: { subscriptionContract: contract(2) } });
+    await enqueuePaid(stillPromo); await runPaid();
+    r = await prisma.referral.findUnique({ where: { id: p.referral.id } });
+    checkEqual("a second promo-priced payment does not release", r.status, "AWAITING_FULL_PRICE");
+    await checkEqual("referrer still nothing", await points(p.referrer), 0);
+
+    // First payment at the full price releases the referral reward (and only that)
+    const friendBefore = await points(p.friend);
+    const full = addOrder({ customer: p.friend, items: [{ price: 49, paid: 49, variant: 49, qty: 1 }], metafield: { subscriptionContract: contract(3) } });
+    await enqueuePaid(full); await runPaid();
+    r = await prisma.referral.findUnique({ where: { id: p.referral.id } });
+    checkEqual("full-price payment releases it", [r.status, r.rewardGiven], ["USED", true]);
+    await checkEqual("referrer gets the referral reward only (no renewal points on the same payment)", await points(p.referrer), 2500);
+    const friendEarned = (await points(p.friend)) - friendBefore;
+    await checkEqual("friend gets the 1,000 bonus plus the normal 980 for a $49 order", friendEarned, 1000 + 980);
+
+    await enqueuePaid(full, `again:${full.id}`); await runPaid();
+    await checkEqual("redelivery pays nothing extra", await points(p.referrer), 2500);
+
+    // The next payment pays renewal points as usual
+    const next = addOrder({ customer: p.friend, items: [{ price: 49, paid: 49, variant: 49, qty: 1 }], metafield: { subscriptionContract: contract(4) } });
+    await enqueuePaid(next); await runPaid();
+    await checkEqual("renewal points start from the next payment", await points(p.referrer), 2700);
+});
+
+await suite("Referral: an unpaid reward expires", async () => {
+    const p = await referralPair("Una", "Reed", "Vic", "Stone", { referrerAddr: addr("1 B St"), friendAddr: addr("55 Y Rd", "4000") });
+    const promo = addOrder({ customer: p.friend, items: [{ price: 49, paid: 1, variant: 49, qty: 1 }], codes: [p.code], billing: addr("55 Y Rd", "4000"), metafield: { subscriptionContract: { id: "CX1", currentCycle: 1, sellingPlanIds: [], subscriptionLineItemList: [] } } });
+    await enqueuePaid(promo); await runPaid();
+    await runReferralExpiryJob();
+    let r = await prisma.referral.findUnique({ where: { id: p.referral.id } });
+    checkEqual("not expired while recent", r.status, "AWAITING_FULL_PRICE");
+
+    const old = new Date(Date.now() - 61 * 24 * 60 * 60 * 1000).toISOString();
+    await prisma.referral.update({ where: { id: p.referral.id }, data: { metadata: { ...(r.metadata ?? {}), awaiting: { ...(r.metadata?.awaiting ?? {}), since: old } } } });
+    await runReferralExpiryJob();
+    r = await prisma.referral.findUnique({ where: { id: p.referral.id } });
+    checkEqual("expired after 60 days", r.status, "EXPIRED");
+    await checkEqual("nobody was paid", await points(p.referrer), 0);
+    checkEqual("referrer is told", (await notices(p.referrer, "REWARD_EXPIRED")).length, 1);
 });
 
 await suite("Referral: held → approve", async () => {

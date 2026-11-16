@@ -1,5 +1,6 @@
 import { str, bool, num, arr } from "@app/hooks/useFormState";
 import { minOrderAmountError } from "../../../utils/minOrderAmount";
+import { readRewardTiming, readExpiryDays } from "../../../utils/fullPrice";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // buildConditions
@@ -21,6 +22,14 @@ export function buildConditions(referral) {
             // true = every new referral claim waits for the merchant's approval
             // (Referral Reviews page) before any discount code is created.
             requireApproval: Boolean(referral.requireApproval ?? false),
+
+            // When the referral points are given — see utils/fullPrice.js.
+            //   "afterFullPrice" (default): on the referred member's first payment at the full
+            //     price, usually their first renewal after the first-month promo.
+            //   "firstOrder": on their first order, as before.
+            rewardTiming: readRewardTiming({ rewardTiming: referral.rewardTiming }),
+            // Days a reward may wait for that payment before it is closed with no points. 0 = never.
+            rewardExpiryDays: readExpiryDays({ rewardExpiryDays: referral.rewardExpiryDays }),
 
             // P1 — global fallback
             referrer: {
@@ -112,6 +121,8 @@ export function buildFormShape(data) {
         referral: {
             trigger: str(ref?.trigger ?? "subscription"),
             requireApproval: bool(ref?.requireApproval ?? false),
+            rewardTiming: readRewardTiming(ref),
+            rewardExpiryDays: num(readExpiryDays(ref)),
 
             // P1 — global fallback defaults
             referrer: {
@@ -154,6 +165,10 @@ export function validate(form) {
     }
     if (!referred.points || Number(referred.points) <= 0) {
         errors["referral.referred.points"] = "Referred points must be greater than 0.";
+    }
+    const days = Number(form.referral.rewardExpiryDays);
+    if (form.referral.rewardExpiryDays !== "" && form.referral.rewardExpiryDays != null && (!Number.isInteger(days) || days < 0)) {
+        errors["referral.rewardExpiryDays"] = "Expiry must be a whole number of days (0 = never expires).";
     }
     const minError = minOrderAmountError(referred.minOrderAmount, referred.discountType, referred.discountValue);
     if (minError) {

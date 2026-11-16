@@ -3,6 +3,7 @@
 export const TABS = [
     { key: "claims", label: "New claims" },
     { key: "waiting", label: "Waiting for decision" },
+    { key: "awaiting", label: "Waiting for full payment" },
     { key: "flagged", label: "Rewarded, flagged" },
     { key: "rejected", label: "Rejected" },
 ];
