@@ -296,9 +296,14 @@ async function processJob(job) {
  * @returns {Promise<{ order: object, appstle: object|null }|null>}
  */
 async function fetchFullOrder(admin, orderId) {
-    const json = await callShopifyGraphql(
-        admin,
-        `#graphql
+    // The fields that tell us what was actually paid (price after discounts, tax,
+    // the product's regular price). If Shopify ever rejects one of them (a
+    // different API version, a renamed field), the whole query fails and, with
+    // no order data, the job would quietly skip EVERY order, so no one would
+    // earn points. So on such an error we say so loudly and ask again without
+    // them: points then fall back to the list price, as they did before, and
+    // keep flowing.
+    const buildQuery = (withPaidFields) => `#graphql
         query GetOrderWithAppstle($id: ID!) {
             order(id: $id) {
                 id
@@ -311,14 +316,14 @@ async function fetchFullOrder(admin, orderId) {
                             quantity
                             originalUnitPriceSet {
                                 shopMoney { amount }
-                            }
+                            }${withPaidFields ? `
                             discountedUnitPriceAfterAllDiscountsSet {
                                 shopMoney { amount }
                             }
                             taxLines {
                                 priceSet { shopMoney { amount } }
                             }
-                            variant { price }
+                            variant { price }` : ""}
                             product { id }
                             sellingPlan { sellingPlanId }
                         }
@@ -326,8 +331,8 @@ async function fetchFullOrder(admin, orderId) {
                 }
                 currentTotalPriceSet {
                     shopMoney { amount }
-                }
-                taxesIncluded
+                }${withPaidFields ? `
+                taxesIncluded` : ""}
                 cancelledAt
                 appstle_subscription: metafield(
                     key: "details"
@@ -336,9 +341,17 @@ async function fetchFullOrder(admin, orderId) {
                     value: jsonValue
                 }
             }
-        }`,
-        { id: orderId }
-    );
+        }`;
+
+    let json = await callShopifyGraphql(admin, buildQuery(true), { id: orderId });
+
+    const rejected = !json?.data?.order && (json?.errors ?? []).some((e) => e?.extensions?.code !== "THROTTLED");
+    if (rejected) {
+        logger.error(MODULE, "Shopify rejected the order query with the paid-amount fields — falling back to list prices", {
+            orderId, errors: (json.errors ?? []).map((e) => e?.message).slice(0, 3),
+        });
+        json = await callShopifyGraphql(admin, buildQuery(false), { id: orderId });
+    }
 
     const raw = json?.data?.order ?? null;
 

@@ -47,7 +47,22 @@ const reply = (data) => ({ json: async () => ({ data }) });
 globalThis.__fakeAdmin = {
     graphql: async (query, opts) => {
         const v = opts?.variables ?? {};
-        if (/GetOrderWithAppstle/.test(query)) return reply({ order: world.orders[v.id] ?? null });
+        if (/GetOrderWithAppstle/.test(query)) {
+            // Simulates Shopify rejecting the paid-amount fields (e.g. an API version without them)
+            if (world.rejectPaidFields && /discountedUnitPriceAfterAllDiscountsSet/.test(query)) {
+                return { json: async () => ({ errors: [{ message: "Field 'discountedUnitPriceAfterAllDiscountsSet' doesn't exist on type 'LineItem'", extensions: { code: "undefinedField" } }] }) };
+            }
+            const found = world.orders[v.id] ?? null;
+            if (world.rejectPaidFields && found) {
+                // the fallback query does not ask for the paid-amount fields, so none come back
+                const stripped = { ...found, taxesIncluded: undefined, lineItems: { edges: found.lineItems.edges.map(({ node }) => {
+                    const { discountedUnitPriceAfterAllDiscountsSet, taxLines, variant, ...rest } = node; // eslint-disable-line no-unused-vars
+                    return { node: rest };
+                }) } };
+                return reply({ order: stripped });
+            }
+            return reply({ order: found });
+        }
         if (/ReferralAddresses/.test(query)) {
             const a = (id) => ({ defaultAddress: world.addresses[id] ?? null });
             const o = world.orders[v.order];
@@ -126,6 +141,18 @@ const refRule = await prisma.pointsRule.create({ data: { sessionId: session.id, 
 const runPaid = async () => { await runOrderPaidJob(); };
 
 // ═══════════════════════════════════════════════════════════════════════════
+await suite("Safety: Shopify rejecting the paid-amount fields must not stop points", async () => {
+    world.rejectPaidFields = true;
+    const c = await newCustomer("Fall", "Back");
+    const o = addOrder({ customer: c, items: [{ price: 40, paid: 30, qty: 1 }] });
+    await enqueuePaid(o); await runPaid();
+    world.rejectPaidFields = false;
+    // Falls back to the list price ($40 → 800) instead of skipping the order
+    await checkEqual("order is still processed and earns on the list price", await points(c), 800);
+    const job = await prisma.job.findFirst({ where: { idempotencyKey: `paid:${o.id}` } });
+    checkEqual("job completed", job.status, "COMPLETED");
+});
+
 await suite("Points on the amount actually paid", async () => {
     const setBasis = (basis, type = "incremental") => prisma.pointsRule.update({ where: { id: orderRule.id }, data: { conditions: { order: { trigger: "all", type, fixedPoints: 100, rate: { amount: 1, points: 20 }, basis, groups: [], excludedProducts: [], intervals: [] } } } });
     const earnFor = async (items) => {
