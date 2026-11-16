@@ -107,8 +107,8 @@ export default function ReferralReviewsPage() {
                 </s-banner>
             )}
             {counts.waiting > 0 && tab !== "waiting" && (
-                <s-banner slot="supplemental-start" tone="warning" heading={`${counts.waiting} referral${counts.waiting === 1 ? " is" : "s are"} waiting for your decision`}>
-                    <s-text>Customers are waiting on these rewards.</s-text>
+                <s-banner slot="supplemental-start" tone="warning" heading={`${counts.waiting} held reward${counts.waiting === 1 ? " is" : "s are"} waiting for your decision`}>
+                    <s-text>These referrals were held because the two accounts look alike. Customers are waiting on these rewards.</s-text>
                     <s-button slot="secondary-actions" variant="secondary" onClick={() => go({ tab: "waiting", page: 1 })}>Show them</s-button>
                 </s-banner>
             )}
