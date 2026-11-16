@@ -23,7 +23,10 @@ import { lineItemAmount } from "./paidAmount.js";
 
 export const REWARD_TIMINGS = ["afterFullPrice", "firstOrder"];
 export const DEFAULT_REWARD_TIMING = "afterFullPrice";
-export const DEFAULT_EXPIRY_DAYS = 60;
+// 0 = a waiting reward never expires. Kept at 0 until we know how long the promo can run: a
+// promo longer than a month (or a long gap before the first full payment) would otherwise
+// close rewards that are still going to be earned. The merchant can set a number of days.
+export const DEFAULT_EXPIRY_DAYS = 0;
 
 // What the payment that releases a waiting reward pays.
 //   "referralOnly" (default): the referral reward only; renewal points start from the next payment.
@@ -49,7 +52,7 @@ export function readReleasePays(referralConditions) {
     return RELEASE_PAYS.includes(value) ? value : DEFAULT_RELEASE_PAYS;
 }
 
-/** Days a waiting reward is kept. 0 = never expires. Missing or invalid = 60. */
+/** Days a waiting reward is kept. 0 = never expires. Missing or invalid = the default (0). */
 export function readExpiryDays(referralConditions) {
     const raw = referralConditions?.rewardExpiryDays;
     if (raw === undefined || raw === null || raw === "") return DEFAULT_EXPIRY_DAYS;

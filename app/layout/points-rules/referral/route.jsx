@@ -259,7 +259,7 @@ export default function ReferralRulePage() {
                                 <s-box paddingBlockStart="small">
                                     <s-number-field
                                         label="Close an unpaid reward after (days)"
-                                        details="If the new member never reaches a full-price payment in this many days (for example they cancel after the promo month), the reward is closed and nobody gets the referral points. Use 0 to wait forever."
+                                        details="If the new member never reaches a full-price payment in this many days (for example they cancel after the promo month), the reward is closed and nobody gets the referral points. 0 means never close (default). Set a number once you know how long your promo and billing gap can be; a closed reward cannot be reopened."
                                         step={1}
                                         min={0}
                                         value={referral.rewardExpiryDays ?? ""}

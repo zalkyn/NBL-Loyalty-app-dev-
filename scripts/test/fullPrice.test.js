@@ -19,10 +19,10 @@ export async function run() {
         await checkEqual("releasing payment defaults to the referral reward only", readReleasePays(undefined), "referralOnly");
         await checkEqual("releasing payment can also pay renewal points", readReleasePays({ releasePays: "referralAndRenewal" }), "referralAndRenewal");
         await checkEqual("releasing payment ignores junk", readReleasePays({ releasePays: "both" }), "referralOnly");
-        await checkEqual("expiry defaults to 60 days", readExpiryDays(undefined), 60);
+        await checkEqual("expiry defaults to never (0)", readExpiryDays(undefined), 0);
         await checkEqual("expiry 0 means never", readExpiryDays({ rewardExpiryDays: 0 }), 0);
         await checkEqual("expiry accepts a number", readExpiryDays({ rewardExpiryDays: "30" }), 30);
-        await checkEqual("expiry ignores a negative", readExpiryDays({ rewardExpiryDays: -5 }), 60);
+        await checkEqual("expiry ignores a negative", readExpiryDays({ rewardExpiryDays: -5 }), 0);
 
         // First order
         await checkEqual("A$1 promo via discount code is NOT full price", isFullPriceOrder([line({ price: "49", paid_price: "1", variant_price: "49" })]), false);

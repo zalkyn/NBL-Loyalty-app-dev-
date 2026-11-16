@@ -306,6 +306,12 @@ await suite("Referral: releasing payment can also pay renewal points (option)", 
 });
 
 await suite("Referral: an unpaid reward expires", async () => {
+    const baseRule = (await prisma.pointsRule.findUnique({ where: { id: refRule.id } })).conditions;
+    // Expiry is off by default, so nothing closes unless the merchant sets days.
+    const idle = await prisma.referral.count({ where: { status: "AWAITING_FULL_PRICE" } });
+    await runReferralExpiryJob();
+    checkEqual("nothing expires by default", await prisma.referral.count({ where: { status: "AWAITING_FULL_PRICE" } }), idle);
+    await prisma.pointsRule.update({ where: { id: refRule.id }, data: { conditions: { ...baseRule, referral: { ...baseRule.referral, rewardExpiryDays: 60 } } } });
     const p = await referralPair("Una", "Reed", "Vic", "Stone", { referrerAddr: addr("1 B St"), friendAddr: addr("55 Y Rd", "4000") });
     const promo = addOrder({ customer: p.friend, items: [{ price: 49, paid: 1, variant: 49, qty: 1 }], codes: [p.code], billing: addr("55 Y Rd", "4000"), metafield: { subscriptionContract: { id: "CX1", currentCycle: 1, sellingPlanIds: [], subscriptionLineItemList: [] } } });
     await enqueuePaid(promo); await runPaid();
@@ -320,6 +326,7 @@ await suite("Referral: an unpaid reward expires", async () => {
     checkEqual("expired after 60 days", r.status, "EXPIRED");
     await checkEqual("nobody was paid", await points(p.referrer), 0);
     checkEqual("referrer is told", (await notices(p.referrer, "REWARD_EXPIRED")).length, 1);
+    await prisma.pointsRule.update({ where: { id: refRule.id }, data: { conditions: baseRule } });
 });
 
 await suite("Referral: held → approve", async () => {

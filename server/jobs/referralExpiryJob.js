@@ -6,7 +6,7 @@
  * A reward waits (status AWAITING_FULL_PRICE) after the member's promo
  * first-month order. If they cancel, or never reach the full price, nothing
  * would ever release it — so after the shop's expiry time (Points Rules →
- * Referral, default 60 days, 0 = never) it is closed with no points, and both
+ * Referral, default 0 = never) it is closed with no points, and both
  * people are told. The expiry is read per shop, from the referral rule.
  */
 
