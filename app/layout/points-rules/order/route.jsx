@@ -197,6 +197,62 @@ export default function OrderRulePage() {
 
                         <s-box paddingBlockEnd="base" />
 
+                        {/* What the points are counted on */}
+                        <s-section>
+                            <s-heading>What points are counted on</s-heading>
+                            <s-text color="subdued">
+                                Points are counted per product, on what the customer actually paid for it. Shipping is
+                                never counted, and a product paid for nothing (for example a 100% discount code, or an
+                                A$0.00 order) earns 0 points, even with a fixed-points rule.
+                            </s-text>
+                            <s-box paddingBlockEnd="small" />
+                            <s-choice-list
+                                label="Discounts"
+                                name="orderBasisDiscounts"
+                                value={[order.basis.discounts]}
+                                onInput={(e) => formState.set("order.basis.discounts", e.currentTarget.values[0])}
+                            >
+                                <s-choice
+                                    value="after"
+                                    selected={order.basis.discounts === "after"}
+                                    details="Counts the price after every discount code and automatic discount. A $40 product bought with $10 off earns points on $30. (Recommended)"
+                                >
+                                    After discounts
+                                </s-choice>
+                                <s-choice
+                                    value="before"
+                                    selected={order.basis.discounts === "before"}
+                                    details="Counts the full list price, ignoring discounts. This is how points worked before, so a $40 product with $10 off still earns points on $40."
+                                >
+                                    Before discounts (old behaviour)
+                                </s-choice>
+                            </s-choice-list>
+                            <s-box paddingBlockEnd="small" />
+                            <s-choice-list
+                                label="Tax"
+                                name="orderBasisTax"
+                                value={[order.basis.tax]}
+                                onInput={(e) => formState.set("order.basis.tax", e.currentTarget.values[0])}
+                            >
+                                <s-choice
+                                    value="include"
+                                    selected={order.basis.tax === "include"}
+                                    details="Tax counts as money received, so nothing is taken off. If your prices already include GST, the GST is counted."
+                                >
+                                    Count tax
+                                </s-choice>
+                                <s-choice
+                                    value="exclude"
+                                    selected={order.basis.tax === "exclude"}
+                                    details="Takes the tax out before counting. Only matters when your store prices already include tax (such as GST): a $110 product with $10 GST earns points on $100."
+                                >
+                                    Leave tax out
+                                </s-choice>
+                            </s-choice-list>
+                        </s-section>
+
+                        <s-box paddingBlockEnd="base" />
+
                         {/* P1 — global earning fallback */}
                         <s-section>
                             <s-heading>Global Earning Points</s-heading>

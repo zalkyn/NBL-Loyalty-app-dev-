@@ -79,7 +79,12 @@ function addOrder({ customer, items, codes = [], metafield = null, billing = nul
     world.orders[id] = {
         id, name: `#${seq}`, orderNumber: seq, discountCodes: codes, cancelledAt: null,
         currentTotalPriceSet: { shopMoney: { amount: String(total) } },
-        lineItems: { edges: items.map((i) => ({ node: { quantity: i.qty, originalUnitPriceSet: { shopMoney: { amount: String(i.price) } }, product: { id: GID("Product", i.product ?? 1) }, sellingPlan: sellingPlan ? { sellingPlanId: "1" } : null } })) },
+        taxesIncluded: Boolean(items.some((i) => i.taxIncluded)),
+        lineItems: { edges: items.map((i) => ({ node: { quantity: i.qty,
+            // `paid` = what one unit cost after all discounts (omit = same as list price)
+            ...(i.paid !== undefined && { discountedUnitPriceAfterAllDiscountsSet: { shopMoney: { amount: String(i.paid) } } }),
+            ...(i.tax !== undefined && { taxLines: [{ priceSet: { shopMoney: { amount: String(i.tax) } } }] }),
+            originalUnitPriceSet: { shopMoney: { amount: String(i.price) } }, product: { id: GID("Product", i.product ?? 1) }, sellingPlan: sellingPlan ? { sellingPlanId: "1" } : null } })) },
         appstle_subscription: metafield ? { value: metafield } : null,
         billing, shipping: billing,
     };
@@ -120,6 +125,35 @@ const refRule = await prisma.pointsRule.create({ data: { sessionId: session.id, 
 const runPaid = async () => { await runOrderPaidJob(); };
 
 // ═══════════════════════════════════════════════════════════════════════════
+await suite("Points on the amount actually paid", async () => {
+    const setBasis = (basis, type = "incremental") => prisma.pointsRule.update({ where: { id: orderRule.id }, data: { conditions: { order: { trigger: "all", type, fixedPoints: 100, rate: { amount: 1, points: 20 }, basis, groups: [], excludedProducts: [], intervals: [] } } } });
+    const earnFor = async (items) => {
+        const c = await newCustomer("Paid", "Amount");
+        const o = addOrder({ customer: c, items });
+        await enqueuePaid(o);
+        await runPaid();
+        return points(c);
+    };
+
+    await checkEqual("A$0.00 order (100% discount) earns 0", await earnFor([{ price: 233, paid: 0, qty: 1 }]), 0);
+    await checkEqual("25% off earns on what was paid ($30 → 600)", await earnFor([{ price: 40, paid: 30, qty: 1 }]), 600);
+    await checkEqual("A$1 promo earns on A$1 (20)", await earnFor([{ price: 49, paid: 1, qty: 1 }]), 20);
+    await checkEqual("quantity uses the paid unit price", await earnFor([{ price: 40, paid: 30, qty: 2 }]), 1200);
+
+    await setBasis({ discounts: "before", tax: "include" });
+    await checkEqual("'before discounts' keeps the old behaviour ($40 → 800)", await earnFor([{ price: 40, paid: 30, qty: 1 }]), 800);
+
+    await setBasis({ discounts: "after", tax: "exclude" });
+    await checkEqual("'leave tax out' removes GST when prices include it ($110 incl. $10 → 2000)", await earnFor([{ price: 110, paid: 110, tax: 10, taxIncluded: true, qty: 1 }]), 2000);
+
+    await setBasis({ discounts: "after", tax: "include" }, "fixed");
+    await checkEqual("fixed-points rule still pays 0 on a free order", await earnFor([{ price: 233, paid: 0, qty: 1 }]), 0);
+    await checkEqual("fixed-points rule pays its points on a paid order", await earnFor([{ price: 40, paid: 30, qty: 1 }]), 100);
+
+    // back to the suite's original rule
+    await prisma.pointsRule.update({ where: { id: orderRule.id }, data: { conditions: { order: { trigger: "all", type: "incremental", rate: { amount: 1, points: 20 }, groups: [], excludedProducts: [], intervals: [] } } } });
+});
+
 await suite("Order points", async () => {
     const c = await newCustomer("Mia", "Lee");
     const o = addOrder({ customer: c, items: [{ price: 12.5, qty: 2 }] });

@@ -14,6 +14,7 @@ import { awardReferralEarn, awardFirstReferralReward, markReferralVoucherUsed } 
 import { notifyReferralOutcome } from "../../app/controller/referral/notifyReferralOutcome.js";
 import getReferralAddresses from "../../app/graphql/query/referralAddresses.js";
 import { assessReferral, describeSignals } from "../../app/utils/referralFraud.js";
+import { lineItemAmount, readBasis } from "../../app/utils/paidAmount.js";
 import enqueueDiscountDeleteJob from "../../app/controller/jobs/enqueueDiscountDeleteJob.js";
 import { callShopifyGraphql, SHOPIFY_RETRYABLE_ERRORS } from "../../app/utils/shopifyGraphql.js";
 
@@ -310,6 +311,12 @@ async function fetchFullOrder(admin, orderId) {
                             originalUnitPriceSet {
                                 shopMoney { amount }
                             }
+                            discountedUnitPriceAfterAllDiscountsSet {
+                                shopMoney { amount }
+                            }
+                            taxLines {
+                                priceSet { shopMoney { amount } }
+                            }
                             product { id }
                             sellingPlan { sellingPlanId }
                         }
@@ -318,6 +325,7 @@ async function fetchFullOrder(admin, orderId) {
                 currentTotalPriceSet {
                     shopMoney { amount }
                 }
+                taxesIncluded
                 cancelledAt
                 appstle_subscription: metafield(
                     key: "details"
@@ -341,7 +349,15 @@ async function fetchFullOrder(admin, orderId) {
         // line_items: map GraphQL nodes to the flat shape handlers expect
         line_items: (raw.lineItems?.edges ?? []).map(({ node }) => ({
             product_id: node.product?.id?.replace("gid://shopify/Product/", "") ?? null,
+            // List price of one unit, before any discount.
             price: node.originalUnitPriceSet?.shopMoney?.amount ?? "0",
+            // What one unit actually cost after every discount (order-level
+            // ones included). Points are worked out from this — see
+            // utils/paidAmount.js. null if Shopify didn't return it.
+            paid_price: node.discountedUnitPriceAfterAllDiscountsSet?.shopMoney?.amount ?? null,
+            // Total tax on this line, and whether the store's prices already include it.
+            tax: (node.taxLines ?? []).reduce((sum, t) => sum + (Number(t?.priceSet?.shopMoney?.amount) || 0), 0),
+            taxes_included: Boolean(raw.taxesIncluded),
             quantity: node.quantity ?? 1,
         })),
         // discount_codes: Shopify returns string[] on GraphQL, normalize to [{ code }]
@@ -596,7 +612,11 @@ const resolveLineItemPoints = (item, ord, interval) => {
     if (!item?.product_id) return 0;
 
     const productGid = `gid://shopify/Product/${item.product_id}`;
-    const itemTotal = Number(item.price) * (item.quantity || 1);
+    // What the customer actually paid for this line (after discounts, per the
+    // rule's basis) — not the list price. A free line earns nothing, under
+    // every rule type, "fixed" included.
+    const itemTotal = lineItemAmount(item, readBasis(ord));
+    if (itemTotal <= 0) return 0;
 
     // Excluded products never earn points
     const isExcluded = (ord.excludedProducts ?? []).some((p) => p.id === productGid);

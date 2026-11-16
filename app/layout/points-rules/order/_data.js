@@ -1,4 +1,5 @@
 import { str, bool, num, arr } from "@app/hooks/useFormState";
+import { readBasis } from "../../../utils/paidAmount";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // buildConditions
@@ -19,6 +20,11 @@ export function buildConditions(order) {
 
             // "fixed" | "incremental" — same type at all levels, only value overrides
             type: order.type,
+
+            // What the points are counted on — see utils/paidAmount.js.
+            //   discounts: "after" (default) | "before"
+            //   tax:       "include" (default) | "exclude"
+            basis: readBasis({ basis: order.basis }),
 
             // P1 — global fallback
             fixedPoints: Number(order.fixedPoints ?? 0),
@@ -87,6 +93,7 @@ export function buildFormShape(data) {
         order: {
             trigger: str(order?.trigger ?? "subscription"),
             type: str(order?.type ?? "incremental"),
+            basis: readBasis(order),
             fixedPoints: num(order?.fixedPoints ?? 100),
             rate: {
                 amount: num(order?.rate?.amount ?? 10),
