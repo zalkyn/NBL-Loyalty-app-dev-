@@ -1,6 +1,6 @@
 import { str, bool, num, arr } from "@app/hooks/useFormState";
 import { minOrderAmountError } from "../../../utils/minOrderAmount";
-import { readRewardTiming, readExpiryDays } from "../../../utils/fullPrice";
+import { readRewardTiming, readExpiryDays, readReleasePays } from "../../../utils/fullPrice";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // buildConditions
@@ -28,6 +28,8 @@ export function buildConditions(referral) {
             //     price, usually their first renewal after the first-month promo.
             //   "firstOrder": on their first order, as before.
             rewardTiming: readRewardTiming({ rewardTiming: referral.rewardTiming }),
+            // What the payment that releases a waiting reward pays: "referralOnly" (default) or "referralAndRenewal".
+            releasePays: readReleasePays({ releasePays: referral.releasePays }),
             // Days a reward may wait for that payment before it is closed with no points. 0 = never.
             rewardExpiryDays: readExpiryDays({ rewardExpiryDays: referral.rewardExpiryDays }),
 
@@ -122,6 +124,7 @@ export function buildFormShape(data) {
             trigger: str(ref?.trigger ?? "subscription"),
             requireApproval: bool(ref?.requireApproval ?? false),
             rewardTiming: readRewardTiming(ref),
+            releasePays: readReleasePays(ref),
             rewardExpiryDays: num(readExpiryDays(ref)),
 
             // P1 — global fallback defaults

@@ -15,7 +15,7 @@ import { notifyReferralOutcome } from "../../app/controller/referral/notifyRefer
 import getReferralAddresses from "../../app/graphql/query/referralAddresses.js";
 import { assessReferral, describeSignals } from "../../app/utils/referralFraud.js";
 import { lineItemAmount, readBasis } from "../../app/utils/paidAmount.js";
-import { readRewardTiming, isFullPriceOrder, isReleasingPayment, amountPaid } from "../../app/utils/fullPrice.js";
+import { readRewardTiming, readReleasePays, isFullPriceOrder, isReleasingPayment, amountPaid } from "../../app/utils/fullPrice.js";
 import enqueueDiscountDeleteJob from "../../app/controller/jobs/enqueueDiscountDeleteJob.js";
 import { callShopifyGraphql, SHOPIFY_RETRYABLE_ERRORS } from "../../app/utils/shopifyGraphql.js";
 
@@ -1103,10 +1103,75 @@ const handleReferral = async ({ admin, referralContext, order, customer, subscri
     if (type === "RECURRING") {
         const orderGid = order.admin_graphql_api_id;
 
+        // Renewal points for this payment. `kind` is set only when they are paid on the
+        // same payment that released a waiting reward, so the two awards on one order
+        // are told apart (see awardReferralEarn).
+        const payRenewalPoints = async (kind = null) => {
+            const { referrerPoints, referredPoints } = resolveReferralPoints(conditions, lineItems, subscriptionInterval, true);
+
+            // Duplicate protection (Shopify's at-least-once delivery, job retries)
+            // is per customer inside awardReferralEarn. The old guard here queried
+            // Reward.referralId, a column that does not exist — Prisma rejected the
+            // query, so every renewal failed before awarding anything.
+            const awards = [];
+            if (referrerPoints > 0) {
+                awards.push({
+                    customerId: referral.referrerId,
+                    points: referrerPoints,
+                    reason: `Subscription renewal reward — referred customer renewed (${orderLabel})`,
+                    activity: `+${referrerPoints} points for referral renewal`,
+                    title: "Referral renewal reward",
+                    description: `Your referred customer renewed their subscription. You earned ${referrerPoints} points.`,
+                });
+            }
+            if (referredPoints > 0) {
+                awards.push({
+                    customerId: referral.referredId,
+                    points: referredPoints,
+                    reason: `Subscription renewal reward — earned for renewing subscription (${orderLabel})`,
+                    activity: `+${referredPoints} points for subscription renewal`,
+                    title: "Subscription renewal reward",
+                    description: `You earned ${referredPoints} points for renewing your subscription.`,
+                });
+            }
+
+            for (const a of awards) {
+                await awardReferralEarn({
+                    session, shop, referral, orderGid, kind,
+                    input: {
+                        customerId: a.customerId,
+                        type: "EARN",
+                        eventId: rule.event.id,
+                        referralId: referral.id,
+                        reason: a.reason,
+                        activity: a.activity,
+                        points: a.points,
+                        status: "COMPLETED",
+                        metadata: { orderId: orderGid, orderTotal: order.total_price, ...(kind ? { kind } : {}) },
+                    },
+                });
+                // Idempotent on its own (rewardKey is deterministic per customer +
+                // order); a duplicate comes back null and is not an error.
+                await createCustomerReward({
+                    customerId: a.customerId,
+                    event: "REFERRAL",
+                    type: "RECURRING",
+                    title: a.title,
+                    description: a.description,
+                    orderId: orderGid,
+                    referralId: referral.id,
+                    status: "COMPLETED",
+                });
+            }
+
+            return { referrerPoints, referredPoints };
+        };
+
         // The reward was waiting for the first full-price payment. If this is
-        // it, release the referral reward now — only the referral reward:
-        // renewal points start from the NEXT payment, so nobody is paid twice
-        // for the same payment. If it's still the promo price, keep waiting.
+        // it, release the referral reward now. By default that is ALL this
+        // payment pays (renewal points start from the NEXT payment, so nobody is
+        // paid twice for one payment); the merchant can choose to add the
+        // renewal points too. If it's still the promo price, keep waiting.
         if (referral.status === "AWAITING_FULL_PRICE") {
             if (!isReleasingPayment(lineItems, referral.metadata?.awaiting?.firstPaid)) {
                 logger.info(MODULE, "Referral reward still waiting — this payment is not at the full price", {
@@ -1130,6 +1195,11 @@ const handleReferral = async ({ admin, referralContext, order, customer, subscri
                 },
             });
 
+            // Merchant's choice: also pay the renewal points on this same payment.
+            if (readReleasePays(refConditions) === "referralAndRenewal") {
+                await payRenewalPoints("renewal");
+            }
+
             await Promise.all([
                 syncCustomerConfig(admin, referral.referrerId),
                 syncCustomerConfig(admin, referral.referredId),
@@ -1140,62 +1210,7 @@ const handleReferral = async ({ admin, referralContext, order, customer, subscri
             return;
         }
 
-        const { referrerPoints, referredPoints } = resolveReferralPoints(conditions, lineItems, subscriptionInterval, true);
-
-        // Duplicate protection (Shopify's at-least-once delivery, job retries)
-        // is per customer inside awardReferralEarn. The old guard here queried
-        // Reward.referralId, a column that does not exist — Prisma rejected the
-        // query, so every renewal failed before awarding anything.
-        const awards = [];
-        if (referrerPoints > 0) {
-            awards.push({
-                customerId: referral.referrerId,
-                points: referrerPoints,
-                reason: `Subscription renewal reward — referred customer renewed (${orderLabel})`,
-                activity: `+${referrerPoints} points for referral renewal`,
-                title: "Referral renewal reward",
-                description: `Your referred customer renewed their subscription. You earned ${referrerPoints} points.`,
-            });
-        }
-        if (referredPoints > 0) {
-            awards.push({
-                customerId: referral.referredId,
-                points: referredPoints,
-                reason: `Subscription renewal reward — earned for renewing subscription (${orderLabel})`,
-                activity: `+${referredPoints} points for subscription renewal`,
-                title: "Subscription renewal reward",
-                description: `You earned ${referredPoints} points for renewing your subscription.`,
-            });
-        }
-
-        for (const a of awards) {
-            await awardReferralEarn({
-                session, shop, referral, orderGid,
-                input: {
-                    customerId: a.customerId,
-                    type: "EARN",
-                    eventId: rule.event.id,
-                    referralId: referral.id,
-                    reason: a.reason,
-                    activity: a.activity,
-                    points: a.points,
-                    status: "COMPLETED",
-                    metadata: { orderId: orderGid, orderTotal: order.total_price },
-                },
-            });
-            // Idempotent on its own (rewardKey is deterministic per customer +
-            // order); a duplicate comes back null and is not an error.
-            await createCustomerReward({
-                customerId: a.customerId,
-                event: "REFERRAL",
-                type: "RECURRING",
-                title: a.title,
-                description: a.description,
-                orderId: orderGid,
-                referralId: referral.id,
-                status: "COMPLETED",
-            });
-        }
+        const { referrerPoints, referredPoints } = await payRenewalPoints();
 
         // Keep what was recorded on the first order (a review flag, or the
         // merchant's approval); only the contract part is refreshed.

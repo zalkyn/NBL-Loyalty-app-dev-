@@ -4,7 +4,7 @@
  */
 
 import {
-    readRewardTiming, readExpiryDays, isFullPriceOrder, isReleasingPayment, amountPaid, isExpired,
+    readRewardTiming, readExpiryDays, readReleasePays, isFullPriceOrder, isReleasingPayment, amountPaid, isExpired,
 } from "../../app/utils/fullPrice.js";
 import { suite, checkEqual } from "./lib/assert.js";
 
@@ -16,6 +16,9 @@ export async function run() {
         await checkEqual("timing defaults to after full price", readRewardTiming(undefined), "afterFullPrice");
         await checkEqual("timing keeps the old option", readRewardTiming({ rewardTiming: "firstOrder" }), "firstOrder");
         await checkEqual("timing ignores junk", readRewardTiming({ rewardTiming: "later" }), "afterFullPrice");
+        await checkEqual("releasing payment defaults to the referral reward only", readReleasePays(undefined), "referralOnly");
+        await checkEqual("releasing payment can also pay renewal points", readReleasePays({ releasePays: "referralAndRenewal" }), "referralAndRenewal");
+        await checkEqual("releasing payment ignores junk", readReleasePays({ releasePays: "both" }), "referralOnly");
         await checkEqual("expiry defaults to 60 days", readExpiryDays(undefined), 60);
         await checkEqual("expiry 0 means never", readExpiryDays({ rewardExpiryDays: 0 }), 0);
         await checkEqual("expiry accepts a number", readExpiryDays({ rewardExpiryDays: "30" }), 30);

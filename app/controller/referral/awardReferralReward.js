@@ -22,7 +22,7 @@ const MODULE = "controller/referral/awardReferralReward.js";
  *
  * @returns {Promise<Object>} the existing or newly created transaction
  */
-export const awardReferralEarn = async ({ session, shop, referral, orderGid, input }) => {
+export const awardReferralEarn = async ({ session, shop, referral, orderGid, input, kind = null }) => {
     const existing = await dbRetry(
         () =>
             prisma.transaction.findFirst({
@@ -30,7 +30,13 @@ export const awardReferralEarn = async ({ session, shop, referral, orderGid, inp
                     customerId: input.customerId,
                     referralId: referral.id,
                     type: "EARN",
-                    metadata: { path: ["orderId"], equals: orderGid },
+                    // `kind` tells apart two awards on the SAME order: the referral
+                    // reward that a payment releases, and the renewal points paid on
+                    // that same payment when the merchant chooses both.
+                    AND: [
+                        { metadata: { path: ["orderId"], equals: orderGid } },
+                        ...(kind ? [{ metadata: { path: ["kind"], equals: kind } }] : []),
+                    ],
                 },
                 select: { id: true },
             }),

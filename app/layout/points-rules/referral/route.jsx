@@ -231,6 +231,32 @@ export default function ReferralRulePage() {
 
                             {referral.rewardTiming === "afterFullPrice" && (
                                 <s-box paddingBlockStart="small">
+                                    <s-choice-list
+                                        label="On the payment that releases the reward"
+                                        name="referralReleasePays"
+                                        value={[referral.releasePays]}
+                                        onInput={(e) => formState.set("referral.releasePays", e.currentTarget.values[0])}
+                                    >
+                                        <s-choice
+                                            value="referralOnly"
+                                            selected={referral.releasePays === "referralOnly"}
+                                            details="That payment gives the referral reward only. Renewal points start from the next payment, so nobody is paid twice for one payment. (Recommended)"
+                                        >
+                                            Referral reward only
+                                        </s-choice>
+                                        <s-choice
+                                            value="referralAndRenewal"
+                                            selected={referral.releasePays === "referralAndRenewal"}
+                                            details="That payment gives the referral reward and also that payment's renewal points (when renewal points are turned on below)."
+                                        >
+                                            Referral reward and renewal points
+                                        </s-choice>
+                                    </s-choice-list>
+                                </s-box>
+                            )}
+
+                            {referral.rewardTiming === "afterFullPrice" && (
+                                <s-box paddingBlockStart="small">
                                     <s-number-field
                                         label="Close an unpaid reward after (days)"
                                         details="If the new member never reaches a full-price payment in this many days (for example they cancel after the promo month), the reward is closed and nobody gets the referral points. Use 0 to wait forever."

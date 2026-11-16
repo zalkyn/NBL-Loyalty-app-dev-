@@ -25,6 +25,12 @@ export const REWARD_TIMINGS = ["afterFullPrice", "firstOrder"];
 export const DEFAULT_REWARD_TIMING = "afterFullPrice";
 export const DEFAULT_EXPIRY_DAYS = 60;
 
+// What the payment that releases a waiting reward pays.
+//   "referralOnly" (default): the referral reward only; renewal points start from the next payment.
+//   "referralAndRenewal":     the referral reward AND that payment's renewal points.
+export const RELEASE_PAYS = ["referralOnly", "referralAndRenewal"];
+export const DEFAULT_RELEASE_PAYS = "referralOnly";
+
 const EPSILON = 0.005;
 const money = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 const round2 = (value) => Math.round(value * 100) / 100;
@@ -35,6 +41,12 @@ const COUNT_ALL = { discounts: "after", tax: "include" };
 export function readRewardTiming(referralConditions) {
     const value = referralConditions?.rewardTiming;
     return REWARD_TIMINGS.includes(value) ? value : DEFAULT_REWARD_TIMING;
+}
+
+/** What the releasing payment pays. Anything missing or unknown means referral reward only. */
+export function readReleasePays(referralConditions) {
+    const value = referralConditions?.releasePays;
+    return RELEASE_PAYS.includes(value) ? value : DEFAULT_RELEASE_PAYS;
 }
 
 /** Days a waiting reward is kept. 0 = never expires. Missing or invalid = 60. */

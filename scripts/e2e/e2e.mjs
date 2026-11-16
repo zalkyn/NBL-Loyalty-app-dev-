@@ -290,6 +290,21 @@ await suite("Referral: reward waits for the first full-price payment", async () 
     await checkEqual("renewal points start from the next payment", await points(p.referrer), 2700);
 });
 
+await suite("Referral: releasing payment can also pay renewal points (option)", async () => {
+    const base = (await prisma.pointsRule.findUnique({ where: { id: refRule.id } })).conditions;
+    await prisma.pointsRule.update({ where: { id: refRule.id }, data: { conditions: { ...base, referral: { ...base.referral, releasePays: "referralAndRenewal" } } } });
+    const p = await referralPair("Rae", "Bloom", "Dan", "Frost", { referrerAddr: addr("9 C St"), friendAddr: addr("77 X Rd", "5000") });
+    const contract = (cycle) => ({ id: "CW2", currentCycle: cycle, sellingPlanIds: [], subscriptionLineItemList: [] });
+    const promo = addOrder({ customer: p.friend, items: [{ price: 49, paid: 1, variant: 49, qty: 1 }], codes: [p.code], billing: addr("77 X Rd", "5000"), metafield: { subscriptionContract: contract(1) } });
+    await enqueuePaid(promo); await runPaid();
+    const full = addOrder({ customer: p.friend, items: [{ price: 49, paid: 49, variant: 49, qty: 1 }], metafield: { subscriptionContract: contract(2) } });
+    await enqueuePaid(full); await runPaid();
+    await checkEqual("referrer gets the referral reward AND the renewal points on the releasing payment", await points(p.referrer), 2700);
+    await enqueuePaid(full, `again:${full.id}`); await runPaid();
+    await checkEqual("redelivery pays nothing extra", await points(p.referrer), 2700);
+    await prisma.pointsRule.update({ where: { id: refRule.id }, data: { conditions: base } });
+});
+
 await suite("Referral: an unpaid reward expires", async () => {
     const p = await referralPair("Una", "Reed", "Vic", "Stone", { referrerAddr: addr("1 B St"), friendAddr: addr("55 Y Rd", "4000") });
     const promo = addOrder({ customer: p.friend, items: [{ price: 49, paid: 1, variant: 49, qty: 1 }], codes: [p.code], billing: addr("55 Y Rd", "4000"), metafield: { subscriptionContract: { id: "CX1", currentCycle: 1, sellingPlanIds: [], subscriptionLineItemList: [] } } });
