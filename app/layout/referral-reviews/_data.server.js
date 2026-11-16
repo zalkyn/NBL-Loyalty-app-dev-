@@ -371,6 +371,15 @@ export async function handleDecide({ formData, session, admin }, decision) {
         return { message: ids.length === 1 ? `Referral ${verb}.` : `${done} referrals ${verb}.`, status: "success", submitType };
     }
     if (done === 0) {
+        // Refreshing only helps when someone else already decided; a failed code
+        // creation needs the customer to exist in Shopify.
+        const codeFailed = failures.some((f) => String(f).includes("could not be created"));
+        if (codeFailed) {
+            return {
+                message: "Nothing was changed (the discount code could not be created in Shopify). Check that the customer exists in Shopify, then try again.",
+                status: "error", submitType,
+            };
+        }
         return {
             message: ids.length === 1
                 ? `Nothing was changed (${failures[0]}). Refresh the page and try again.`
