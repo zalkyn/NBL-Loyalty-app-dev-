@@ -18,7 +18,7 @@ export function HelpButton({ modalId, label = "How does this work?" }) {
 const Block = ({ title, children }) => (
     <s-box padding="base" background="subdued" borderRadius="base">
         <s-stack direction="block" gap="small">
-            {title && <s-text type="strong">{title}</s-text>}
+            {title && <s-text><strong>{title}</strong></s-text>}
             {children}
         </s-stack>
     </s-box>
