@@ -14,7 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const SNOOZE_DAYS = 7;
-export const SNOOZE_KEYS = ["failed-jobs", "stuck-referrals", "held-referrals", "currency", "rule-off"];
+export const SNOOZE_KEYS = ["failed-jobs", "stuck-referrals", "held-referrals", "claim-referrals", "currency", "rule-off"];
 
 function allItems(health, shopCurrency) {
     const { referral, jobs, ruleCurrencies } = health;
@@ -63,6 +63,20 @@ function allItems(health, shopCurrency) {
                 "Press Approve if they are really different people, so the points are paid. Press Reject if not.",
             ],
             action: { label: "Open Referral Reviews", href: "/app/referral-reviews" },
+        });
+    }
+    if (referral.claims > 0) {
+        const many = referral.claims > 1;
+        items.push({
+            key: "claim-referrals", tone: "warning", count: referral.claims,
+            heading: "New referral claims are waiting for approval",
+            text: `${referral.claims.toLocaleString()} customer${many ? "s have" : " has"} claimed a referral and ${many ? "are" : "is"} waiting for ${many ? "their discount codes" : "a discount code"}. No code is created until you approve ${many ? "each claim" : "it"}.`,
+            steps: [
+                "Press Open Referral Reviews. The New claims tab opens first.",
+                "Look at the referrer and the new customer.",
+                "Press Approve to create the discount code and tell the customer, or Reject to issue nothing.",
+            ],
+            action: { label: "Open Referral Reviews", href: "/app/referral-reviews?tab=claims" },
         });
     }
     if (mismatched.length) {

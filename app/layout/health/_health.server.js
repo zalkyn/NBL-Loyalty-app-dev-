@@ -14,7 +14,7 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 // instead of showing a false "all healthy".
 export const EMPTY_HEALTH = {
     unavailable: true,
-    referral: { ruleActive: null, trigger: null, held: 0, skipped30d: 0, flagged30d: 0, stuck: 0 },
+    referral: { ruleActive: null, trigger: null, held: 0, claims: 0, skipped30d: 0, flagged30d: 0, stuck: 0 },
     jobs: { failed: 0, failedOrders: [], waiting: 0 },
     ruleCurrencies: [],
     snoozes: {},
@@ -41,10 +41,13 @@ export async function loadHealthData(session) {
     const since = new Date(Date.now() - THIRTY_DAYS_MS);
 
     try {
-        const [referralRule, held, recentUsed, stuckRows, failedJobs, waitingJobs, shadowRules, settingsRow] = await Promise.all([
+        const [referralRule, held, claims, recentUsed, stuckRows, failedJobs, waitingJobs, shadowRules, settingsRow] = await Promise.all([
             getRuleState("REFERRAL", session.id),
 
             prisma.referral.count({ where: { status: "HELD", referrer: { sessionId: session.id } } }),
+
+            // New referral claims waiting for approval (only when "Approve referrals manually" is on).
+            prisma.referral.count({ where: { status: "PENDING_APPROVAL", referrer: { sessionId: session.id } } }),
 
             // Skipped / flagged live in referral.metadata (see orderPaidJob.js);
             // a bounded recent window keeps this cheap and filtered in JS.
@@ -93,6 +96,7 @@ export async function loadHealthData(session) {
                 ruleActive: referralRule ? referralRule.isActive : null,
                 trigger: referralRule?.isActive ? (referralRule.conditions?.referral?.trigger ?? null) : null,
                 held,
+                claims,
                 skipped30d: recentUsed.filter((r) => r.metadata?.skipped).length,
                 flagged30d: recentUsed.filter((r) => r.metadata?.reviewFlag).length,
                 stuck: Number(stuckRows?.[0]?.n ?? 0),

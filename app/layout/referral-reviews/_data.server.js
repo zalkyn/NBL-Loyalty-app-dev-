@@ -78,6 +78,14 @@ export async function loadReviews(session, params) {
 
     // No tab chosen: open on New claims when any are waiting (that's the
     // urgent queue once manual approval is on), otherwise the usual default.
+    // An approval that was interrupted (server restart mid-way) would leave a claim
+    // stuck in ACTIVATING and invisible. Anything stuck there for 10 minutes goes
+    // back to waiting so it can be decided again.
+    await prisma.referral.updateMany({
+        where: { status: CLAIM_STATUS.ACTIVATING, updatedAt: { lt: new Date(Date.now() - 10 * 60 * 1000) }, referrer: { sessionId: session.id } },
+        data: { status: CLAIM_STATUS.PENDING_APPROVAL },
+    });
+
     let tab = requestedTab;
     if (!tab) {
         const claimsWaiting = await prisma.referral.count({ where: tabWhere("claims", session.id) });

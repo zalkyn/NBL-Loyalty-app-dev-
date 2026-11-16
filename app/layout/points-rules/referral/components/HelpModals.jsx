@@ -3,6 +3,8 @@
 // once as direct children of <s-page> (like the Guide modal); the buttons sit
 // inside the setting's own section.
 
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
+
 export const TIMING_HELP_ID = "referral-timing-help";
 export const APPROVAL_HELP_ID = "referral-approval-help";
 
@@ -30,18 +32,19 @@ const Close = ({ id }) => (
 
 /** "When are referral points given?" — full explanation with a worked example. */
 export function TimingHelpModal() {
+    const { symbol: c } = useShopCurrency();
     return (
         <s-modal id={TIMING_HELP_ID} heading="When are referral points given?" size="large">
             <s-stack direction="block" gap="base">
                 <s-paragraph>
-                    Many subscriptions start with a cheap first month (for example A$1) and move to the full price on
+                    Many subscriptions start with a cheap first month (for example {c}1) and move to the full price on
                     the second payment. Paying the referral reward on that cheap first order means a referrer can be
                     rewarded for a member who never pays the real price. This setting decides when the reward is paid.
                 </s-paragraph>
 
                 <s-heading>Example</s-heading>
                 <s-text color="subdued">
-                    Full price A$49. Referral reward: referrer 2,500 points, new member 1,000 points. Renewal points: 200.
+                    Full price {c}49. Referral reward: referrer 2,500 points, new member 1,000 points. Renewal points: 200.
                     Setting: after the first full-price payment, referral reward only.
                 </s-text>
                 <s-table>
@@ -53,17 +56,17 @@ export function TimingHelpModal() {
                     <s-table-body>
                         <s-table-row>
                             <s-table-cell>1st (first month)</s-table-cell>
-                            <s-table-cell>A$1 with the referral code</s-table-cell>
+                            <s-table-cell>{c}1 with the referral code</s-table-cell>
                             <s-table-cell>Nobody is paid yet. The reward waits under &quot;Waiting for full payment&quot; and both people are told it is on its way.</s-table-cell>
                         </s-table-row>
                         <s-table-row>
                             <s-table-cell>2nd (first renewal)</s-table-cell>
-                            <s-table-cell>A$49</s-table-cell>
+                            <s-table-cell>{c}49</s-table-cell>
                             <s-table-cell>The referrer gets 2,500 and the new member 1,000, together. No renewal points on this payment.</s-table-cell>
                         </s-table-row>
                         <s-table-row>
                             <s-table-cell>3rd</s-table-cell>
-                            <s-table-cell>A$49</s-table-cell>
+                            <s-table-cell>{c}49</s-table-cell>
                             <s-table-cell>The referrer earns the 200 renewal points, and so on for each renewal.</s-table-cell>
                         </s-table-row>
                     </s-table-body>
@@ -80,7 +83,7 @@ export function TimingHelpModal() {
                 </Block>
                 <Block title="On the first order (old behaviour)">
                     <s-text>
-                        The reward is paid as soon as the new member places their first order, even a A$1 promo order.
+                        The reward is paid as soon as the new member places their first order, even a {c}1 promo order.
                     </s-text>
                 </Block>
                 <Block title="On the payment that releases the reward">

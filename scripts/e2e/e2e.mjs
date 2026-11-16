@@ -279,7 +279,8 @@ await suite("Referral: reward waits for the first full-price payment", async () 
     checkEqual("full-price payment releases it", [r.status, r.rewardGiven], ["USED", true]);
     await checkEqual("referrer gets the referral reward only (no renewal points on the same payment)", await points(p.referrer), 2500);
     const friendEarned = (await points(p.friend)) - friendBefore;
-    await checkEqual("friend gets the 1,000 bonus plus the normal 980 for a $49 order", friendEarned, 1000 + 980);
+    // A referral order earns referral points, not ordinary order points as well (existing design).
+    await checkEqual("friend gets the 1,000 referral bonus", friendEarned, 1000);
 
     await enqueuePaid(full, `again:${full.id}`); await runPaid();
     await checkEqual("redelivery pays nothing extra", await points(p.referrer), 2500);
@@ -503,6 +504,16 @@ await suite("Program Health, retry and Settings overview", async () => {
 
     const health = await loadHealthData(session);
     checkEqual("failed order counted", health.jobs.failed, 1);
+    checkEqual("no claims waiting at first", health.referral.claims, 0);
+    {
+        // A claim waiting for approval is counted and shown as its own notice
+        const a = await newCustomer("Claim", "Maker"); const b = await newCustomer("Claim", "Friend");
+        const claim = await prisma.referral.create({ data: { referrerId: a.id, referredId: b.id, status: "PENDING_APPROVAL", discountCode: null } });
+        const withClaim = await loadHealthData(session);
+        checkEqual("a waiting claim is counted", withClaim.referral.claims, 1);
+        ok("and shown as a notice", buildAttentionItems(withClaim, null).some((i) => i.key === "claim-referrals" && i.count === 1));
+        await prisma.referral.delete({ where: { id: claim.id } });
+    }
     const details = await loadHealthDetails(session);
     ok("details loaded", details !== null);
     checkEqual("failed list explains the reason", details.failed[0]?.reason, "A network problem interrupted it.");

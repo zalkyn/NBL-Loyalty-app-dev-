@@ -2,6 +2,8 @@
 // "How does this work?" button in that section. Rendered once as a direct
 // child of <s-page>.
 
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
+
 export const BASIS_HELP_ID = "order-basis-help";
 
 export function BasisHelpButton() {
@@ -13,6 +15,7 @@ export function BasisHelpButton() {
 }
 
 export function BasisHelpModal() {
+    const { symbol: c } = useShopCurrency();
     return (
         <s-modal id={BASIS_HELP_ID} heading="What points are counted on" size="large">
             <s-stack direction="block" gap="base">
@@ -23,7 +26,7 @@ export function BasisHelpModal() {
                 </s-paragraph>
 
                 <s-heading>Examples</s-heading>
-                <s-text color="subdued">Rate: 20 points for every $1.</s-text>
+                <s-text color="subdued">Rate: 20 points for every {c}1.</s-text>
                 <s-table>
                     <s-table-header-row>
                         <s-table-header>Order</s-table-header>
@@ -32,24 +35,24 @@ export function BasisHelpModal() {
                     </s-table-header-row>
                     <s-table-body>
                         <s-table-row>
-                            <s-table-cell>$40 product, no discount</s-table-cell>
-                            <s-table-cell>$40 → 800 points</s-table-cell>
-                            <s-table-cell>$40 → 800 points</s-table-cell>
+                            <s-table-cell>{c}40 product, no discount</s-table-cell>
+                            <s-table-cell>{c}40 → 800 points</s-table-cell>
+                            <s-table-cell>{c}40 → 800 points</s-table-cell>
                         </s-table-row>
                         <s-table-row>
-                            <s-table-cell>$40 product with $10 off</s-table-cell>
-                            <s-table-cell>$30 → 600 points</s-table-cell>
-                            <s-table-cell>$40 → 800 points</s-table-cell>
+                            <s-table-cell>{c}40 product with {c}10 off</s-table-cell>
+                            <s-table-cell>{c}30 → 600 points</s-table-cell>
+                            <s-table-cell>{c}40 → 800 points</s-table-cell>
                         </s-table-row>
                         <s-table-row>
-                            <s-table-cell>$233 product, 100% discount code (order total $0.00)</s-table-cell>
-                            <s-table-cell>$0 → 0 points</s-table-cell>
+                            <s-table-cell>{c}233 product, 100% discount code (order total {c}0.00)</s-table-cell>
+                            <s-table-cell>{c}0 → 0 points</s-table-cell>
                             <s-table-cell>0 points (a product paid for nothing never earns)</s-table-cell>
                         </s-table-row>
                         <s-table-row>
-                            <s-table-cell>$49 product on a $1 first-month promo</s-table-cell>
-                            <s-table-cell>$1 → 20 points</s-table-cell>
-                            <s-table-cell>$49 → 980 points if the list price is $49</s-table-cell>
+                            <s-table-cell>{c}49 product on a {c}1 first-month promo</s-table-cell>
+                            <s-table-cell>{c}1 → 20 points</s-table-cell>
+                            <s-table-cell>{c}49 → 980 points if the list price is {c}49</s-table-cell>
                         </s-table-row>
                     </s-table-body>
                 </s-table>
@@ -66,7 +69,7 @@ export function BasisHelpModal() {
                 <s-box padding="base" background="subdued" borderRadius="base">
                     <s-stack direction="block" gap="small">
                         <s-text><strong>Count tax (default):</strong> tax is money received, so nothing is taken off.</s-text>
-                        <s-text><strong>Leave tax out:</strong> only matters when your store prices already include tax (such as GST in Australia). A $110 product with $10 GST then earns points on $100. If your prices do not include tax, this changes nothing.</s-text>
+                        <s-text><strong>Leave tax out:</strong> only matters when your store prices already include tax (such as GST in Australia). A {c}110 product with {c}10 GST then earns points on {c}100. If your prices do not include tax, this changes nothing.</s-text>
                     </s-stack>
                 </s-box>
 

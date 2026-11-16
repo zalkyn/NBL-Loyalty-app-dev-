@@ -19,6 +19,7 @@ import { IntervalCard } from "./components/IntervalCard";
 import { GroupCard } from "./components/GroupCard";
 import { SummaryPanel } from "./components/SummaryPanel";
 import { BasisHelpButton, BasisHelpModal } from "./components/BasisHelpModal";
+import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -127,6 +128,7 @@ export const action = async ({ request }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function OrderRulePage() {
+    const { symbol } = useShopCurrency();
     const { rule, event, mode } = useLoaderData();
     const actionData = useActionData();
     const navigate = useNavigate();
@@ -205,7 +207,7 @@ export default function OrderRulePage() {
                             <s-text color="subdued">
                                 Points are counted per product, on what the customer actually paid for it. Shipping is
                                 never counted, and a product paid for nothing (for example a 100% discount code, or an
-                                A$0.00 order) earns 0 points, even with a fixed-points rule.
+                                {symbol}0.00 order) earns 0 points, even with a fixed-points rule.
                             </s-text>
                             <s-box paddingBlockEnd="small" />
                             <BasisHelpButton />
@@ -219,14 +221,14 @@ export default function OrderRulePage() {
                                 <s-choice
                                     value="after"
                                     selected={order.basis.discounts === "after"}
-                                    details="Counts the price after every discount code and automatic discount. A $40 product bought with $10 off earns points on $30. (Recommended)"
+                                    details={`Counts the price after every discount code and automatic discount. A ${symbol}40 product bought with ${symbol}10 off earns points on ${symbol}30. (Recommended)`}
                                 >
                                     After discounts
                                 </s-choice>
                                 <s-choice
                                     value="before"
                                     selected={order.basis.discounts === "before"}
-                                    details="Counts the full list price, ignoring discounts. This is how points worked before, so a $40 product with $10 off still earns points on $40."
+                                    details={`Counts the full list price, ignoring discounts. This is how points worked before, so a ${symbol}40 product with ${symbol}10 off still earns points on ${symbol}40.`}
                                 >
                                     Before discounts (old behaviour)
                                 </s-choice>
@@ -248,7 +250,7 @@ export default function OrderRulePage() {
                                 <s-choice
                                     value="exclude"
                                     selected={order.basis.tax === "exclude"}
-                                    details="Takes the tax out before counting. Only matters when your store prices already include tax (such as GST): a $110 product with $10 GST earns points on $100."
+                                    details={`Takes the tax out before counting. Only matters when your store prices already include tax (such as GST): a ${symbol}110 product with ${symbol}10 GST earns points on ${symbol}100.`}
                                 >
                                     Leave tax out
                                 </s-choice>

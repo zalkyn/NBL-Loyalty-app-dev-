@@ -7,13 +7,17 @@ export function referralState(referral) {
     const meta = referral?.metadata ?? {};
     switch (referral?.status) {
         case "HELD": return { label: "Waiting for your decision", tone: "warning" };
-        case "REJECTED": return { label: "Rejected", tone: "critical" };
+        case "REJECTED": return { label: meta.rejection?.kind === "claim" ? "Claim not approved" : "Rejected", tone: "critical" };
         case "USED":
             if (meta.skipped) return { label: "No reward (rule)", tone: "neutral" };
             if (meta.approval) return { label: "Approved by you", tone: "success" };
             if (meta.reviewFlag) return { label: "Rewarded, flagged", tone: "caution" };
             return referral.rewardGiven ? { label: "Rewarded", tone: "success" } : { label: "Used", tone: "neutral" };
         case "ACTIVE": return { label: "Code not used yet", tone: "info" };
+        case "PENDING_APPROVAL":
+        case "ACTIVATING": return { label: "Claim waiting for your approval", tone: "warning" };
+        case "AWAITING_FULL_PRICE": return { label: "Reward waiting for the first full-price payment", tone: "info" };
+        case "EXPIRED": return { label: "Reward expired (no full-price payment)", tone: "neutral" };
         default: return { label: referral?.status ?? "—", tone: "neutral" };
     }
 }

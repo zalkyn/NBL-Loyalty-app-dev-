@@ -85,7 +85,7 @@ const BASE_TOPICS = [
         faq: [
             { q: "A customer says they didn't get points for an order.", a: "Open the customer: if the order isn't in their history, check the rule's order type (one-time vs subscription), whether the products were excluded, and Program Health for orders that couldn't be processed." },
             { q: "Are points based on the total paid or on product prices?", a: "On what was actually paid for each product: its price after discounts, times the quantity. Shipping is never included. Under \"What points are counted on\" you can switch to the full list price (before discounts) or choose whether tax counts." },
-            { q: "An order that cost $0.00 earned points. Why?", a: "Before this change, points were counted on the list price, so a 100% discount still earned points. Now a product paid for nothing earns 0 points under every rule, fixed points included. Orders made earlier keep the points they were given." },
+            { q: "An order that cost nothing earned points. Why?", a: "Before this change, points were counted on the list price, so a 100% discount still earned points. Now a product paid for nothing earns 0 points under every rule, fixed points included. Orders made earlier keep the points they were given." },
             { q: "If I change the rate, do old orders change?", a: "No. Only new orders use the new rate. To give past customers points, use Points Backfill." },
         ],
     },
