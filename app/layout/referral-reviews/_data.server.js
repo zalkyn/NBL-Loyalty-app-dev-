@@ -81,9 +81,14 @@ export async function loadReviews(session, params) {
     // An approval that was interrupted (server restart mid-way) would leave a claim
     // stuck in ACTIVATING and invisible. Anything stuck there for 10 minutes goes
     // back to waiting so it can be decided again.
+    const stale = { lt: new Date(Date.now() - 10 * 60 * 1000) };
     await prisma.referral.updateMany({
-        where: { status: CLAIM_STATUS.ACTIVATING, updatedAt: { lt: new Date(Date.now() - 10 * 60 * 1000) }, referrer: { sessionId: session.id } },
+        where: { status: CLAIM_STATUS.ACTIVATING, updatedAt: stale, referrer: { sessionId: session.id } },
         data: { status: CLAIM_STATUS.PENDING_APPROVAL },
+    });
+    await prisma.referral.updateMany({
+        where: { status: "RELEASING", updatedAt: stale, referrer: { sessionId: session.id } },
+        data: { status: "AWAITING_FULL_PRICE" },
     });
 
     let tab = requestedTab;
@@ -164,6 +169,8 @@ async function approveOne(referralId, session, admin) {
                 orderGid: hold.orderId,
                 orderLabel: hold.orderLabel,
                 firstPaid: hold.firstPaid ?? 0,
+                referrerPoints: hold.referrerPoints,
+                referredPoints: hold.referredPoints,
                 subscriptionContract: Object.keys(contract).length ? contract : null,
                 extraMetadata: { approval },
             });
@@ -341,6 +348,75 @@ async function rejectClaimOne(referralId, session, admin) {
     return { ok: true };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// RELEASE — pay a reward that is waiting for the first full-price payment, now.
+// For when the merchant knows the customer deserves it (or the plan's pricing
+// means the app can't tell a full-price payment from the promo).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** @returns {Promise<{ ok: boolean, reason?: string }>} */
+async function releaseOne(referralId, session, admin) {
+    const referral = await prisma.referral.findFirst({
+        where: { id: Number(referralId), status: "AWAITING_FULL_PRICE", referrer: { sessionId: session.id } },
+    });
+    const awaiting = referral?.metadata?.awaiting;
+    if (!referral || !awaiting) return { ok: false, reason: "no longer waiting" };
+
+    // Claim it so two clicks (or the real payment arriving at the same moment)
+    // can't pay it twice.
+    const claim = await prisma.referral.updateMany({
+        where: { id: referral.id, status: "AWAITING_FULL_PRICE" },
+        data: { status: "RELEASING" },
+    });
+    if (claim.count === 0) return { ok: false, reason: "handled by someone else" };
+
+    try {
+        const rule = await getPointRuleByEvent("REFERRAL", session.id);
+        if (!rule?.event?.id) throw new Error("Referral points rule not found");
+
+        // Points remembered from the first order; if missing, the rule's defaults.
+        const base = rule.conditions?.referral ?? {};
+        const referrerPoints = awaiting.referrerPoints ?? base.referrer?.points ?? 0;
+        const referredPoints = awaiting.referredPoints ?? base.referred?.points ?? 0;
+
+        // Keep only the subscription contract part of the metadata.
+        // eslint-disable-next-line no-unused-vars
+        const { awaiting: _w, hold: _h, reviewFlag, approval, released: _r, ...contract } = referral.metadata ?? {};
+
+        await awardFirstReferralReward({
+            session,
+            shop: session.shop,
+            referral,
+            eventId: rule.event.id,
+            orderGid: awaiting.orderId,
+            orderLabel: awaiting.orderLabel,
+            orderTotal: String(awaiting.firstPaid ?? "0"),
+            referrerPoints,
+            referredPoints,
+            subscriptionContract: Object.keys(contract).length ? contract : null,
+            fullPrice: true,
+            extraMetadata: {
+                ...(reviewFlag ? { reviewFlag } : {}),
+                ...(approval ? { approval } : {}),
+                released: { at: new Date().toISOString(), manual: true, after: awaiting.since ?? null },
+            },
+        });
+
+        await Promise.all([
+            syncCustomerConfig(admin, referral.referrerId),
+            syncCustomerConfig(admin, referral.referredId),
+        ]);
+
+        logger.info(MODULE, "Waiting reward released by hand", { shop: session.shop, referralId: referral.id });
+        return { ok: true };
+    } catch (err) {
+        // Put it back so it can be tried again; awards are idempotent per order.
+        await prisma.referral.updateMany({ where: { id: referral.id, status: "RELEASING" }, data: { status: "AWAITING_FULL_PRICE" } });
+        logger.error(MODULE, "Releasing a waiting reward failed", { shop: session.shop, referralId: referral.id, error: err?.message });
+        return { ok: false, reason: "points could not be recorded" };
+    }
+}
+
 /** Sends one id to the right decision: a waiting claim, or a held reward. */
 async function decideOne(decision, id, session, admin) {
     const row = await prisma.referral.findFirst({
@@ -348,6 +424,7 @@ async function decideOne(decision, id, session, admin) {
         select: { status: true },
     });
     const isClaim = row?.status === CLAIM_STATUS.PENDING_APPROVAL;
+    if (decision === "release") return releaseOne(id, session, admin);
     if (decision === "approve") return isClaim ? approveClaimOne(id, session, admin) : approveOne(id, session, admin);
     return isClaim ? rejectClaimOne(id, session, admin) : rejectOne(id, session, admin);
 }
@@ -361,7 +438,7 @@ const parseIds = (formData) => [...new Set(
  * on one never affects the others, and the message says exactly what happened.
  */
 export async function handleDecide({ formData, session, admin }, decision) {
-    const submitType = decision === "approve" ? "approveReferrals" : "rejectReferrals";
+    const submitType = { approve: "approveReferrals", reject: "rejectReferrals", release: "releaseReferrals" }[decision];
     const ids = parseIds(formData);
     if (!ids.length) return { message: "Choose at least one referral.", status: "error", submitType };
     if (ids.length > BULK_LIMIT) return { message: `Please choose ${BULK_LIMIT} or fewer at a time.`, status: "error", submitType };
@@ -374,7 +451,7 @@ export async function handleDecide({ formData, session, admin }, decision) {
         else failures.push(res.reason);
     }
 
-    const verb = decision === "approve" ? "approved" : "rejected";
+    const verb = { approve: "approved", reject: "rejected", release: "released — points paid" }[decision];
     if (done === ids.length) {
         return { message: ids.length === 1 ? `Referral ${verb}.` : `${done} referrals ${verb}.`, status: "success", submitType };
     }

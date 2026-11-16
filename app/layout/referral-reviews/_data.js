@@ -28,8 +28,8 @@ export const gidNumber = (gid) => String(gid ?? "").match(/\/(\d+)$/)?.[1] ?? nu
 export const totalPoints = (rows) =>
     rows.reduce(
         (sum, r) => ({
-            referrer: sum.referrer + (r.metadata?.hold?.referrerPoints ?? 0),
-            friend: sum.friend + (r.metadata?.hold?.referredPoints ?? 0),
+            referrer: sum.referrer + (r.metadata?.hold?.referrerPoints ?? r.metadata?.awaiting?.referrerPoints ?? 0),
+            friend: sum.friend + (r.metadata?.hold?.referredPoints ?? r.metadata?.awaiting?.referredPoints ?? 0),
         }),
         { referrer: 0, friend: 0 }
     );

@@ -170,11 +170,13 @@ export const awardFirstReferralReward = async ({
  * @param {string} args.orderGid       - the first (promo) order
  * @param {string} args.orderLabel
  * @param {number} args.firstPaid      - what that order actually cost, remembered so the releasing payment must be higher
+ * @param {number} [args.referrerPoints] - remembered so the merchant can release the reward by hand
+ * @param {number} [args.referredPoints]
  * @param {Object|null} [args.subscriptionContract]
  * @param {Object} [args.extraMetadata] - merged in (e.g. reviewFlag, approval)
  */
 export const deferFirstReferralReward = async ({
-    session, shop, referral, orderGid, orderLabel, firstPaid, subscriptionContract = null, extraMetadata = {},
+    session, shop, referral, orderGid, orderLabel, firstPaid, referrerPoints, referredPoints, subscriptionContract = null, extraMetadata = {},
 }) => {
     await updateReferral(referral.id, {
         status: "AWAITING_FULL_PRICE",
@@ -185,7 +187,7 @@ export const deferFirstReferralReward = async ({
         metadata: {
             ...(subscriptionContract ?? {}),
             ...extraMetadata,
-            awaiting: { since: new Date().toISOString(), orderId: orderGid, orderLabel, firstPaid },
+            awaiting: { since: new Date().toISOString(), orderId: orderGid, orderLabel, firstPaid, referrerPoints, referredPoints },
         },
     });
     await markReferralVoucherUsed({ referral, orderGid });

@@ -37,6 +37,7 @@ export const action = async ({ request }) => {
     switch (submitType) {
         case "approveReferrals": return handleDecide(ctx, "approve");
         case "rejectReferrals": return handleDecide(ctx, "reject");
+        case "releaseReferrals": return handleDecide(ctx, "release");
         default: return { message: "Invalid action.", status: "error", submitType };
     }
 };
@@ -92,7 +93,7 @@ export default function ReferralReviewsPage() {
     const askDecision = (decision, list) => setPending({ decision, rows: list });
     const confirmDecision = () => {
         const fd = new FormData();
-        fd.set("submitType", pending.decision === "approve" ? "approveReferrals" : "rejectReferrals");
+        fd.set("submitType", { approve: "approveReferrals", reject: "rejectReferrals", release: "releaseReferrals" }[pending.decision]);
         fd.set("referralIds", pending.rows.map((r) => r.id).join(","));
         submit(fd, { method: "post" });
     };
@@ -133,7 +134,7 @@ export default function ReferralReviewsPage() {
                 <s-box paddingBlockStart="base" />
                 <s-paragraph color="subdued">
                     {tab === "claims" && "These customers claimed a referral and are waiting for their discount code. Approve to create the code and tell them it's ready, or reject to issue nothing. Turn this on or off in Points Rules → Referral."}
-                    {tab === "awaiting" && "These customers used a referral on their first-month promo order. Their referral points (the referrer's and the new member's) are paid automatically on their first payment at the full price. If you set an expiry in Points Rules → Referral, a reward not released in that time is closed with no points; by default they wait without a time limit."}
+                    {tab === "awaiting" && "These customers used a referral on their first-month promo order. Their referral points (the referrer's and the new member's) are paid automatically on their first payment at the full price. If you are sure a customer deserves it already, press Release now to pay it by hand. If you set an expiry in Points Rules → Referral, a reward not released in that time is closed with no points; by default they wait without a time limit."}
                     {tab === "waiting" && "These rewards were held because the two accounts look like the same person or household. The referred customer's discount was already applied by Shopify. Approve to award the points, or reject to award nothing."}
                     {tab === "flagged" && "These were rewarded normally, but one weaker signal was noticed (same name, or a similar address), or you approved them after a hold."}
                     {tab === "rejected" && "Claims and rewards you rejected. No discount code or points were given for these."}
@@ -156,23 +157,32 @@ export default function ReferralReviewsPage() {
                 </s-grid>
 
                 {/* ── Bulk bar (waiting tab, once something is ticked) ── */}
-                {(tab === "waiting" || tab === "claims") && selected.size > 0 && (
+                {(tab === "waiting" || tab === "claims" || tab === "awaiting") && selected.size > 0 && (
                     <>
                         <s-box paddingBlockStart="base" />
                         <s-banner tone="info" heading={`${selected.size} selected`}>
                             {selected.size > BULK_LIMIT ? (
                                 <s-text>Choose {BULK_LIMIT} or fewer at a time.</s-text>
                             ) : (
-                                <s-text>Approve or reject all of them in one go. You&apos;ll be asked to confirm first.</s-text>
+                                <s-text>{tab === "awaiting" ? "Release all of them now. You'll be asked to confirm first." : "Approve or reject all of them in one go. You'll be asked to confirm first."}</s-text>
                             )}
-                            <s-button slot="secondary-actions" variant="secondary" disabled={busy || selected.size > BULK_LIMIT}
-                                commandFor="referral-decision-modal" command="--show" onClick={() => askDecision("approve", selectedRows)}>
-                                Approve selected
-                            </s-button>
-                            <s-button slot="secondary-actions" tone="critical" disabled={busy || selected.size > BULK_LIMIT}
-                                commandFor="referral-decision-modal" command="--show" onClick={() => askDecision("reject", selectedRows)}>
-                                Reject selected
-                            </s-button>
+                            {tab === "awaiting" ? (
+                                <s-button slot="secondary-actions" variant="secondary" disabled={busy || selected.size > BULK_LIMIT}
+                                    commandFor="referral-decision-modal" command="--show" onClick={() => askDecision("release", selectedRows)}>
+                                    Release selected now
+                                </s-button>
+                            ) : (
+                                <>
+                                    <s-button slot="secondary-actions" variant="secondary" disabled={busy || selected.size > BULK_LIMIT}
+                                        commandFor="referral-decision-modal" command="--show" onClick={() => askDecision("approve", selectedRows)}>
+                                        Approve selected
+                                    </s-button>
+                                    <s-button slot="secondary-actions" tone="critical" disabled={busy || selected.size > BULK_LIMIT}
+                                        commandFor="referral-decision-modal" command="--show" onClick={() => askDecision("reject", selectedRows)}>
+                                        Reject selected
+                                    </s-button>
+                                </>
+                            )}
                         </s-banner>
                     </>
                 )}

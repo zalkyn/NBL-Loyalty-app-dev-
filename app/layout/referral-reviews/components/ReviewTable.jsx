@@ -34,15 +34,19 @@ const EMPTY = {
 };
 
 /**
- * One table for all three tabs. Only the waiting tab has selection and the
- * Approve / Reject actions; the others are a read-only record.
+ * One table for every tab. The New claims and Waiting for decision tabs have
+ * selection and Approve / Reject; Waiting for full payment has Release now;
+ * the others are a read-only record.
  */
 export function ReviewTable({ tab, rows, shop, q, busy, selected, onToggle, onTogglePage, onDecide }) {
     const claims = tab === "claims";
-    // "Decidable" tabs have selection and the Approve / Reject buttons.
-    const waiting = tab === "waiting" || claims;
+    const awaiting = tab === "awaiting";
+    const held = tab === "waiting";
+    // "Decidable" tabs have selection and action buttons: Approve / Reject
+    // (claims, held) or Release now (rewards waiting for the full-price payment).
+    const waiting = held || claims || awaiting;
     const allSelected = waiting && rows.length > 0 && rows.every((r) => selected.has(r.id));
-    const columns = waiting && !claims ? 8 : 5;
+    const columns = held ? 8 : awaiting ? 7 : 5;
 
     return (
         <s-table>
@@ -58,7 +62,7 @@ export function ReviewTable({ tab, rows, shop, q, busy, selected, onToggle, onTo
                 <s-table-header>Referred customer</s-table-header>
                 {!claims && <s-table-header>Order</s-table-header>}
                 {!claims && <s-table-header>{waiting ? "Why it was held" : "Note"}</s-table-header>}
-                {waiting && !claims && <s-table-header>Points</s-table-header>}
+                {(held || awaiting) && <s-table-header>Points</s-table-header>}
                 <s-table-header>{tab === "rejected" ? "Rejected on" : claims ? "Claimed on" : waiting ? "Held on" : tab === "awaiting" ? "Waiting since" : "Date"}</s-table-header>
                 {waiting && <s-table-header>Decision</s-table-header>}
             </s-table-header-row>
@@ -98,11 +102,11 @@ export function ReviewTable({ tab, rows, shop, q, busy, selected, onToggle, onTo
                                 </s-table-cell>
                             )}
                             {!claims && <s-table-cell>{note}</s-table-cell>}
-                            {waiting && !claims && (
+                            {(held || awaiting) && (
                                 <s-table-cell>
                                     <s-stack direction="block" gap="small-500">
-                                        <s-text>Referrer: {(hold.referrerPoints ?? 0).toLocaleString()}</s-text>
-                                        <s-text color="subdued">Friend: {(hold.referredPoints ?? 0).toLocaleString()}</s-text>
+                                        <s-text>Referrer: {((held ? hold.referrerPoints : r.metadata?.awaiting?.referrerPoints) ?? 0).toLocaleString()}</s-text>
+                                        <s-text color="subdued">Friend: {((held ? hold.referredPoints : r.metadata?.awaiting?.referredPoints) ?? 0).toLocaleString()}</s-text>
                                     </s-stack>
                                 </s-table-cell>
                             )}
@@ -110,14 +114,23 @@ export function ReviewTable({ tab, rows, shop, q, busy, selected, onToggle, onTo
                             {waiting && (
                                 <s-table-cell>
                                     <s-stack direction="inline" gap="small">
-                                        <s-button variant="primary" size="small" disabled={busy}
-                                            commandFor={DECISION_MODAL_ID} command="--show" onClick={() => onDecide("approve", [r])}>
-                                            Approve
-                                        </s-button>
-                                        <s-button tone="critical" size="small" disabled={busy}
-                                            commandFor={DECISION_MODAL_ID} command="--show" onClick={() => onDecide("reject", [r])}>
-                                            Reject
-                                        </s-button>
+                                        {awaiting ? (
+                                            <s-button variant="secondary" size="small" disabled={busy}
+                                                commandFor={DECISION_MODAL_ID} command="--show" onClick={() => onDecide("release", [r])}>
+                                                Release now
+                                            </s-button>
+                                        ) : (
+                                            <>
+                                                <s-button variant="primary" size="small" disabled={busy}
+                                                    commandFor={DECISION_MODAL_ID} command="--show" onClick={() => onDecide("approve", [r])}>
+                                                    Approve
+                                                </s-button>
+                                                <s-button tone="critical" size="small" disabled={busy}
+                                                    commandFor={DECISION_MODAL_ID} command="--show" onClick={() => onDecide("reject", [r])}>
+                                                    Reject
+                                                </s-button>
+                                            </>
+                                        )}
                                     </s-stack>
                                 </s-table-cell>
                             )}

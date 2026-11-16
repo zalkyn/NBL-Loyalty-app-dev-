@@ -9,6 +9,7 @@ export const DECISION_MODAL_ID = "referral-decision-modal";
 export function ConfirmDecisionModal({ decision, rows, busy, onConfirm }) {
     const count = rows.length;
     const approve = decision === "approve";
+    const release = decision === "release";
     const pts = totalPoints(rows);
     // New claims have no order or points yet — approving creates the discount code.
     const claims = rows.length > 0 && rows.every((r) => r.status === "PENDING_APPROVAL");
@@ -16,9 +17,17 @@ export function ConfirmDecisionModal({ decision, rows, busy, onConfirm }) {
     const deferred = rows.length > 0 && rows.every((r) => r.metadata?.hold?.deferred);
 
     return (
-        <s-modal id={DECISION_MODAL_ID} heading={approve ? `Approve ${count} referral${count === 1 ? "" : "s"}?` : `Reject ${count} referral${count === 1 ? "" : "s"}?`} size="small">
+        <s-modal id={DECISION_MODAL_ID} heading={release ? `Release ${count} reward${count === 1 ? "" : "s"} now?` : approve ? `Approve ${count} referral${count === 1 ? "" : "s"}?` : `Reject ${count} referral${count === 1 ? "" : "s"}?`} size="small">
             <s-stack gap="base">
-                {claims ? (
+                {release ? (
+                    <>
+                        <s-text>
+                            This pays <strong>{pts.referrer.toLocaleString()}</strong> points to the referrer{count === 1 ? "" : "s"} and{" "}
+                            <strong>{pts.friend.toLocaleString()}</strong> points to the new member{count === 1 ? "" : "s"} now, without waiting for a full-price payment.
+                        </s-text>
+                        <s-text color="subdued">Use this when you know the customer deserves the reward already. It can&apos;t be undone, and a later full-price payment will not pay it again.</s-text>
+                    </>
+                ) : claims ? (
                     approve ? (
                         <>
                             <s-text>This creates the referral discount code for {count === 1 ? "this customer" : "these customers"}.</s-text>
@@ -58,14 +67,14 @@ export function ConfirmDecisionModal({ decision, rows, busy, onConfirm }) {
             <s-button
                 slot="primary-action"
                 variant="primary"
-                tone={approve ? undefined : "critical"}
+                tone={approve || release ? undefined : "critical"}
                 onClick={onConfirm}
                 commandFor={DECISION_MODAL_ID}
                 command="--hide"
                 loading={busy || undefined}
                 disabled={busy}
             >
-                {approve ? (claims ? "Approve and create code" : deferred ? "Approve" : "Approve and award points") : "Reject"}
+                {release ? "Release and pay points" : approve ? (claims ? "Approve and create code" : deferred ? "Approve" : "Approve and award points") : "Reject"}
             </s-button>
         </s-modal>
     );

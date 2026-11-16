@@ -1072,7 +1072,7 @@ const handleReferral = async ({ admin, referralContext, order, customer, subscri
 
         if (deferReward) {
             await deferFirstReferralReward({
-                session, shop, referral, orderGid, orderLabel, firstPaid, subscriptionContract, extraMetadata: flagMetadata,
+                session, shop, referral, orderGid, orderLabel, firstPaid, referrerPoints, referredPoints, subscriptionContract, extraMetadata: flagMetadata,
             });
             await Promise.all([
                 syncCustomerConfig(admin, referral.referrerId),

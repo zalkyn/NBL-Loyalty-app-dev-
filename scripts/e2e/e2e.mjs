@@ -306,6 +306,33 @@ await suite("Referral: releasing payment can also pay renewal points (option)", 
     await prisma.pointsRule.update({ where: { id: refRule.id }, data: { conditions: base } });
 });
 
+await suite("Referral: the merchant can release a waiting reward by hand", async () => {
+    const p = await referralPair("Hal", "Vega", "Ida", "Moon", { referrerAddr: addr("4 E St"), friendAddr: addr("66 W Rd", "6000") });
+    const contract = (cycle) => ({ id: "CW3", currentCycle: cycle, sellingPlanIds: [], subscriptionLineItemList: [] });
+    const promo = addOrder({ customer: p.friend, items: [{ price: 49, paid: 1, variant: 49, qty: 1 }], codes: [p.code], billing: addr("66 W Rd", "6000"), metafield: { subscriptionContract: contract(1) } });
+    await enqueuePaid(promo); await runPaid();
+    let r = await prisma.referral.findUnique({ where: { id: p.referral.id } });
+    checkEqual("waiting, with the points remembered", [r.status, r.metadata?.awaiting?.referrerPoints, r.metadata?.awaiting?.referredPoints], ["AWAITING_FULL_PRICE", 2500, 1000]);
+    ok("shows on the Waiting for full payment tab", (await loadReviews(session, new URLSearchParams("tab=awaiting"))).rows.some((x) => x.id === p.referral.id));
+
+    const fd = new FormData(); fd.set("referralIds", String(p.referral.id));
+    const res = await handleDecide({ formData: fd, session, admin: globalThis.__fakeAdmin }, "release");
+    checkEqual("release succeeds", res.status, "success");
+    r = await prisma.referral.findUnique({ where: { id: p.referral.id } });
+    checkEqual("referral closed as rewarded", [r.status, r.rewardGiven, r.metadata?.released?.manual], ["USED", true, true]);
+    await checkEqual("referrer is paid", await points(p.referrer), 2500);
+    await checkEqual("friend is paid", await points(p.friend), 1000);
+
+    const again = await handleDecide({ formData: fd, session, admin: globalThis.__fakeAdmin }, "release");
+    checkEqual("a second release is refused", again.status, "error");
+    await checkEqual("nothing paid twice", await points(p.referrer), 2500);
+
+    // The real full-price payment afterwards does not pay the referral reward again
+    const full = addOrder({ customer: p.friend, items: [{ price: 49, paid: 49, variant: 49, qty: 1 }], metafield: { subscriptionContract: contract(2) } });
+    await enqueuePaid(full); await runPaid();
+    await checkEqual("later payment pays renewal points only (2,500 + 200)", await points(p.referrer), 2700);
+});
+
 await suite("Referral: an unpaid reward expires", async () => {
     const baseRule = (await prisma.pointsRule.findUnique({ where: { id: refRule.id } })).conditions;
     // Expiry is off by default, so nothing closes unless the merchant sets days.
