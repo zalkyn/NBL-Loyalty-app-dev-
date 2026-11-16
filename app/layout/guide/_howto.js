@@ -96,6 +96,16 @@ export const HOW_TO = {
 
     earning: [
         {
+            title: "Choose what points are counted on",
+            steps: [
+                "Open the Order rule and find \"What points are counted on\".",
+                "Discounts: \"After discounts\" (recommended) counts what the customer actually paid for each product. \"Before discounts\" counts the full list price, as before.",
+                "Tax: \"Count tax\" leaves everything as is. \"Leave tax out\" takes tax off, but only matters if your prices already include tax (such as GST).",
+                "Shipping is never counted, and a product paid for nothing earns 0 points, even with a fixed-points rule.",
+                "Press Update Rule. Only new orders use the change.",
+            ],
+        },
+        {
             title: "Create the order rule (customers earn points when they buy)",
             steps: [
                 "Open Points Earning Rules and press Add New Rule. Choose the event \"Direct Purchase\".",
@@ -171,6 +181,26 @@ export const HOW_TO = {
     ],
 
     referrals: [
+        {
+            title: "Approve every new referral yourself",
+            steps: [
+                "Open the Referral rule and switch on \"Approve referrals manually\", then press Update Rule.",
+                "When a customer claims a referral they see that it is waiting for approval. No discount code is created yet.",
+                "Open Referral Reviews. The \"New claims\" tab lists each claim with the referrer and the new customer.",
+                "Press Approve to create the code and tell the customer it is ready, or Reject to issue nothing. You can tick several and decide together.",
+                "Switch the setting off again to go back to issuing codes instantly. Claims already waiting stay in New claims until you decide.",
+            ],
+        },
+        {
+            title: "Choose when referral points are paid",
+            steps: [
+                "Open the Referral rule and find \"When are referral points given?\".",
+                "\"After the first full-price payment\" (recommended) holds the points while the friend is on a cheap first month. Both people are paid when the friend first pays the full price. \"On the first order\" pays straight away, as before.",
+                "Choose what that payment pays: the referral reward only (recommended), or the referral reward plus that payment's renewal points.",
+                "Optional: set \"Close an unpaid reward after (days)\". 0 means never. A closed reward can't be reopened.",
+                "Rewards still waiting are listed in Referral Reviews under \"Waiting for full payment\".",
+            ],
+        },
         {
             title: "Turn referrals on",
             steps: [

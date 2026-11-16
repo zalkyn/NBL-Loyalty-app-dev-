@@ -56,6 +56,15 @@ export const TOPIC_DETAILS = {
                 ],
             },
             {
+                title: "A discounted order and a free one",
+                lines: [
+                    "Rate: 20 points per $1. A $40 product is bought with $10 off.",
+                    "After discounts (default): points on $30 → 600 points. Before discounts (old behaviour): points on $40 → 800 points.",
+                    "A 100% discount code (order total $0.00): 0 points, whichever choice you made, and even with a fixed-points rule.",
+                    "If your prices include GST, \"Leave tax out\" takes the tax off first: a $110 product with $10 GST earns on $100.",
+                ],
+            },
+            {
                 title: "A partial refund",
                 lines: [
                     "A $100 order earned 2,000 points. The customer is refunded $25 of it (a quarter).",
@@ -76,7 +85,7 @@ export const TOPIC_DETAILS = {
             "If something stops an order from being processed it is retried automatically. What still fails is shown on Program Health.",
         ],
         moreFaq: [
-            { q: "Do points depend on the discount code or on shipping?", a: "No. They are worked out from product price and quantity, before discounts. Shipping is not counted." },
+            { q: "Do points depend on the discount code or on shipping?", a: "On discounts, yes by default: points are counted on what was actually paid for each product, after discounts. You can change this to count the list price. Shipping is never counted." },
             { q: "Can one order be paid points twice?", a: "No. Each order is recorded once. A retried order can't earn twice." },
         ],
     },
@@ -135,6 +144,25 @@ export const TOPIC_DETAILS = {
                     "Referrer \"Jo Park\", friend \"Jo Park\", at clearly different addresses (a common name can simply be a coincidence).",
                     "The same full name alone is a single weak signal: both are paid as normal and the referral is listed under Rewarded, flagged. You can look at it, but nothing is waiting for you.",
                     "A shared surname alone (\"Jo Park\" and \"Lee Park\") is not flagged at all. Only a surname together with a similar address holds the reward.",
+                ],
+            },
+            {
+                title: "A first-month promo, then the full price",
+                lines: [
+                    "The promo makes the first month about A$1; the plan's full price is A$49. Rewards: referrer 2,500, friend 1,000. Renewal points: 200.",
+                    "Month 1: the friend pays A$1 with the referral code. Nobody is paid yet; the reward waits under \"Waiting for full payment\", and both people are told it is on its way.",
+                    "Month 2: the friend pays A$49. The referrer gets 2,500 and the friend 1,000. By default that payment pays no renewal points.",
+                    "Month 3: the friend pays A$49 again. The referrer now earns the 200 renewal points.",
+                    "If the friend cancels after the promo and never pays the full price, nobody is paid. With an expiry set (for example 60 days) the reward is closed after that time; with 0 it just waits.",
+                ],
+            },
+            {
+                title: "Approving each new referral yourself",
+                lines: [
+                    "\"Approve referrals manually\" is on. Alex opens Sam's referral link and claims.",
+                    "Alex sees \"Referral Received — your referral is waiting for approval\". No discount code exists yet.",
+                    "You open Referral Reviews → New claims and press Approve: the code is created and Alex is told it is ready. Reject: no code is created and Alex is told it wasn't approved.",
+                    "Approve is refused if Alex has already placed an order since claiming, because a first-order code would be useless.",
                 ],
             },
             {

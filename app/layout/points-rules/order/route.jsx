@@ -18,6 +18,7 @@ import { EarningFields } from "./components/EarningFields";
 import { IntervalCard } from "./components/IntervalCard";
 import { GroupCard } from "./components/GroupCard";
 import { SummaryPanel } from "./components/SummaryPanel";
+import { BasisHelpButton, BasisHelpModal } from "./components/BasisHelpModal";
 import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -151,6 +152,7 @@ export default function OrderRulePage() {
             <s-page heading={ruleHeading(mode, "Order Rule")} inlineSize="base">
                 <GuideButton topic="earning" />
                 <PageHeader busy={isBusy} />
+                <BasisHelpModal />
 
                 <s-grid gridTemplateColumns="2fr 1fr" gap="base">
                     <s-box>
@@ -205,6 +207,8 @@ export default function OrderRulePage() {
                                 never counted, and a product paid for nothing (for example a 100% discount code, or an
                                 A$0.00 order) earns 0 points, even with a fixed-points rule.
                             </s-text>
+                            <s-box paddingBlockEnd="small" />
+                            <BasisHelpButton />
                             <s-box paddingBlockEnd="small" />
                             <s-choice-list
                                 label="Discounts"

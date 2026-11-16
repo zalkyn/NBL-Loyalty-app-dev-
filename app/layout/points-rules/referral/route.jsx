@@ -17,6 +17,7 @@ import { PointsFields } from "./components/PointsFields";
 import { IntervalCard } from "./components/IntervalCard";
 import { GroupCard } from "./components/GroupCard";
 import { SummaryPanel } from "./components/SummaryPanel";
+import { HelpButton, TimingHelpModal, ApprovalHelpModal, TIMING_HELP_ID, APPROVAL_HELP_ID } from "./components/HelpModals";
 import { useShopCurrency } from "@app/hooks/useShopCurrency.jsx";
 import { GuideButton } from "@app/layout/guide/components/GuideButton.jsx";
 
@@ -153,6 +154,8 @@ export default function ReferralRulePage() {
             <s-page heading={ruleHeading(mode, "Referral Rule")} inlineSize="base">
                 <GuideButton topic="referrals" />
                 <PageHeader busy={isBusy} />
+                <TimingHelpModal />
+                <ApprovalHelpModal />
 
                 <s-grid gridTemplateColumns="2fr 1fr" gap="base">
                     <s-box>
@@ -187,6 +190,8 @@ export default function ReferralRulePage() {
                                 before you turn this on are not affected. When OFF, codes are issued instantly, as before.
                             </s-text>
                             <s-box paddingBlockEnd="small" />
+                            <HelpButton modalId={APPROVAL_HELP_ID} />
+                            <s-box paddingBlockEnd="small" />
                             <s-switch
                                 labelAccessibilityVisibility="exclusion"
                                 label={referral.requireApproval ? "On — approve each referral" : "Off — issue codes automatically"}
@@ -206,6 +211,8 @@ export default function ReferralRulePage() {
                                 be paid on that first order. Both the referrer and the new member get their referral points
                                 together, when this happens.
                             </s-text>
+                            <s-box paddingBlockEnd="small" />
+                            <HelpButton modalId={TIMING_HELP_ID} />
                             <s-box paddingBlockEnd="small" />
                             <s-choice-list
                                 label="Referral points are given"
