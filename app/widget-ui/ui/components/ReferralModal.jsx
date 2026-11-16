@@ -170,6 +170,20 @@ export function ReferralModal({ refModal, pointRules, currencySymbol, onUpdateCl
                         </div>
                     )}
 
+                    {step === 'pending' && (
+                        <div>
+                            <div class="nbl-refer-modal__brand">{brand}</div>
+                            <Heading as="h3" bare extraClass="nbl-refer-modal__title">
+                                <Icon name="gift" px={18} /> {lbl('referralPendingTitle') || 'Referral Received'}
+                            </Heading>
+                            <Text as="p" bare extraClass="nbl-refer-modal__subtitle">
+                                {lbl('referralPendingSubtitle') || "Thanks! Your referral is waiting for approval. We'll let you know as soon as your discount code is ready — come back to this page then."}
+                            </Text>
+                            <RewardSummary rows={rewardRows} />
+                            <Button bare extraClass="nbl-refer-modal__btn nbl-refer-modal__btn--finish" onClick={closeModal}>Close</Button>
+                        </div>
+                    )}
+
                     {step === 'locked' && (
                         <div>
                             <div class="nbl-refer-modal__brand">{brand}</div>

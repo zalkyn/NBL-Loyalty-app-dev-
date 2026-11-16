@@ -8,7 +8,7 @@
  *   _data.server.js   -> tab/search/pagination queries; approve & reject (single or bulk)
  *   components/       -> ReviewTable, ConfirmDecisionModal
  *
- * URL params drive everything: ?tab=waiting|flagged|rejected&q=&page=&perPage=
+ * URL params drive everything: ?tab=claims|waiting|flagged|rejected&q=&page=&perPage=
  */
 
 import { useEffect, useState } from "react";
@@ -100,6 +100,12 @@ export default function ReferralReviewsPage() {
     return (
         <s-page heading="Referral Reviews">
             <GuideButton topic="referrals" />
+            {counts.claims > 0 && tab !== "claims" && (
+                <s-banner slot="supplemental-start" tone="warning" heading={`${counts.claims} new referral claim${counts.claims === 1 ? " is" : "s are"} waiting for approval`}>
+                    <s-text>These customers are waiting for their discount code.</s-text>
+                    <s-button slot="secondary-actions" variant="secondary" onClick={() => go({ tab: "claims", page: 1 })}>Show them</s-button>
+                </s-banner>
+            )}
             {counts.waiting > 0 && tab !== "waiting" && (
                 <s-banner slot="supplemental-start" tone="warning" heading={`${counts.waiting} referral${counts.waiting === 1 ? " is" : "s are"} waiting for your decision`}>
                     <s-text>Customers are waiting on these rewards.</s-text>
@@ -126,9 +132,10 @@ export default function ReferralReviewsPage() {
 
                 <s-box paddingBlockStart="base" />
                 <s-paragraph color="subdued">
+                    {tab === "claims" && "These customers claimed a referral and are waiting for their discount code. Approve to create the code and tell them it's ready, or reject to issue nothing. Turn this on or off in Points Rules → Referral."}
                     {tab === "waiting" && "These rewards were held because the two accounts look like the same person or household. The referred customer's discount was already applied by Shopify. Approve to award the points, or reject to award nothing."}
                     {tab === "flagged" && "These were rewarded normally, but one weaker signal was noticed (same name, or a similar address), or you approved them after a hold."}
-                    {tab === "rejected" && "Rewards you rejected. No points were awarded for these."}
+                    {tab === "rejected" && "Claims and rewards you rejected. No discount code or points were given for these."}
                 </s-paragraph>
 
                 {/* ── Search ── */}
@@ -148,7 +155,7 @@ export default function ReferralReviewsPage() {
                 </s-grid>
 
                 {/* ── Bulk bar (waiting tab, once something is ticked) ── */}
-                {tab === "waiting" && selected.size > 0 && (
+                {(tab === "waiting" || tab === "claims") && selected.size > 0 && (
                     <>
                         <s-box paddingBlockStart="base" />
                         <s-banner tone="info" heading={`${selected.size} selected`}>

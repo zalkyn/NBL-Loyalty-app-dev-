@@ -1,6 +1,7 @@
 // Client-safe constants and pure helpers (the loader and the page both import this).
 
 export const TABS = [
+    { key: "claims", label: "New claims" },
     { key: "waiting", label: "Waiting for decision" },
     { key: "flagged", label: "Rewarded, flagged" },
     { key: "rejected", label: "Rejected" },

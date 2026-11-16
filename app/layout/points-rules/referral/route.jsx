@@ -177,6 +177,27 @@ export default function ReferralRulePage() {
 
                         <s-box paddingBlockEnd="base" />
 
+                        {/* Manual approval of new claims */}
+                        <s-section>
+                            <s-heading>Approve referrals manually</s-heading>
+                            <s-text color="subdued">
+                                When ON, a customer who claims a referral does not get their discount code straight away.
+                                The claim waits on the Referral Reviews page, and the code is created only after you
+                                approve it. Rejected claims get no code and no points. Referrals already claimed
+                                before you turn this on are not affected. When OFF, codes are issued instantly, as before.
+                            </s-text>
+                            <s-box paddingBlockEnd="small" />
+                            <s-switch
+                                labelAccessibilityVisibility="exclusion"
+                                label={referral.requireApproval ? "On — approve each referral" : "Off — issue codes automatically"}
+                                checked={referral.requireApproval}
+                                disabled={isBusy}
+                                onChange={(e) => formState.set("referral.requireApproval", e.target.checked)}
+                            />
+                        </s-section>
+
+                        <s-box paddingBlockEnd="base" />
+
                         {/* New customer discount — always global, never overridden */}
                         <s-section>
                             <s-heading>New Customer Discount</s-heading>

@@ -18,6 +18,10 @@ export function buildConditions(referral) {
             // "oneTime" | "subscription" | "both"
             trigger: referral.trigger,
 
+            // true = every new referral claim waits for the merchant's approval
+            // (Referral Reviews page) before any discount code is created.
+            requireApproval: Boolean(referral.requireApproval ?? false),
+
             // P1 — global fallback
             referrer: {
                 points: Number(referral.referrer?.points ?? 0),
@@ -107,6 +111,7 @@ export function buildFormShape(data) {
         isActive: bool(data?.isActive ?? true),
         referral: {
             trigger: str(ref?.trigger ?? "subscription"),
+            requireApproval: bool(ref?.requireApproval ?? false),
 
             // P1 — global fallback defaults
             referrer: {

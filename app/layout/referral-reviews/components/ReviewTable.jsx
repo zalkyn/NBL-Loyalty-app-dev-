@@ -26,6 +26,7 @@ function OrderLink({ shop, orderGid, label }) {
 const date = (value) => (value ? new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—");
 
 const EMPTY = {
+    claims: "No new claims are waiting for approval.",
     waiting: "Nothing is waiting for your decision.",
     flagged: "No flagged referrals yet.",
     rejected: "No rejected referrals.",
@@ -36,9 +37,11 @@ const EMPTY = {
  * Approve / Reject actions; the others are a read-only record.
  */
 export function ReviewTable({ tab, rows, shop, q, busy, selected, onToggle, onTogglePage, onDecide }) {
-    const waiting = tab === "waiting";
+    const claims = tab === "claims";
+    // "Decidable" tabs have selection and the Approve / Reject buttons.
+    const waiting = tab === "waiting" || claims;
     const allSelected = waiting && rows.length > 0 && rows.every((r) => selected.has(r.id));
-    const columns = waiting ? 8 : 5;
+    const columns = waiting && !claims ? 8 : 5;
 
     return (
         <s-table>
@@ -52,10 +55,10 @@ export function ReviewTable({ tab, rows, shop, q, busy, selected, onToggle, onTo
                 )}
                 <s-table-header>Referrer</s-table-header>
                 <s-table-header>Referred customer</s-table-header>
-                <s-table-header>Order</s-table-header>
-                <s-table-header>{waiting ? "Why it was held" : "Note"}</s-table-header>
-                {waiting && <s-table-header>Points</s-table-header>}
-                <s-table-header>{tab === "rejected" ? "Rejected on" : waiting ? "Held on" : "Date"}</s-table-header>
+                {!claims && <s-table-header>Order</s-table-header>}
+                {!claims && <s-table-header>{waiting ? "Why it was held" : "Note"}</s-table-header>}
+                {waiting && !claims && <s-table-header>Points</s-table-header>}
+                <s-table-header>{tab === "rejected" ? "Rejected on" : claims ? "Claimed on" : waiting ? "Held on" : "Date"}</s-table-header>
                 {waiting && <s-table-header>Decision</s-table-header>}
             </s-table-header-row>
             <s-table-body>
@@ -67,10 +70,14 @@ export function ReviewTable({ tab, rows, shop, q, busy, selected, onToggle, onTo
                     </s-table-row>
                 ) : rows.map((r) => {
                     const hold = r.metadata?.hold ?? {};
-                    const note = r.metadata?.approval
-                        ? `Approved by you. ${sentence(r.metadata.approval.heldReason ?? "")}`
-                        : sentence(r.metadata?.reviewFlag?.reason ?? hold.reason);
-                    const when = r.metadata?.rejection?.rejectedAt ?? r.metadata?.approval?.approvedAt ?? hold.heldAt ?? r.updatedAt;
+                    const claimRejected = r.metadata?.rejection?.kind === "claim";
+                    const note = claimRejected
+                        ? "Claim not approved — no discount code was issued."
+                        : r.metadata?.approval
+                            ? `Approved by you. ${sentence(r.metadata.approval.heldReason ?? "")}`
+                            : sentence(r.metadata?.reviewFlag?.reason ?? hold.reason);
+                    const when = r.metadata?.rejection?.rejectedAt ?? r.metadata?.approval?.approvedAt
+                        ?? hold.heldAt ?? r.metadata?.claim?.requestedAt ?? r.updatedAt;
 
                     return (
                         <s-table-row key={r.id}>
@@ -81,11 +88,13 @@ export function ReviewTable({ tab, rows, shop, q, busy, selected, onToggle, onTo
                             )}
                             <s-table-cell><Person person={r.referrer} /></s-table-cell>
                             <s-table-cell><Person person={r.referred} /></s-table-cell>
-                            <s-table-cell>
-                                <OrderLink shop={shop} orderGid={hold.orderId ?? r.orderId} label={hold.orderLabel} />
-                            </s-table-cell>
-                            <s-table-cell>{note}</s-table-cell>
-                            {waiting && (
+                            {!claims && (
+                                <s-table-cell>
+                                    <OrderLink shop={shop} orderGid={hold.orderId ?? r.orderId} label={hold.orderLabel} />
+                                </s-table-cell>
+                            )}
+                            {!claims && <s-table-cell>{note}</s-table-cell>}
+                            {waiting && !claims && (
                                 <s-table-cell>
                                     <s-stack direction="block" gap="small-500">
                                         <s-text>Referrer: {(hold.referrerPoints ?? 0).toLocaleString()}</s-text>

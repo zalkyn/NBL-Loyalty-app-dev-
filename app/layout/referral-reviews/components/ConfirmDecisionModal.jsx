@@ -10,11 +10,25 @@ export function ConfirmDecisionModal({ decision, rows, busy, onConfirm }) {
     const count = rows.length;
     const approve = decision === "approve";
     const pts = totalPoints(rows);
+    // New claims have no order or points yet — approving creates the discount code.
+    const claims = rows.length > 0 && rows.every((r) => r.status === "PENDING_APPROVAL");
 
     return (
         <s-modal id={DECISION_MODAL_ID} heading={approve ? `Approve ${count} referral${count === 1 ? "" : "s"}?` : `Reject ${count} referral${count === 1 ? "" : "s"}?`} size="small">
             <s-stack gap="base">
-                {approve ? (
+                {claims ? (
+                    approve ? (
+                        <>
+                            <s-text>This creates the referral discount code for {count === 1 ? "this customer" : "these customers"}.</s-text>
+                            <s-text color="subdued">They are told it&apos;s ready and can use it at checkout. Referral points are awarded later, as usual, after their order.</s-text>
+                        </>
+                    ) : (
+                        <>
+                            <s-text>No discount code will be created for {count === 1 ? "this claim" : "these claims"}, and no referral points will be awarded.</s-text>
+                            <s-text color="subdued">The customer is told their request wasn&apos;t approved. You can&apos;t undo a rejection.</s-text>
+                        </>
+                    )
+                ) : approve ? (
                     <>
                         <s-text>
                             This awards <strong>{pts.referrer.toLocaleString()}</strong> points to the referrer{count === 1 ? "" : "s"} and{" "}
@@ -42,7 +56,7 @@ export function ConfirmDecisionModal({ decision, rows, busy, onConfirm }) {
                 loading={busy || undefined}
                 disabled={busy}
             >
-                {approve ? "Approve and award points" : "Reject"}
+                {approve ? (claims ? "Approve and create code" : "Approve and award points") : "Reject"}
             </s-button>
         </s-modal>
     );

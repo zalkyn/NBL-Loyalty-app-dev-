@@ -25,6 +25,15 @@ export const REFERRAL_NOTICES = {
         reason: "Referral reward was not approved",
         activity: "Your referral reward wasn't approved, so no points were added for this referral.",
     },
+    // Manual approval of referral claims (see utils/referralApproval.js).
+    CLAIM_APPROVED: {
+        reason: "Referral approved",
+        activity: "Your referral was approved and your discount code is ready. Open your friend's referral link again to see it.",
+    },
+    CLAIM_REJECTED: {
+        reason: "Referral request was not approved",
+        activity: "Your referral request wasn't approved, so no discount code was issued.",
+    },
     SKIPPED_SUBSCRIPTION_ONLY: {
         reason: "Referral reward doesn't apply to this order",
         activity: "Your friend's first order wasn't a subscription order, so it doesn't qualify for the referral reward.",

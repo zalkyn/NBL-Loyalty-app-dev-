@@ -37,6 +37,8 @@ import { withRetry } from "app/utils/retry/withRetry.js";
 import { dbRetry } from "app/utils/retry/dbRetry.js";
 import { getReferralByReferredId } from "@controller/referral/getReferral.js";
 import { createReferral as createReferralRecord } from "@controller/referral/createReferral.js";
+import { getPointRuleByEvent } from "@controller/pointsRule/getPointRuleByEvent";
+import { CLAIM_STATUS, requiresClaimApproval, isClaimPending, isClaimRejected } from "app/utils/referralApproval.js";
 
 /** @constant {string} Module identifier for structured logging */
 const MODULE = "widget-data.get-referral-discount";
@@ -64,6 +66,8 @@ const ERROR_CODES = {
     DISCOUNT_ALREADY_USED: { code: "DISCOUNT_ALREADY_USED", status: 409 },
     DISCOUNT_ALREADY_EXISTS: { code: "DISCOUNT_ALREADY_EXISTS", status: 409 },
     REFERRAL_ALREADY_LOCKED: { code: "REFERRAL_ALREADY_LOCKED", status: 409 },
+    // The merchant turned this customer's claim down (manual approval is on).
+    REFERRAL_NOT_APPROVED: { code: "REFERRAL_NOT_APPROVED", status: 403 },
     // Pending update — see checkUpdateRequired.js / reward-claim.jsx's
     // matching guard for the full rationale. 409 for the same
     // stale-client-conflict reasoning as the other 409s above.
@@ -71,6 +75,7 @@ const ERROR_CODES = {
     // 422
     SELF_REFERRAL: { code: "SELF_REFERRAL", status: 422 },
     INELIGIBLE_CUSTOMER_ORDERS: { code: "INELIGIBLE_CUSTOMER_ORDERS", status: 422 },
+    REFERRAL_UNAVAILABLE: { code: "REFERRAL_UNAVAILABLE", status: 422 },
     // 500
     INTERNAL_ERROR: { code: "INTERNAL_ERROR", status: 500 },
 };
@@ -206,6 +211,25 @@ export async function action({ request }) {
                 "You are not eligible for the referral reward because you have already placed an order.",
                 ERROR_CODES.INELIGIBLE_CUSTOMER_ORDERS
             );
+        }
+
+        // ── 5.1 Manual approval: park the claim, create NO discount code ──────
+        // When the merchant requires approval, nothing is issued here. The
+        // claim waits as PENDING_APPROVAL; the Shopify discount code and the
+        // customer's voucher are only created when the merchant approves it
+        // (layout/referral-reviews/_data.server.js). Off by default — then
+        // this block is skipped and the flow below is exactly as before.
+        //
+        // The rule is read once, and the claim stops if it can't be read: if a
+        // failed lookup were treated as "approval not required", the code
+        // generation below would re-read the rule, succeed, and issue a code
+        // that should have waited for approval.
+        const referralRule = await getPointRuleByEvent("REFERRAL", session.id);
+        if (!referralRule?.isActive || !referralRule?.conditions?.referral?.referred) {
+            throw createError("Referral not available right now.", ERROR_CODES.REFERRAL_UNAVAILABLE);
+        }
+        if (requiresClaimApproval(referralRule.conditions)) {
+            return await parkClaimForApproval({ referrer, referred, referralCode, session });
         }
 
         // ── 6. Generate Shopify discount code ─────────────────────────────────
@@ -408,6 +432,59 @@ function validateCustomers(referrer, referred) {
     }
 }
 
+/**
+ * Records a claim that needs the merchant's approval. No discount code is
+ * created and no voucher is shown — the customer only sees "waiting for
+ * approval" until the merchant decides.
+ */
+async function parkClaimForApproval({ referrer, referred, referralCode, session }) {
+    const claim = await createReferralRecord(
+        {
+            referrerId: referrer.id,
+            referredId: referred.id,
+            status: CLAIM_STATUS.PENDING_APPROVAL,
+            discountInfo: "Referral claim waiting for merchant approval",
+            metadata: { claim: { requestedAt: new Date().toISOString(), referralCode } },
+        },
+        { id: true }
+    );
+    if (!claim) {
+        throw createError(
+            "A referral discount has already been generated for your account.",
+            ERROR_CODES.DISCOUNT_ALREADY_EXISTS
+        );
+    }
+
+    // Visible in the customer's Activity; notifiedAt set so it is a record, not a pop-up toast.
+    await createTransaction(
+        {
+            customerId: referred.id,
+            type: "EARN",
+            points: 0,
+            referralId: claim.id,
+            status: "PENDING",
+            reason: `Referral code ${referralCode} received — waiting for approval`,
+            activity: "Your referral is waiting for approval. We'll let you know as soon as your discount code is ready.",
+            metadata: { referralCode, referrerId: referrer.id, notice: "CLAIM_PENDING", orderRef: "claim" },
+            notifiedAt: new Date(),
+        },
+        session
+    );
+
+    logger.success("Referral claim parked for approval", { referralId: claim.id, referrerId: referrer.id, referredId: referred.id });
+
+    return jsonResponse(pendingBody(referralCode), 200);
+}
+
+function pendingBody(referralCode) {
+    return {
+        success: true,
+        pending: true,
+        referralCode,
+        message: "Your referral is waiting for approval. We'll let you know as soon as your discount code is ready.",
+    };
+}
+
 function findExistingReferral(referredId) {
     // Shared with app/controller/referral/getReferral.js — same dbRetry-wrapped
     // findUnique-by-referredId query used elsewhere in the app (customer detail
@@ -419,6 +496,7 @@ function findExistingReferral(referredId) {
         referrerId: true,
         discountCode: true,
         discountUsed: true,
+        status: true,
     });
 }
 
@@ -447,6 +525,21 @@ function handleExistingReferral({ existingReferral, currentReferrerId, referralC
                 message: "You already have a referral discount from another person. You cannot switch referral codes.",
             },
             ERROR_CODES.REFERRAL_ALREADY_LOCKED.status
+        );
+    }
+
+    // Manual approval: still waiting, or turned down. Neither has a code yet.
+    if (isClaimPending(existingReferral) || existingReferral.status === CLAIM_STATUS.ACTIVATING) {
+        return jsonResponse(pendingBody(referralCode), 200);
+    }
+    if (isClaimRejected(existingReferral)) {
+        return jsonResponse(
+            {
+                success: false,
+                code: ERROR_CODES.REFERRAL_NOT_APPROVED.code,
+                message: "Your referral request wasn't approved.",
+            },
+            ERROR_CODES.REFERRAL_NOT_APPROVED.status
         );
     }
 

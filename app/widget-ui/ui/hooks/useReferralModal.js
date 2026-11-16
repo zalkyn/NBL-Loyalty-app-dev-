@@ -8,7 +8,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import * as cache from './referralCache.js';
 import { requestReferralDiscount } from '../api.js';
 
-const LOCKED_CODES = ['DISCOUNT_ALREADY_USED', 'REFERRAL_ALREADY_LOCKED'];
+const LOCKED_CODES = ['DISCOUNT_ALREADY_USED', 'REFERRAL_ALREADY_LOCKED', 'REFERRAL_NOT_APPROVED'];
 
 // ── Customer-facing error copy ────────────────────────────────────────────
 // Mapped from the backend's structured `code` field. Never show raw/dev
@@ -24,6 +24,7 @@ const ERROR_MESSAGES = {
     DISCOUNT_ALREADY_USED: 'You\u2019ve already used your referral discount \u2014 it can only be used once.',
     DISCOUNT_ALREADY_EXISTS: 'A referral discount has already been generated for your account.',
     REFERRAL_ALREADY_LOCKED: 'You already have a referral discount from someone else. You can\u2019t switch referral codes.',
+    REFERRAL_NOT_APPROVED: "Your referral request wasn't approved, so no discount code was issued.",
     SELF_REFERRAL: "You can't use your own referral code.",
     INELIGIBLE_CUSTOMER_ORDERS: "This offer is only for new customers, and it looks like you've already placed an order.",
     INTERNAL_ERROR: GENERIC_ERROR_MESSAGE,
@@ -75,7 +76,7 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
     // can stay false even while a call is pending if the overlay is disabled
     // via appConfig.showProvisionLoadingOverlay). See App.jsx wiring.
     const [isOpen, setIsOpen] = useState(false);
-    const [step, setStep] = useState('form'); // 'login' | 'form' | 'success' | 'locked'
+    const [step, setStep] = useState('form'); // 'login' | 'form' | 'success' | 'pending' | 'locked'
     const [codeInput, setCodeInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [formMessage, setFormMessage] = useState(null);
@@ -197,7 +198,13 @@ export function useReferralModal({ isLoggedIn, proxyPath, provisioning, provisio
 
     function applyResponse(code, data) {
         setLoading(false);
-        if (data.success) {
+        if (data.success && data.pending) {
+            // Manual approval is on: the claim is recorded but there is no code
+            // yet. Deliberately NOT saved as a claim — next time the customer
+            // opens the link we ask the server again, so they see their code
+            // as soon as it has been approved.
+            setStep('pending');
+        } else if (data.success) {
             cache.setClaim(customerId, { code, discountCode: data.referralDiscountCode, used: false, message: data.message });
             copiedOnceRef.current = false;
             setStep('success');
