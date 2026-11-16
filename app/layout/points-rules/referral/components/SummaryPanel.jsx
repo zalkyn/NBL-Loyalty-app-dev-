@@ -25,6 +25,10 @@ export function SummaryPanel({ event, referral, isSubscription, isActive, onActi
         ? `${referred.discountValue || 0}% off`
         : `${symbol}${referred.discountValue || 0} off`;
 
+    // Matches the rule's "When are referral points given?" choice, so this
+    // summary never says "on first order" while the points wait for the full price.
+    const pointsWhen = referral.rewardTiming === "firstOrder" ? "on first order" : "on first full-price payment";
+
     const renewalText = (cfg) =>
         isSubscription && cfg?.allowRenewalReward
             ? ` + ${cfg.renewalPoints || 0} pts on every renewal`
@@ -65,8 +69,11 @@ export function SummaryPanel({ event, referral, isSubscription, isActive, onActi
                     Applies to every product, unless a product-group or subscription-renewal override matches.
                 </s-text>
                 <s-box paddingBlockEnd="small" />
-                <s-text>Referrer: {ref.points || 0} pts on first order, {renewalText(ref)}</s-text>
-                <s-text>Friend: {referred.points || 0} pts on first order, {renewalText(referred)}</s-text>
+                {referral.requireApproval && (
+                    <s-text color="subdued">Each new claim needs your approval before a code is issued.</s-text>
+                )}
+                <s-text>Referrer: {ref.points || 0} pts {pointsWhen}, {renewalText(ref)}</s-text>
+                <s-text>Friend: {referred.points || 0} pts {pointsWhen}, {renewalText(referred)}</s-text>
 
                 {/* P2 — global intervals */}
                 {isSubscription && (referral.intervals ?? []).length > 0 && (
@@ -112,10 +119,10 @@ export function SummaryPanel({ event, referral, isSubscription, isActive, onActi
                                     {(group.products ?? []).length} product{(group.products ?? []).length !== 1 ? "s" : ""}
                                 </s-text>
                                 <s-text>
-                                    Referrer: {group.referrer?.points || 0} pts on first order, {renewalText(group.referrer)}
+                                    Referrer: {group.referrer?.points || 0} pts {pointsWhen}, {renewalText(group.referrer)}
                                 </s-text>
                                 <s-text>
-                                    Friend: {group.referred?.points || 0} pts on first order, {renewalText(group.referred)}
+                                    Friend: {group.referred?.points || 0} pts {pointsWhen}, {renewalText(group.referred)}
                                 </s-text>
                                 {/* P4 */}
                                 {isSubscription && (group.intervals ?? []).length > 0 && (
