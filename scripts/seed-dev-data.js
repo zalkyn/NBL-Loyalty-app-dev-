@@ -27,6 +27,9 @@
  *   - Failed / retrying ORDER_PAID jobs → critical and info banners
  *   - A backfill rule in EUR → currency-mismatch warning (while the shop is not EUR)
  *   - Unseen 0-point referral notices and earn rows → widget toasts
+ *   - New: 3 referral claims waiting for approval + 1 rejected claim (New claims tab),
+ *     2 rewards waiting for the first full-price payment, 1 reward paid on an A$1 promo
+ *     order, and one A$0.00 order that earned 4,660 points (past-data report)
  */
 
 import fs from "node:fs";
@@ -185,9 +188,23 @@ async function main() {
         { i: 12, state: "REJECTED", days: 11 },
         { i: 13, state: "STUCK", days: 7 }, { i: 14, state: "STUCK", days: 2 },
         { i: 15, state: "UNUSED", days: 6 }, { i: 16, state: "UNUSED", days: 3 },
+        // New: manual approval of claims (no discount code yet)
+        { i: 17, state: "CLAIM", days: 2 }, { i: 18, state: "CLAIM", days: 1 }, { i: 19, state: "CLAIM", days: 0 },
+        { i: 22, state: "CLAIM_REJECTED", days: 6 },
+        // New: reward waiting for the first full-price payment (first order was the A$1 promo)
+        { i: 23, state: "AWAITING", days: 9 }, { i: 24, state: "AWAITING", days: 3 },
+        // Old behaviour: a reward that was paid on the A$1 promo order (shows up in the past-data report)
+        { i: 25, state: "PROMO_REWARDED", days: 15 },
         // Pair 21 ↔ 41: reversed names — the real-world case, held.
         { i: 21, referred: 41, state: "HELD", days: 1 },
     ];
+
+    // An order that cost A$0.00 but earned points under the old rule (shows up in the past-data report)
+    await addTx(customers[30], {
+        type: "EARN", points: 4660, daysBack: 10, eventId: orderEventId,
+        reason: "Order #NB32772", activity: "+4660 points for order #NB32772",
+        metadata: { orderId: "gid://shopify/Order/seedzero1", orderTotal: "0.00" },
+    });
 
     const orderGid = (n) => `gid://shopify/Order/seedref${n}`;
     let refN = 0;
@@ -195,13 +212,15 @@ async function main() {
         refN++;
         const referrer = customers[spec.i];
         const referred = customers[spec.referred ?? spec.i + 20];
-        const code = `${TAG}REF${String(refN).padStart(3, "0")}`;
+        const isClaim = ["CLAIM", "CLAIM_REJECTED"].includes(spec.state);
+        const code = isClaim ? null : `${TAG}REF${String(refN).padStart(3, "0")}`;
         const gid = orderGid(refN);
         const orderLabel = `#SEED${5000 + refN}`;
-        const used = !["UNUSED"].includes(spec.state);
+        const used = !["UNUSED", "CLAIM", "CLAIM_REJECTED"].includes(spec.state);
         const when = spec.days;
+        const orderTotal = spec.state === "PROMO_REWARDED" ? "1.00" : "89.00";
 
-        await prisma.reward.create({
+        if (!isClaim) await prisma.reward.create({
             data: {
                 customerId: referred.id, rewardKey: `${TAG}:REFCODE:${referred.id}:${refN}`, event: "REFERRAL", type: "DEFAULT",
                 title: "Referral discount", code, status: used ? "USED" : "ACTIVE", discountUsed: used,
@@ -214,7 +233,7 @@ async function main() {
             reason: "the two accounts have the same name (including reversed first/last name); the referred order's billing or shipping address is the same as, or very close to, the referrer's address",
             orderId: gid, orderLabel, orderTotal: "89.00", referrerPoints: 2500, referredPoints: 1000, subscriptionInterval: null,
         };
-        const status = { REWARDED: "USED", FLAGGED: "USED", APPROVED: "USED", SKIPPED: "USED", HELD: "HELD", REJECTED: "REJECTED", STUCK: "ACTIVE", UNUSED: "ACTIVE" }[spec.state];
+        const status = { REWARDED: "USED", FLAGGED: "USED", APPROVED: "USED", SKIPPED: "USED", HELD: "HELD", REJECTED: "REJECTED", STUCK: "ACTIVE", UNUSED: "ACTIVE", CLAIM: "PENDING_APPROVAL", CLAIM_REJECTED: "REJECTED", AWAITING: "AWAITING_FULL_PRICE", PROMO_REWARDED: "USED" }[spec.state];
         const metadata = {
             seed: true,
             ...(spec.state === "FLAGGED" ? { reviewFlag: { signals: ["same_surname"], reason: "the two accounts share a surname", orderId: gid } } : {}),
@@ -222,29 +241,33 @@ async function main() {
             ...(spec.state === "SKIPPED" ? { skipped: { reason: "rule is subscription orders only; order was one-time", at: daysAgo(when).toISOString(), orderId: gid } } : {}),
             ...(["HELD", "REJECTED"].includes(spec.state) ? { hold } : {}),
             ...(spec.state === "REJECTED" ? { rejection: { rejectedAt: daysAgo(when).toISOString() } } : {}),
+            ...(isClaim ? { claim: { requestedAt: daysAgo(when).toISOString(), referralCode: referrer.referralCode } } : {}),
+            ...(spec.state === "CLAIM_REJECTED" ? { rejection: { kind: "claim", rejectedAt: daysAgo(when).toISOString() } } : {}),
+            ...(spec.state === "AWAITING" ? { awaiting: { since: daysAgo(when).toISOString(), orderId: gid, orderLabel, firstPaid: 1 } } : {}),
         };
 
         const referral = await prisma.referral.create({
             data: {
                 referrerId: referrer.id, referredId: referred.id, discountCode: code, status,
-                discountUsed: ["REWARDED", "FLAGGED", "APPROVED", "SKIPPED", "HELD", "REJECTED"].includes(spec.state),
-                rewardGiven: ["REWARDED", "FLAGGED", "APPROVED"].includes(spec.state),
-                orderId: ["REWARDED", "FLAGGED", "APPROVED", "SKIPPED", "HELD", "REJECTED"].includes(spec.state) ? gid : null,
+                discountUsed: ["REWARDED", "FLAGGED", "APPROVED", "SKIPPED", "HELD", "REJECTED", "AWAITING", "PROMO_REWARDED"].includes(spec.state),
+                rewardGiven: ["REWARDED", "FLAGGED", "APPROVED", "PROMO_REWARDED"].includes(spec.state),
+                orderId: ["REWARDED", "FLAGGED", "APPROVED", "SKIPPED", "HELD", "REJECTED", "AWAITING", "PROMO_REWARDED"].includes(spec.state) ? gid : null,
+                discountInfo: isClaim ? "Referral claim waiting for merchant approval" : null,
                 createdAt: daysAgo(when + 1), metadata,
             },
         });
 
-        const earned = ["REWARDED", "FLAGGED", "APPROVED"].includes(spec.state);
+        const earned = ["REWARDED", "FLAGGED", "APPROVED", "PROMO_REWARDED"].includes(spec.state);
         if (earned) {
             await addTx(referrer, {
                 type: "EARN", points: 2500, daysBack: when, eventId: referralEventId, referralId: referral.id,
                 reason: `Referral reward — your friend placed their first order (${orderLabel})`, activity: "+2500 points for successful referral",
-                metadata: { orderId: gid, orderTotal: "89.00" }, notified: when > 2,
+                metadata: { orderId: gid, orderTotal }, notified: when > 2,
             });
             await addTx(referred, {
                 type: "EARN", points: 1000, daysBack: when, eventId: referralEventId, referralId: referral.id,
                 reason: `Referral discount used on order ${orderLabel}`, activity: `+1000 points — referral discount applied on order ${orderLabel}`,
-                metadata: { orderId: gid, orderTotal: "89.00" }, notified: when > 2,
+                metadata: { orderId: gid, orderTotal }, notified: when > 2,
             });
         }
 
@@ -255,6 +278,11 @@ async function main() {
             await notice(referrer, "HELD_REFERRER", "Referral reward is being reviewed", "Your referral reward is being reviewed. We'll update you as soon as it's confirmed.");
             await notice(referred, "HELD_REFERRED", "Referral bonus is being reviewed", "Your referral discount was applied. Your referral bonus is being reviewed.");
         }
+        if (spec.state === "AWAITING") {
+            await notice(referrer, "REWARD_AWAITING_REFERRER", "Referral reward is on its way", "Your friend has joined. Your referral reward will be added after their first payment at the full price.");
+            await notice(referred, "REWARD_AWAITING_REFERRED", "Referral bonus is on its way", "Your referral discount was applied. Your referral bonus points will be added after your first payment at the full price.");
+        }
+        if (spec.state === "CLAIM") await addTx(referred, { type: "EARN", points: 0, daysBack: when, referralId: referral.id, status: "PENDING", reason: `Referral code ${referrer.referralCode} received — waiting for approval`, activity: "Your referral is waiting for approval. We'll let you know as soon as your discount code is ready.", metadata: { notice: "CLAIM_PENDING", orderRef: "claim" } });
         if (spec.state === "REJECTED") await notice(referrer, "REJECTED", "Referral reward was not approved", "Your referral reward wasn't approved, so no points were added for this referral.");
         if (spec.state === "SKIPPED") await notice(referrer, "SKIPPED_SUBSCRIPTION_ONLY", "Referral reward doesn't apply to this order", "Your friend's first order wasn't a subscription order, so it doesn't qualify for the referral reward.");
 
